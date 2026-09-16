@@ -172,7 +172,7 @@ function requestUsage (token) {
             res.on('data', c => chunks.push(c))
             res.on('end', () => {
                 if (res.statusCode !== 200) {
-                    resolve(null)
+                    reject(new Error('http ' + res.statusCode))
                     return
                 }
                 try {
@@ -182,7 +182,7 @@ function requestUsage (token) {
                 }
             })
         })
-        req.on('timeout', () => req.destroy())
+        req.on('timeout', () => req.destroy(new Error('timeout')))
         req.on('error', reject)
         req.end()
     })
@@ -196,41 +196,59 @@ function requestUsage (token) {
  * 새 프로세스가 뜬다 — 토큰이 없는 계정(API 키·게이트웨이)에서는 영영 성공하지 못하므로
  * 그 상태가 계속된다 (2026-09-15 코드리뷰 지적).
  */
-function writeScoped (scoped) {
+/**
+ * **실패해도 마지막 정상값은 지운다 — 가 아니라 지킨다.** 예전에는 실패하면 이름·퍼센트를 빈 값으로
+ * 덮어써서, 일시적 오류 한 번에 `Fable` 칸이 사라지고 실패 TTL(10분) 동안 빈 채로 있다가
+ * 다음 성공에서야 돌아왔다 (2026-09-16 실측: 10:28 실패 → 10:38 복귀, 사용자 "왜 안 나오다 또
+ * 나오나"). 몇 분 전 값이라도 빈 칸보다 낫다 — 한도는 분 단위로 크게 안 움직인다.
+ * 그래서 `scoped` 가 없으면 `prev` 의 이름·퍼센트·리셋 시각을 그대로 옮기고, 도장(`ts`)과
+ * 판정(`ok`)만 새로 찍는다. `ok:false` 는 여전히 재시도 간격을 가르는 데만 쓰인다.
+ *
+ * `err` 는 왜 비었는지 남기는 자리다 — 상태코드·타임아웃을 삼키면 이런 문제를 영영 못 찾는다.
+ */
+function writeScoped (scoped, prev, err) {
     const name = scoped ? (scoped.scope?.model?.display_name ?? scoped.scope?.model?.id ?? '') : ''
     // `resets_at` 은 여기서만 ISO 문자열이다 (stdin 쪽은 epoch 초) — 초로 맞춰 둔다
     const resetsAt = scoped ? Math.round(Date.parse(scoped.resets_at ?? '') / 1000) || 0 : 0
+    const keep = !scoped && prev && prev.name ? prev : null
     fs.mkdirSync(ROOT, { recursive: true })
     const tmp = SCOPED_FILE + '.' + process.pid + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify({
         ts: Date.now(),
         // 다음 갱신 간격을 가르는 값 — 못 받았으면 오래 쉰다 (`armScopedRefresh`)
         ok: !!scoped,
-        name: String(name),
-        pct: scoped ? pct(scoped.percent) : null,
-        resetsAt,
+        name: keep ? String(keep.name) : String(name),
+        pct: keep ? keep.pct : (scoped ? pct(scoped.percent) : null),
+        resetsAt: keep ? Number(keep.resetsAt) || 0 : resetsAt,
+        // 실패 사유 (성공이면 비운다). 값을 지킨 경우 `stale: true` 로 표시만 해 둔다
+        ...(scoped ? {} : { err: String(err ?? 'unknown'), stale: !!keep }),
     }), 'utf8')
     fs.renameSync(tmp, SCOPED_FILE)
 }
 
 async function refreshScoped () {
+    const prev = readScopedCache()
     const token = readOauthToken()
     if (!token) {
         // 토큰이 없다 (로그인 안 함·API 키 사용) — 칸이 안 생길 뿐이지만 **도장은 찍는다**
-        writeScoped(null)
+        writeScoped(null, prev, 'no-token')
         return
     }
-    const body = await requestUsage(token)
-    if (!body) {
-        writeScoped(null)
+    let body
+    try {
+        body = await requestUsage(token)
+    } catch (e) {
+        // 네트워크·상태코드·타임아웃 — 마지막 정상값을 지키고 사유만 남긴다 (writeScoped 주석)
+        writeScoped(null, prev, e?.message || 'request-failed')
         return
     }
     // 모델별 주간 한도는 여러 개일 수 있다 — 가장 많이 쓴 칸 하나만 보인다 (줄이 하나뿐이다)
     const scoped = (Array.isArray(body?.limits) ? body.limits : [])
         .filter(l => l?.kind === 'weekly_scoped')
         .sort((a, b) => Number(b?.percent ?? 0) - Number(a?.percent ?? 0))[0]
-    // 모델별 한도가 없는 요금제도 있다 — 그때도 도장을 찍어야 다시 묻지 않는다
-    writeScoped(scoped ?? null)
+    // 모델별 한도가 없는 요금제도 있다 — 그때도 도장을 찍어야 다시 묻지 않는다.
+    // 이 경우는 실패가 아니라 "없다" 가 답이므로 옛 값을 지키지 않는다 (prev 를 안 넘긴다)
+    writeScoped(scoped ?? null, null, scoped ? undefined : 'no-scoped-limit')
 }
 
 /** stdin JSON 에서 사이드바가 쓸 것만 뽑는다 — 원문을 통째로 두면 대화 비용·경로까지 남는다 */
@@ -320,7 +338,7 @@ if (process.argv.includes('--refresh-scoped')) {
     refreshScoped().catch(() => {
         // 네트워크·토큰 문제. **여기서도 도장을 찍는다** — 안 찍으면 TTL 게이트가 비어
         // 렌더마다 새 프로세스가 뜬다 (writeScoped 주석)
-        try { writeScoped(null) } catch { /* 디스크까지 막혔으면 할 수 있는 게 없다 */ }
+        try { writeScoped(null, readScopedCache(), 'unhandled') } catch { /* 디스크까지 막혔으면 할 수 있는 게 없다 */ }
     })
 } else {
     const raw = readStdin()
