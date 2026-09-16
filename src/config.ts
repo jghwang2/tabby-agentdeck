@@ -384,6 +384,12 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              */
             claimCtrlV: true,
             /**
+             * `Ctrl+Shift+T`(⌘+T) 를 agentdeck 새 탭이 받는다 — 순정 `new-tab` 에서 그 키를 뗀다.
+             * false 면 떼지 않고 우리 핫키도 무시한다(순정 그대로). 순정 새 탭은 기본 프로필로 열어
+             * 훅이 탭을 못 찾으므로, 이 플러그인을 쓰는 동안은 켜 두는 것이 맞다
+             */
+            claimNewTabKey: true,
+            /**
              * Shift+Enter / Ctrl+Enter 를 캡처 단계에서 직접 줄바꿈으로 처리한다.
              *
              * 핫키(agentdeck-newline)에만 맡기면 한글 조합 중에 눌렀을 때 Shift 가 실리지
@@ -706,6 +712,20 @@ export class AgentDeckConfigProvider extends ConfigProvider {
             'agentdeck-jump-7': ['Ctrl-7'],
             'agentdeck-jump-8': ['Ctrl-8'],
             'agentdeck-jump-9': ['Ctrl-9'],
+            /**
+             * 사이드바 하단 버튼 세 개의 키.
+             *
+             * **새 탭은 순정 `new-tab`(Ctrl+Shift+T · macOS ⌘+T)을 대체한다.** 순정은 `terminal.openTab()`
+             * 으로 기본 프로필을 열어서 `AGENTDECK_TAB` 이 안 심기고 훅이 탭을 못 찾는다. 같은 키에
+             * 우리 것을 얹고 순정 표에서 그 키를 뗀다(`ensureNewTabHotkey`, `claimNewTabKey`) —
+             * 안 떼면 한 번 눌러 탭이 둘 열린다. `Ctrl+V` 를 가져온 방식(`ensurePasteHotkey`)과 같다.
+             *
+             * `Ctrl-Shift-{O,U}` 는 순정 네 패키지(core·terminal·local·settings) 기본표에 없다
+             * (2026-09-16 grep 0건 — 순정이 쓰는 것은 `Ctrl-Shift-{A,C,D,E,F,I,P,R,S,T,V,W,Z}`).
+             */
+            'agentdeck-new-tab': ['Ctrl-Shift-T', '⌘-T'],
+            'agentdeck-view': ['Ctrl-Shift-O'],
+            'agentdeck-repair': ['Ctrl-Shift-U'],
         },
     }
 }

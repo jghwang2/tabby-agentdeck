@@ -51,6 +51,13 @@ export class AgentDeckHotkeyProvider extends HotkeyProvider {
                 id: 'agentdeck-focus-list',
                 name: 'AgentDeck 사이드바 목록에 포커스 (↑↓ 이동 · Enter 전환 · Esc 복귀)',
             },
+            {
+                // 사이드바 `+ 새 탭` 과 같은 경로(`openNewTab`) — 작업 루트 프로필로 열고
+                // `AGENTDECK_TAB` 을 심는다. Tabby 순정 `new-tab`(Ctrl+Shift+T)은 기본 프로필로
+                // 열어 훅이 탭을 못 찾는다. 처리는 AgentDeckService 의 `hotkey$` 구독
+                id: 'agentdeck-new-tab',
+                name: 'AgentDeck 새 탭 (사이드바 + 새 탭 과 같다)',
+            },
             // 사이드바에 **보이는 순서**로 N 번째 세션 (기본 Ctrl+1…Ctrl+9).
             // Tabby 순정 `tab-N` 과는 세는 대상이 다르다 (그쪽은 탭 바 = `app.tabs`).
             // 처리는 AgentDeckService 의 `hotkey$` 구독 → `jumpToRow()`

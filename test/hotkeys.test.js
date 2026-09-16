@@ -83,6 +83,34 @@ check('전환만 하고 목록에 포커스를 주지 않는다',
     /private jumpToRow[\s\S]{0,900}?selectTab\(tab\)/.test(deckSrc)
     && !/private jumpToRow[\s\S]{0,900}?focusList\(/.test(deckSrc), true)
 
+// ── 하단 버튼 세 개의 키 — 묶여 있고, 순정 기본표와 겹치지 않는다 ──
+// 선언만 있고 묶기가 없으면 "설정에서 직접 매라" 는 뜻인데, 사이드바 버튼 셋은 매일 누르는 것이라
+// 기본값이 있어야 한다(2026-09-16 요청). 순정과 겹치면 둘 다 도는데 어느 쪽이 이겼는지 안 보인다
+const BUTTON_KEYS = { 'agentdeck-view': 'Ctrl-Shift-O', 'agentdeck-repair': 'Ctrl-Shift-U' }
+const firstKey = id => {
+    const i = configSrc.indexOf(`'${id}': [`)
+    if (i < 0) { return null }
+    const m = /\['([^']+)'/.exec(configSrc.slice(i))
+    return m ? m[1] : null
+}
+for (const [id, key] of Object.entries(BUTTON_KEYS)) {
+    check(`${id} 기본 묶기 = ${key}`, firstKey(id), key)
+    check(`${key} 는 순정 기본표에 없다`, tabbyDefaults.includes(`'${key}'`), false)
+    check(`${id} 를 deck.service 가 처리한다`, deckSrc.includes(`hotkey === '${id}'`), true)
+}
+
+// 새 탭은 반대다 — **순정과 같은 키(Ctrl-Shift-T)를 일부러 쓰고** 순정 표에서 그 키를 뗀다.
+// 떼는 코드가 없으면 한 번 눌러 탭이 둘 열리고, 어느 쪽이 먼저인지는 저장 순서에 달려 보이지 않는다
+check('agentdeck-new-tab 기본 묶기 = Ctrl-Shift-T (순정 new-tab 대체)', firstKey('agentdeck-new-tab'), 'Ctrl-Shift-T')
+const localDefaults = read('node_modules/tabby-local/dist/index.js')
+check('순정 new-tab 기본이 실제로 Ctrl-Shift-T 다 (대체할 대상이 맞다)',
+    /'new-tab':\s*\[\s*'Ctrl-Shift-T'/.test(localDefaults), true)
+check('순정 new-tab 에서 그 키를 떼는 코드가 있다 (ensureNewTabHotkey)',
+    /private ensureNewTabHotkey[\s\S]{0,900}hotkeys\['new-tab'\] = kept/.test(deckSrc), true)
+check('떼는 코드가 기동 때 불린다', /this\.ensureNewTabHotkey\(\)/.test(deckSrc), true)
+check('게이트(claimNewTabKey)가 설정에 있다', /claimNewTabKey: true/.test(configSrc), true)
+check('agentdeck-new-tab 를 deck.service 가 처리한다', deckSrc.includes("hotkey === 'agentdeck-new-tab'"), true)
+
 // ── 선언과 처리가 서로를 빠뜨리지 않았나 (jump 말고도 전부) ──
 // 선언에만 있고 처리가 없는 id 는 "설정 목록에 뜨는데 눌러도 아무 일 없는 키" 가 된다
 const declared = [...hotkeysSrc.matchAll(/id: '(agentdeck-[a-z-]+)'/g)].map(m => m[1])

@@ -388,12 +388,13 @@ With nothing staged it does not commit — it never widens to `git commit -a`.
 | `Ctrl+Enter` / `Shift+Enter` | Newline (sends `0x0A`). `agentdeck-newline` |
 | `Ctrl+V` | Paste. If the clipboard holds **only an image**, the image-paste key is handed to the app instead of text — Claude Code and Codex read the clipboard themselves. `agentdeck-paste` |
 | Right-click | Copy with a selection, paste without one. Hold (250 ms default) for the context menu |
+| `Ctrl+Shift+T` (⌘+T) | New tab — same as the sidebar `+ New tab`. **Replaces Tabby's own new-tab**: the stock one opens the default profile so hooks cannot find the tab, so on startup the key is removed from stock `new-tab` and ours (work-root profile + `AGENTDECK_TAB`) takes it. Set `claimNewTabKey: false` to undo. `agentdeck-new-tab` |
 | `Ctrl+1` … `Ctrl+9` | Jump straight to the Nth session **in sidebar order** (group headers are not counted; tabs inside a collapsed group have no number). Tabby's own `Alt+1…` (`tab-N`) counts the tab bar, which opens a different tab once sorting, grouping or search is on. `agentdeck-jump-1` … `-9` |
 | `Ctrl+Shift+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
 | `Ctrl+W` | Close the current tab — the **active tab** from the terminal, the **focused row** when the list has the keyboard. Only while `keyboardNav` + `keyboardCloseTab` are on; off, it flows through as the shell's delete-previous-word (`0x17`) |
 | (unbound) | `agentdeck-toggle` — sidebar / 4:3 on-off |
-| (unbound) | `agentdeck-repair` — screen repair |
-| (unbound) | `agentdeck-view` — open/close the preview panel (same as the sidebar `▤`) |
+| `Ctrl+Shift+U` | Screen repair — same as the sidebar `↻`. `agentdeck-repair` |
+| `Ctrl+Shift+O` | Open/close the preview panel — same as the sidebar `▤`. `agentdeck-view` |
 | (unbound) | `agentdeck-view-mode` — switch the panel between `Files` and `Changes` |
 
 Bind keys under Tabby Settings → Hotkeys, in the `agentdeck-*` entries.

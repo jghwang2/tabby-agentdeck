@@ -654,6 +654,7 @@ export class AgentDeckService {
         this.applyOpacity()
         this.disableBackgroundThrottling()
         this.ensurePasteHotkey()
+        this.ensureNewTabHotkey()
         this.ensureNewlineHotkey()
         this.releaseHomeEndHotkey()
         this.guardHomeEndComposition()
@@ -748,6 +749,11 @@ export class AgentDeckService {
             }
             if (hotkey === 'agentdeck-view') {
                 this.view?.toggle()
+            }
+            // 사이드바 `+ 새 탭` 버튼과 같은 경로 — 버튼 핸들러(`buildSidebar`)와 동일하게 zone 안에서.
+            // 게이트가 꺼져 있으면 순정 `new-tab` 이 살아 있으므로 여기서 또 열면 둘이 된다
+            if (hotkey === 'agentdeck-new-tab' && this.config.store.agentDeck.claimNewTabKey !== false) {
+                this.zone.run(() => { void this.openNewTab() })
             }
             // 처리를 여기서 하는 이유는 위와 같다 — provider 에서 HotkeysService 를 주입하면
             // 순환 의존이다(`hotkeys.ts` 주석). 선언만 그쪽에 있고 동작은 전부 이 파일이다
@@ -1919,6 +1925,33 @@ export class AgentDeckService {
     // `session.resize()` 로 스스로 맞춘다. 우리가 폭만 정해 주면 된다.
     // 이 흔들기들은 순정 수렴과 경쟁하며 프레임을 반쯤 그린 상태를 남겨 화면을 깨뜨렸다.
     // 수동 복구(`repairPane`)는 여전히 흔든다 — 거기는 사용자가 명시로 요청한 경로다.
+
+    /**
+     * `Ctrl+Shift+T`(⌘+T) 를 순정 `new-tab` 에서 **걷어내** 우리 `agentdeck-new-tab` 만 남긴다.
+     *
+     * 순정 처리자(`tabby-local` LocalTerminalModule → `terminal.openTab()`)는 같은 `hotkey$` 를
+     * 구독하고 있어서, 두 id 에 같은 키가 매여 있으면 HotkeysService 가 하나만 고르긴 하지만
+     * (길이 같은 후보 중 config 삽입 순서 앞의 것 — `ensurePasteHotkey` 주석) 그게 어느 쪽일지는
+     * 저장 순서에 달려 있다. 표에서 떼는 것이 유일하게 확실한 방법이다.
+     *
+     * `claimNewTabKey: false` 면 건드리지 않는다 — 그때는 우리 핸들러도 무시하므로(hotkey$ 구독)
+     * 순정 그대로다. 게이트를 켰다 끄면 뗀 키는 되살리지 않는다: 사람이 손으로 바꾼 표를 우리가
+     * 다시 덮는 것이 더 나쁘고, 설정 창에서 한 줄이면 복구된다.
+     */
+    private ensureNewTabHotkey (): void {
+        const hotkeys = this.config.store.hotkeys
+        if (!hotkeys || this.config.store.agentDeck.claimNewTabKey === false) {
+            return
+        }
+        const ours: string[] = Array.isArray(hotkeys['agentdeck-new-tab']) ? hotkeys['agentdeck-new-tab'] : []
+        const theirs: string[] = Array.isArray(hotkeys['new-tab']) ? hotkeys['new-tab'] : []
+        const kept = theirs.filter(k => !ours.includes(k))
+        if (kept.length !== theirs.length) {
+            hotkeys['new-tab'] = kept
+            this.config.save()
+            this.diag(`hotkeys new-tab claimed: theirs=${JSON.stringify(theirs)} -> ${JSON.stringify(kept)} ours=${JSON.stringify(ours)}`)
+        }
+    }
 
     /**
      * Ctrl+V 를 **핫키 테이블에서 걷어낸다** (실제 처리는 claimCtrlVKey 가 한다).

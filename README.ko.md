@@ -438,12 +438,13 @@ agentdeck 은 그 답을 이미 갖고 있다 — Enter 를 칠 때 입력창에
 | `Ctrl+Enter` / `Shift+Enter` | 줄바꿈 (`0x0A` 전송). `agentdeck-newline` |
 | `Ctrl+V` | 붙여넣기. 클립보드에 **이미지만** 있으면 텍스트 대신 이미지 붙여넣기 키를 앱에 넘긴다 — Claude Code·Codex 가 클립보드를 직접 읽는다. `agentdeck-paste` |
 | 우클릭 | 선택이 있으면 복사, 없으면 붙여넣기. 길게(기본 250ms) 누르면 컨텍스트 메뉴 |
+| `Ctrl+Shift+T` (⌘+T) | 새 탭 — 사이드바 `+ 새 탭` 과 같다. **순정 새 탭을 대체한다**: 순정은 기본 프로필로 열어 훅이 탭을 못 찾으므로, 기동 때 순정 `new-tab` 에서 이 키를 떼고 우리 것(작업 루트 프로필 + `AGENTDECK_TAB`)이 받는다. 되돌리려면 `claimNewTabKey: false`. `agentdeck-new-tab` |
 | `Ctrl+1` … `Ctrl+9` | **사이드바에 보이는 순서**로 N 번째 세션으로 바로 간다 (헤더는 세지 않고, 접힌 그룹 안의 탭은 번호가 없다). Tabby 순정 `Alt+1…`(`tab-N`)은 탭 바 순서라 정렬·그룹·검색이 걸리면 다른 탭을 연다. `agentdeck-jump-1` … `-9` |
 | `Ctrl+Shift+L` | 사이드바 목록에 포커스를 준다 / 같은 키로 터미널로 돌아온다. `agentdeck-focus-list` |
 | `Ctrl+W` | 지금 탭을 닫는다 — 터미널에서 누르면 **활성 탭**, 목록이 키보드를 가졌으면 **포커스 줄의 탭**. `keyboardNav` + `keyboardCloseTab` 이 켜져 있을 때만이고, 끄면 터미널의 앞 단어 지우기(`0x17`)로 그대로 흐른다 |
 | (미배정) | `agentdeck-toggle` — 사이드바/4:3 즉시 on-off |
-| (미배정) | `agentdeck-repair` — 화면 복구 |
-| (미배정) | `agentdeck-view` — 미리보기 패널 여닫기 (사이드바 `▤` 와 같다) |
+| `Ctrl+Shift+U` | 화면 복구 — 사이드바 `↻` 와 같다. `agentdeck-repair` |
+| `Ctrl+Shift+O` | 미리보기 패널 여닫기 — 사이드바 `▤` 와 같다. `agentdeck-view` |
 | (미배정) | `agentdeck-view-mode` — 패널의 `파일` / `변경` 모드 전환 |
 
 키 배정은 Tabby 설정 → 단축키의 `agentdeck-*` 항목에서 바꾼다.
