@@ -390,6 +390,14 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              */
             claimNewTabKey: true,
             /**
+             * 순정 `close-pane`(포커스된 분할 패널 닫기)이 **비어 있으면** 이 키를 채운다.
+             * Tabby 기본표는 이 항목이 빈 채로 오고, agentdeck 은 짧은 우클릭을 복사/붙여넣기로
+             * 쓰기 때문에 컨텍스트 메뉴로 패널을 닫기가 번거롭다. `Ctrl-Shift-Q` 는 순정 네 패키지
+             * 기본표·agentdeck 어디에도 없는 키(2026-09-16 grep 0건).
+             * 이미 사람이 채워 둔 표는 건드리지 않는다. 빈 문자열이면 아무것도 하지 않는다.
+             */
+            closePaneKey: 'Ctrl-Shift-Q',
+            /**
              * Shift+Enter / Ctrl+Enter 를 캡처 단계에서 직접 줄바꿈으로 처리한다.
              *
              * 핫키(agentdeck-newline)에만 맡기면 한글 조합 중에 눌렀을 때 Shift 가 실리지

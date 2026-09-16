@@ -655,6 +655,7 @@ export class AgentDeckService {
         this.disableBackgroundThrottling()
         this.ensurePasteHotkey()
         this.ensureNewTabHotkey()
+        this.ensureClosePaneHotkey()
         this.ensureNewlineHotkey()
         this.releaseHomeEndHotkey()
         this.guardHomeEndComposition()
@@ -1951,6 +1952,32 @@ export class AgentDeckService {
             this.config.save()
             this.diag(`hotkeys new-tab claimed: theirs=${JSON.stringify(theirs)} -> ${JSON.stringify(kept)} ours=${JSON.stringify(ours)}`)
         }
+    }
+
+    /**
+     * 순정 `close-pane`(포커스된 분할 패널 닫기)이 비어 있으면 `closePaneKey` 로 채운다.
+     *
+     * 왜 필요한가 — Tabby 기본표는 `close-pane: []` 로 온다(config.yaml hotkeys). 패널을 닫는
+     * 다른 길은 우클릭 컨텍스트 메뉴인데 agentdeck 이 짧은 우클릭을 복사/붙여넣기로 가져가
+     * (`claimRightClick`) 길게 눌러야만 메뉴가 뜬다. 셸에 `exit` 를 치는 방법만 남는다.
+     *
+     * 채우기만 하고 빼앗지는 않는다 — `ensureNewTabHotkey` 와 달리 순정 처리자와 경쟁하는
+     * 것이 아니라 순정 처리자를 **쓰는** 것이므로 표에 키를 넣어 주면 끝이다. 사람이 이미
+     * 무언가 매어 두었으면(비어 있지 않으면) 그대로 둔다. `closePaneKey` 가 빈 문자열이면 건너뛴다.
+     */
+    private ensureClosePaneHotkey (): void {
+        const hotkeys = this.config.store.hotkeys
+        const key = String(this.config.store.agentDeck.closePaneKey ?? '').trim()
+        if (!hotkeys || !key) {
+            return
+        }
+        const theirs: string[] = Array.isArray(hotkeys['close-pane']) ? hotkeys['close-pane'] : []
+        if (theirs.length > 0) {
+            return
+        }
+        hotkeys['close-pane'] = [key]
+        this.config.save()
+        this.diag(`hotkeys close-pane filled: ${JSON.stringify(hotkeys['close-pane'])}`)
     }
 
     /**
