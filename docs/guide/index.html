@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentDeck User Guide</title>
+<meta name="description" content="AgentDeck user guide - run Claude Code, Codex and Gemini CLI side by side in Tabby and see at a glance which session is working and which one is waiting for you.">
+<link rel="stylesheet" href="guide.css">
+<style>:root { --why-label: "Why it works this way"; }</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <p class="lang"><a href="../">&larr; Home</a> &nbsp;·&nbsp; <b>English</b> &nbsp;·&nbsp; <a href="ko.html">한국어</a></p>
+    <!-- The version is not typed by hand - `tools/sync-version.js` stamps it from package.json -->
+    <h1>AgentDeck<small>Tabby plugin · <span class="ad-version">1.2.0</span></small></h1>
+    <p class="lead">
+        A tool for running several agent CLIs (Claude Code · Codex · Gemini) in one terminal
+        and seeing, at a glance, <b>which session is doing what and which one is waiting for you</b>.
+        Every screenshot in this guide is a capture of the real thing.
+    </p>
+</header>
+
+<nav class="toc">
+    <ol>
+        <li><a href="#s1">At a glance</a></li>
+        <li><a href="#s2">Session status</a></li>
+        <li><a href="#s3">Session groups</a></li>
+        <li><a href="#s4">Search and filter</a></li>
+        <li><a href="#s5">Keyboard control</a></li>
+        <li><a href="#s6">Reordering</a></li>
+        <li><a href="#s7">Output preview</a></li>
+        <li><a href="#s8">Diff view and commit</a></li>
+        <li><a href="#s9">Input fixes</a></li>
+        <li><a href="#s10">Settings</a></li>
+        <li><a href="#s11">Key reference</a></li>
+        <li><a href="#s12">When something breaks</a></li>
+    </ol>
+</nav>
+
+
+<h2 id="s1"><span class="n">01</span>At a glance</h2>
+
+<p>
+    The screen is in two parts. The <b>terminal</b> on one side, the <b>session list (sidebar)</b> on the other.
+    Tabby's own tab bar is hidden and this sidebar manages tabs instead &mdash;
+    once you have several tabs open, a horizontal tab bar has no room to say <i>what each one is working on</i>.
+</p>
+
+<figure class="side">
+    <img src="img/01-overview.png" alt="The session list - four sessions grouped by working folder, each row showing title, task name, status and elapsed time">
+    <figcaption>
+        Four sessions, grouped by working folder. Each row carries <b>title · task name · status · elapsed time</b>,
+        and <code>⏸1 ●1 ✔1 ○1</code> at the right of a header is the per-status count.
+    </figcaption>
+</figure>
+
+<div class="why">
+    The terminal width is derived from the window height at a fixed <b>4:3 ratio</b>. However wide you make
+    the window, the terminal does not stretch sideways, so the boxes and line wrapping a TUI draws stay put.
+    The leftover width goes to the sidebar, and whatever is still left is absorbed by the terminal.
+</div>
+
+
+<h2 id="s2"><span class="n">02</span>Session status</h2>
+
+<p>Each session reports one of six states.</p>
+
+<table>
+    <tr><th>Badge</th><th>Meaning</th><th>When</th></tr>
+    <tr><td><span class="st run">● running</span></td><td>the agent is working</td><td>output keeps coming</td></tr>
+    <tr><td><span class="st wait">⏸ waiting</span></td><td><b>it is waiting for you</b></td><td>asking permission to use a tool</td></tr>
+    <tr><td><span class="st lim">⛔ rate limited</span></td><td>usage limit hit</td><td>shown with the reset time</td></tr>
+    <tr><td><span class="st done">✔ done</span></td><td>the turn finished</td><td>answered and stopped</td></tr>
+    <tr><td><span class="st err">✘ error</span></td><td>it failed</td><td>an error message appeared</td></tr>
+    <tr><td><span class="st idle">○ idle</span></td><td>nothing is happening</td><td>no output for a while</td></tr>
+</table>
+
+<p>
+    <b>A waiting badge says what it is waiting for.</b> The second row in the screenshot above reads
+    <code>⏸ waiting · Claude needs your permission to use Bash</code>.
+    When you come back from doing something else, you know which session stopped and why without clicking into it.
+</p>
+
+<h3>Setting a status by hand</h3>
+
+<figure class="side ctx">
+    <img src="img/07-context.png" alt="Right-click on a session row - the status menu">
+    <figcaption>Right-click a row to set the status yourself. <code>back to auto</code> hands it back to detection.</figcaption>
+</figure>
+
+<div class="why">
+    Status is judged from what is printed on screen, <b>with no hook installed</b>. That is why it works for
+    Codex and Gemini too, not just Claude Code. Installing the hook (one click in settings) lets the agent
+    report directly and makes the reading exact &mdash; but the tool is built to be usable without it.
+</div>
+
+
+<h2 id="s3"><span class="n">03</span>Session groups</h2>
+
+<p>
+    Sessions are grouped by <b>working folder (project)</b> &mdash; <code>api-server</code>,
+    <code>tools</code> and <code>web-client</code> in the screenshot above. The number next to a header
+    is how many sessions are in that group. Click the header to collapse it.
+</p>
+
+<figure class="side">
+    <img src="img/08-collapse.png" alt="Two groups collapsed">
+    <figcaption><code>tools</code> and <code>web-client</code> are collapsed. Collapsed state survives a restart.</figcaption>
+</figure>
+
+<div class="why">
+    Grouping is by <b>the folder the tab was born in</b> &mdash; <code>cd</code> in the shell does not move a
+    session to another group. If membership shifted while a session was alive you would keep asking
+    "where did that row just go". When there is only one group the header is not drawn at all, so a
+    single-project setup looks exactly as it did before.
+</div>
+
+
+<h2 id="s4"><span class="n">04</span>Search and filter</h2>
+
+<p>
+    Type in the search box at the top of the sidebar to narrow by <b>title · task name · working folder</b>
+    at once. Click a status chip (<code>⏸1 ●1 …</code>) to keep only that status.
+</p>
+
+<figure class="side">
+    <img src="img/02-search.png" alt="One session left after searching">
+    <figcaption>Searching left a single matching task. <kbd>Esc</kbd> or <code>✕</code> clears it.</figcaption>
+</figure>
+
+<div class="note">
+    <b>A collapsed group opens temporarily if it holds a match.</b> Otherwise the search would look like it
+    found nothing. Clearing the search puts the group back the way it was &mdash; the collapse setting itself
+    is never touched.
+</div>
+
+
+<h2 id="s5"><span class="n">05</span>Keyboard control</h2>
+
+<p>
+    <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> moves focus into the list so you can look through it without the mouse.
+</p>
+
+<table>
+    <tr><th>Key</th><th>What it does</th></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>move between rows. <b>The active tab does not change</b></td></tr>
+    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>first row / last row</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>switch to that session. On a group header, collapse or expand</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>if a search or filter is set, <b>clear that first</b>. Otherwise return to the terminal</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>go to the search box</td></tr>
+</table>
+
+<figure class="side">
+    <img src="img/03-keyboard.png" alt="Keyboard focus on the second row while the active tab is a different row">
+    <figcaption>
+        The outline (keyboard focus) is on the second row while <b>the highlighted active tab is a different row</b> &mdash;
+        that split is the point of this screenshot.
+    </figcaption>
+</figure>
+
+<div class="why">
+    <b>Focus and selection are deliberately separate.</b> If the tab changed on every row you passed, that tab's
+    output would flood the screen and the terminal width would be re-applied each time, making the display jump.
+    Looking through your sessions would become impossible. So <kbd>↑</kbd><kbd>↓</kbd> move only the outline,
+    and <kbd>Enter</kbd> is the single thing that actually opens a tab.
+    <br><br>
+    <kbd>↑</kbd> inside the search box is deliberately not intercepted &mdash; in a single-line input that key
+    moves the cursor to the start, and you really do use it when fixing a search term you are typing.
+</div>
+
+
+<h2 id="s6"><span class="n">06</span>Reordering</h2>
+
+<p>
+    Drag a sidebar row to move it, and <b>Tabby's own tab order moves with it</b>.
+    Hold the cursor at the top or bottom edge of the list while dragging and
+    <b>the list scrolls by itself</b>, so you can reach an off-screen position in one gesture.
+</p>
+
+<div class="note">
+    With status sorting (<code>sortByStatus</code>) on, you cannot reorder &mdash; status decides the order there,
+    so a moved row would snap back on the next render. Dragging is <b>blocked with an explanation</b> instead.
+</div>
+
+
+<h2 id="s7"><span class="n">07</span>Output preview</h2>
+
+<p>
+    Read the documents, images, tables and code an agent produced right next to the terminal.
+    <b>File paths printed on screen are picked up automatically</b>, so you never have to ask for a file to be opened.
+</p>
+
+<figure class="panel v">
+    <img src="img/04-viewer.png" alt="A markdown document rendered in the preview panel">
+    <figcaption>
+        Markdown is rendered with tables, inline code and quotes intact. The chips along the top are recently
+        seen files; the status line at the bottom gives size, time and full path.
+    </figcaption>
+</figure>
+
+<table>
+    <tr><th>What</th><th>How</th></tr>
+    <tr><td>Drag and drop</td><td>Drop a file on the panel and it opens. <b>Drop it on the terminal</b> and you are asked &mdash; open in panel / paste the path</td></tr>
+    <tr><td>Edit and save</td><td><code>✎</code> to edit, <kbd>Ctrl</kbd>+<kbd>S</kbd> to save. BOM and line endings are restored exactly as they were</td></tr>
+    <tr><td>Find</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td></tr>
+    <tr><td>New file</td><td>Put a path that does not exist into <code>＋</code> and press <kbd>Enter</kbd> twice &mdash; it is created and opened for editing</td></tr>
+    <tr><td>Open it after working with it closed</td><td><b>Everything touched so far is waiting as chips and the body shows the most recent file</b>
+        (if you were on <b>Changes</b>, the diff is re-read) &mdash; Settings → Preview panel → <b>preload into the panel</b> (on by default)</td></tr>
+    <tr><td>Make it open by itself</td><td>Settings → Preview panel → <b>open the panel automatically</b>
+        (off by default &mdash; opening and closing is yours to do). Turn <b>preload</b> off and nothing happens automatically</td></tr>
+</table>
+
+<div class="why">
+    <b>Each tab remembers its own.</b> Move to another session and the body switches to the file that session
+    was last looking at &mdash; so you never mistake another session's document, still sitting open beside you,
+    for the output of the one you are now in.
+</div>
+
+
+<h2 id="s8"><span class="n">08</span>Diff view and commit</h2>
+
+<p>
+    The <code>Changes</code> tab of the same panel shows <code>git diff</code> for that session's working folder.
+    <b>It does not care who made the change</b> &mdash; agent or human, you are looking at the working tree itself.
+</p>
+
+<figure class="panel">
+    <img src="img/05-diff.png" alt="Changes tab - file list, insertions and deletions, diff with line numbers, commit box">
+    <figcaption>
+        <code>2 files · +192 -16</code> at the top, then the file list (including six untracked new files),
+        then the diff with line numbers. The commit message box is at the bottom.
+    </figcaption>
+</figure>
+
+<table>
+    <tr><th>What</th><th>How</th></tr>
+    <tr><td>Stage</td><td>Click the tag at the left of a file to <code>git add</code> or unstage it</td></tr>
+    <tr><td>Commit</td><td>Write a message and press <code>commit</code> &mdash; <b>it takes two presses</b> (the first one asks to confirm)</td></tr>
+    <tr><td><code>file:line</code> reference</td><td>Click a diff line and that position is typed into the terminal. <kbd>Shift</kbd>+click for a range</td></tr>
+</table>
+
+<div class="why">
+    <b>Clicking a line to insert its position</b> is the most-used thing in this panel. Saying "fix this line"
+    used to mean typing a filename and a line number by hand; that round trip is gone.
+    Commit takes two presses so that it cannot happen by accident.
+</div>
+
+
+<h2 id="s9"><span class="n">09</span>Input fixes</h2>
+
+<p>
+    While composing text with an IME (Korean, Japanese, Chinese), pressing <kbd>Home</kbd>, <kbd>End</kbd> or
+    <kbd>Shift</kbd>+<kbd>Enter</kbd> used to make <b>the syllable still being composed follow the cursor
+    or drop onto the new line</b>. Keys are now held until composition finishes.
+</p>
+
+<table>
+    <tr><th>Key</th><th>What it does</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd> · <kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>newline (next line without sending)</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>paste. If the clipboard holds <b>only an image</b>, it is pasted as an image</td></tr>
+    <tr><td>Right-click</td><td>copy when there is a selection, paste when there is not. Hold for the menu</td></tr>
+</table>
+
+
+<h2 id="s10"><span class="n">10</span>Settings</h2>
+
+<p>Sidebar <code>settings</code> button → the <b>AgentDeck</b> section.</p>
+
+<figure>
+    <img src="img/06-settings.png" alt="The AgentDeck section of the settings window - session list and grouping">
+    <figcaption>
+        Every entry also says <b>why that is the default</b>. Most of them apply immediately.
+    </figcaption>
+</figure>
+
+<p>The ones actually worth touching:</p>
+
+<table>
+    <tr><th>Entry</th><th>Default</th><th>Meaning</th></tr>
+    <tr><td>keyboard control</td><td>on</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> list navigation</td></tr>
+    <tr><td>wrap around at the ends</td><td>off</td><td><kbd>↓</kbd> at the bottom jumps to the top</td></tr>
+    <tr><td>show subagent count</td><td>on</td><td><code>❖3</code> on the row</td></tr>
+    <tr><td>auto-scroll while dragging</td><td>on</td><td>the list scrolls at the edges</td></tr>
+    <tr><td>group by project</td><td>on</td><td>session groups</td></tr>
+    <tr><td>sort by status</td><td>off</td><td>most urgent first (blocks manual reordering)</td></tr>
+    <tr><td>show elapsed time</td><td>on</td><td><code>2m</code> at the right of a row</td></tr>
+</table>
+
+<div class="note">
+    <b>The subagent count</b> (<code>❖3</code>) is how many background agents that session is running.
+    It is counted by <b>matching what was launched against what finished</b> in the transcript, so it is
+    right even when no hook is reporting. Hover the row to see what is running and how long the oldest has been going.
+</div>
+
+
+<h2 id="s11"><span class="n">11</span>Key reference</h2>
+
+<table>
+    <tr><th>Key</th><th>What it does</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd></td><td>focus the session list / same key returns to the terminal</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd> · <kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>newline</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>paste (images included)</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>find inside the preview panel</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save while editing in the panel</td></tr>
+</table>
+
+<p>
+    Some actions ship unbound &mdash; toggling the sidebar, screen repair, opening the panel, switching panel mode.
+    Go to Tabby settings → <b>Hotkeys</b>, search for <code>agentdeck-</code> and bind whatever you like.
+</p>
+
+
+<h2 id="s12"><span class="n">12</span>When something breaks</h2>
+
+<h3>The screen is garbled</h3>
+<p>
+    If a TUI looks broken, press <code>↻</code> in the sidebar (or right-click a row → <code>repair screen</code>).
+    It clears the input-line remnant and has the app redraw. Turning on <b>auto repair</b> in settings
+    detects the breakage and handles it for you.
+</p>
+
+<h3>Reporting a problem</h3>
+<p>
+    Settings → <b>Report a problem</b> → <code>collect</code> builds a zip of diagnostics
+    &mdash; version, environment, settings and recorded exceptions.
+    <b>Terminal contents are left out by default</b>: that file would carry your code verbatim,
+    so it is only included when you explicitly turn it on.
+    Attach the zip to a
+    <a href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">GitHub issue</a>.
+</p>
+
+<h3>New tabs will not open</h3>
+<p>
+    Tabby 1.0.235 has a problem tangled up with restoring previous tabs.
+    Turning on <b>do not restore tabs on startup</b> in settings fixes it &mdash; only the shell is restored
+    anyway, and the agent session inside it is already dead, so there is nothing to lose.
+</p>
+
+
+<footer>
+    AgentDeck <span class="ad-version">1.2.0</span> · every screenshot here is a capture of the running app.<br>
+    The full settings table and the reasoning behind the design are in the repository's
+    <a href="https://github.com/jghwang2/tabby-agentdeck#readme"><code>README.md</code></a>;
+    the verification checklist is in <code>docs/REGRESSION.md</code>.
+</footer>
+
+</div>
+</body>
+</html>

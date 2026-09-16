@@ -1,0 +1,116 @@
+/* 랜딩 페이지 공용 스타일 — index.html(영문) 과 ko.html 이 함께 쓴다.
+   가이드(`guide/guide.css`)와 같은 색을 쓰되, 이쪽은 읽는 문서가 아니라 첫인상이라
+   본문 폭을 좁히지 않고 히어로/카드 배치를 따로 둔다.
+   언어마다 다른 글자는 `--cta-*` 처럼 변수로 빼지 않는다 — 버튼 라벨은 마크업에 그대로 적는 편이
+   번역 누락을 눈으로 잡기 쉽다. 변수로 빼는 것은 `::before` 처럼 마크업에 못 적는 것뿐이다. */
+:root {
+    --bg: #16181d; --panel: #1d2027; --line: #2c313b; --fg: #d6dae2;
+    --dim: #8c95a5; --accent: #56b6c2; --warn: #e5c07b; --ok: #98c379; --err: #e06c75;
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.75 -apple-system, "Segoe UI", "Malgun Gothic", "맑은 고딕", sans-serif;
+}
+a { color: var(--accent); }
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 28px 100px; }
+
+.topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 0; font-size: 13px; color: var(--dim);
+}
+.topbar nav a { margin-left: 18px; text-decoration: none; }
+.topbar nav a:hover { text-decoration: underline; }
+.brand { font-weight: 600; color: var(--fg); letter-spacing: -.2px; }
+
+.hero { padding: 44px 0 8px; }
+.hero h1 {
+    font-size: 44px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -1px;
+}
+.hero h1 .ver {
+    font-size: 14px; color: var(--dim); font-weight: normal;
+    letter-spacing: 0; vertical-align: middle; margin-left: 12px;
+}
+.hero p.tag { font-size: 19px; color: var(--fg); margin: 0 0 10px; max-width: 720px; }
+.hero p.sub { color: var(--dim); margin: 0 0 26px; max-width: 720px; }
+
+/* 설치 한 줄 — 첫 화면에서 가장 먼저 눈에 들어와야 하는 것 */
+.install {
+    display: inline-block; background: #0f1115; border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 18px; margin: 0 0 22px;
+    font-family: Consolas, "D2Coding", monospace; font-size: 14px; color: #cfd4dc;
+}
+.install .p { color: var(--dim); user-select: none; }
+
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 8px; }
+.cta a {
+    display: inline-block; padding: 10px 20px; border-radius: 8px;
+    text-decoration: none; font-size: 14px; font-weight: 600; border: 1px solid var(--line);
+    color: var(--fg); background: var(--panel);
+}
+.cta a.primary { background: var(--accent); border-color: var(--accent); color: #0d1014; }
+.cta a:hover { border-color: var(--accent); }
+
+/* 스크린샷은 원본 크기가 제각각이다(사이드바 크롭 275px, diff 625px, 설정 창 1100px).
+   `width: 100%` 로 늘리면 작은 것이 흐려지므로 원본 크기를 상한으로 두고 아래에 맞춰 세운다. */
+.shots {
+    display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end;
+    margin: 44px 0 0;
+}
+.shots figure { margin: 0; flex: 0 1 auto; }
+.shots img {
+    max-width: 100%; display: block; border: 1px solid var(--line);
+    border-radius: 10px; background: #000; image-rendering: -webkit-optimize-contrast;
+}
+/* 캡션이 그림보다 넓어지면 figure 가 그만큼 부풀어 한 장이 다음 줄로 밀린다 —
+   그래서 폭은 figure 에 주고 그림·캡션은 거기 맞춘다 */
+.shots .deck { width: 275px; }
+.shots .panel { width: 340px; }
+.shots .diff { width: 300px; }
+.shots figure img { width: 100%; }
+.shots figcaption { color: var(--dim); font-size: 13px; margin-top: 12px; }
+
+h2 {
+    font-size: 24px; margin: 76px 0 8px; padding-top: 22px;
+    border-top: 1px solid var(--line); letter-spacing: -.3px;
+}
+h2 + p.lead { color: var(--dim); margin: 0 0 26px; max-width: 760px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 22px;
+}
+.card h3 { margin: 0 0 8px; font-size: 16px; }
+.card p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.7; }
+
+pre {
+    background: #0f1115; border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 18px; overflow-x: auto;
+    font-family: Consolas, "D2Coding", monospace; font-size: 13.5px; color: #cfd4dc;
+}
+code {
+    background: #23262e; padding: 1px 6px; border-radius: 4px;
+    font-family: Consolas, "D2Coding", monospace; font-size: .9em; color: #c8ccd4;
+}
+pre code { background: none; padding: 0; }
+kbd {
+    background: #2a2e37; border: 1px solid #3a4049; border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 7px; font-size: .85em;
+    font-family: Consolas, monospace; color: #e2e6ec; white-space: nowrap;
+}
+
+.note {
+    background: var(--panel); border-left: 3px solid var(--accent);
+    padding: 14px 18px; margin: 22px 0; border-radius: 0 6px 6px 0; font-size: 14.5px;
+}
+
+footer {
+    margin-top: 90px; padding-top: 24px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 13px;
+}
+
+@media (max-width: 620px) {
+    .hero h1 { font-size: 32px; }
+    .hero p.tag { font-size: 17px; }
+}

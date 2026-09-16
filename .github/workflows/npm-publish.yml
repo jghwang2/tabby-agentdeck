@@ -1,0 +1,65 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node tools/sync-version.js --check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: tabby-agentdeck-*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # `registry-url` 을 주면 안 된다. setup-node 가 임시 `.npmrc` 에
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` 을 써 넣고
+      # `NODE_AUTH_TOKEN` 을 더미값(`XXXXX-XXXXX-XXXXX-XXXXX`)으로 내보내는데,
+      # **토큰이 있으면 npm 이 OIDC 교환을 하지 않고** 그 더미로 인증을 시도해
+      # `404 PUT /tabby-agentdeck` 로 죽는다 (2026-09-14 run 34800637666 실측:
+      # oidc_url·oidc_tok 은 PRESENT 인데 .npmrc 에 _authToken 이 들어 있었다).
+      # 기본 레지스트리가 이미 registry.npmjs.org 라 이 줄은 없어도 된다.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --global npm@11
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: package
+      # 경로는 반드시 `./` 로 시작할 것. `package/tabby-agentdeck-1.1.3.tgz` 처럼 주면
+      # npm 이 파일이 아니라 **GitHub shorthand(`<org>/<repo>`)** 로 읽어
+      # `git ls-remote ssh://git@github.com/package/tabby-agentdeck-1.1.3.tgz.git` 를 때리고
+      # `Permission denied (publickey)` 로 죽는다 (2026-09-14 run 34798914763 실측).
+      - name: Publish verified archive with OIDC
+        run: npm publish ./package/tabby-agentdeck-*.tgz --access public --tag latest --ignore-scripts

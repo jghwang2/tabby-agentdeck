@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentDeck 사용 설명서</title>
+<link rel="stylesheet" href="guide.css">
+<style>:root { --why-label: "왜 이렇게 만들었나"; }</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <p class="lang"><a href="../ko.html">&larr; 처음으로</a> &nbsp;·&nbsp; <a href="index.html">English</a> &nbsp;·&nbsp; <b>한국어</b></p>
+    <!-- 버전은 손으로 적지 않는다 — `tools/sync-version.js` 가 package.json 에서 찍어 넣는다 -->
+    <h1>AgentDeck<small>Tabby 플러그인 · <span class="ad-version">1.2.0</span></small></h1>
+    <p class="lead">
+        터미널에서 에이전트 CLI(Claude Code · Codex · Gemini)를 여러 개 돌릴 때,
+        <b>어느 세션이 지금 무슨 일을 하고 있고 무엇을 기다리는지</b> 한눈에 보기 위한 도구다.
+        이 문서의 모든 그림은 실제 구동 화면을 그대로 찍은 것이다.
+    </p>
+</header>
+
+<nav class="toc">
+    <ol>
+        <li><a href="#s1">한눈에 보기</a></li>
+        <li><a href="#s2">작업 상태</a></li>
+        <li><a href="#s3">세션 그룹</a></li>
+        <li><a href="#s4">검색과 필터</a></li>
+        <li><a href="#s5">키보드로 다루기</a></li>
+        <li><a href="#s6">순서 바꾸기</a></li>
+        <li><a href="#s7">결과물 미리보기</a></li>
+        <li><a href="#s8">변경 보기와 커밋</a></li>
+        <li><a href="#s9">한글 입력 보정</a></li>
+        <li><a href="#s10">설정</a></li>
+        <li><a href="#s11">키 목록</a></li>
+        <li><a href="#s12">문제가 생기면</a></li>
+    </ol>
+</nav>
+
+
+<h2 id="s1"><span class="n">01</span>한눈에 보기</h2>
+
+<p>
+    화면은 두 덩이다. 왼쪽은 <b>터미널</b>, 오른쪽은 <b>세션 목록(사이드바)</b>.
+    Tabby 순정 탭바는 감추고 이 사이드바가 탭 관리를 대신한다 —
+    탭이 여러 개일 때 가로 탭바로는 "무슨 작업인지" 를 담을 자리가 없기 때문이다.
+</p>
+
+<figure class="side">
+    <img src="img/01-overview.png" alt="AgentDeck 전체 화면 — 왼쪽 터미널, 오른쪽 세션 목록">
+    <figcaption>
+        세션 4개가 작업 폴더별로 묶여 있다. 각 줄에 <b>제목 · 작업 이름 · 상태 · 경과 시간</b>이 있고,
+        헤더 오른쪽 <code>⏸1 ●1 ✔1 ○1</code> 은 상태별 개수다.
+    </figcaption>
+</figure>
+
+<div class="why">
+    터미널 폭은 창 높이에서 <b>4:3 비율로 역산</b>해 고정한다. 창을 아무리 넓혀도 터미널이 옆으로
+    늘어나지 않으므로, TUI 가 그리는 상자와 줄바꿈이 창 크기에 따라 흔들리지 않는다.
+    남는 폭은 사이드바가 갖고, 그러고도 남으면 터미널이 흡수한다.
+</div>
+
+
+<h2 id="s2"><span class="n">02</span>작업 상태</h2>
+
+<p>각 세션이 지금 어떤 상태인지 6가지로 표시한다.</p>
+
+<table>
+    <tr><th>표시</th><th>뜻</th><th>언제</th></tr>
+    <tr><td><span class="st run">● 진행중</span></td><td>에이전트가 일하고 있다</td><td>출력이 계속 나오는 중</td></tr>
+    <tr><td><span class="st wait">⏸ 승인대기</span></td><td><b>사람을 기다린다</b></td><td>도구 사용 허가를 물어봄</td></tr>
+    <tr><td><span class="st lim">⛔ 한도 도달</span></td><td>사용량 한도에 걸렸다</td><td>언제 풀리는지도 함께</td></tr>
+    <tr><td><span class="st done">✔ 완료</span></td><td>작업이 끝났다</td><td>응답을 마치고 멈춤</td></tr>
+    <tr><td><span class="st err">✘ 오류</span></td><td>실패했다</td><td>오류 문구가 나옴</td></tr>
+    <tr><td><span class="st idle">○ 대기</span></td><td>아무 일도 안 한다</td><td>일정 시간 출력 없음</td></tr>
+</table>
+
+<p>
+    <b>승인대기에는 무엇을 승인해야 하는지가 같이 붙는다.</b> 위 그림의 두 번째 줄이
+    <code>⏸ 승인대기 · Claude needs your permission to use Bash</code> 로 나오는 것이 그 예다.
+    창을 여러 개 띄워 놓고 다른 일을 하다 돌아왔을 때, 어느 세션이 왜 멈춰 있는지 눌러 보지 않고 안다.
+</p>
+
+<h3>상태를 직접 지정하기</h3>
+
+<figure class="side ctx">
+    <img src="img/07-context.png" alt="세션 줄 우클릭 — 상태 직접 지정 메뉴">
+    <figcaption>줄을 우클릭하면 상태를 직접 정할 수 있다. <code>자동 감지로</code> 를 누르면 다시 자동 판정으로 돌아간다.</figcaption>
+</figure>
+
+<div class="why">
+    상태는 <b>훅을 설치하지 않아도</b> 화면에 찍힌 문구로 판정한다. 그래서 Claude Code 뿐 아니라
+    Codex · Gemini 도 같이 동작한다. 훅(설정 창에서 한 번 설치)을 넣으면 에이전트가 직접 알려주므로
+    더 정확해지지만, 없어도 쓸 수 있게 만들어 두었다.
+</div>
+
+
+<h2 id="s3"><span class="n">03</span>세션 그룹</h2>
+
+<p>
+    세션을 <b>작업 폴더(프로젝트) 단위</b>로 묶는다. 위 그림의 <code>api-server</code>
+    <code>tools</code> <code>web-client</code> 이 그것이고, 헤더 옆 숫자는 그 그룹의 세션 수다.
+    헤더를 누르면 접힌다.
+</p>
+
+<figure class="side">
+    <img src="img/08-collapse.png" alt="그룹 두 개를 접은 화면">
+    <figcaption><code>tools</code> 와 <code>web-client</code> 을 접었다. 접은 상태는 다음 기동에도 유지된다.</figcaption>
+</figure>
+
+<div class="why">
+    묶는 기준은 <b>탭이 태어난 작업 폴더</b>다 — 셸에서 <code>cd</code> 를 해도 그룹이 안 바뀐다.
+    세션이 사는 동안 소속이 흔들리면 "방금 그 줄이 어디 갔지" 가 되기 때문이다.
+    그룹이 하나뿐이면 헤더를 아예 그리지 않으므로, 한 프로젝트만 쓸 때는 화면이 예전과 같다.
+</div>
+
+
+<h2 id="s4"><span class="n">04</span>검색과 필터</h2>
+
+<p>
+    사이드바 맨 위 검색창에 치면 <b>제목 · 작업 이름 · 작업 폴더</b>를 한 번에 좁힌다.
+    상태 칩(<code>⏸1 ●1 …</code>)을 누르면 그 상태만 남는다.
+</p>
+
+<figure class="side">
+    <img src="img/02-search.png" alt="검색으로 세션 한 개만 남은 화면">
+    <figcaption><code>회귀</code> 로 검색해 해당 작업 하나만 남았다. <kbd>Esc</kbd> 나 <code>✕</code> 로 해제한다.</figcaption>
+</figure>
+
+<div class="note">
+    <b>접힌 그룹에 결과가 있으면 임시로 펴진다.</b> 그러지 않으면 "검색했는데 아무것도 없다" 로
+    보이기 때문이다. 검색을 지우면 원래 접힌 상태로 돌아간다 — 접기/펴기 설정 자체를 건드리지 않는다.
+</div>
+
+
+<h2 id="s5"><span class="n">05</span>키보드로 다루기</h2>
+
+<p>
+    <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> 로 목록에 들어가면 마우스 없이 훑을 수 있다.
+</p>
+
+<table>
+    <tr><th>키</th><th>하는 일</th></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>줄 사이 이동. <b>활성 탭은 바뀌지 않는다</b></td></tr>
+    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>첫 줄 / 마지막 줄</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>그 세션으로 옮긴다. 그룹 헤더면 접기/펴기</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>검색·필터가 있으면 <b>먼저 그것을 지운다</b>. 없으면 터미널로 복귀</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>검색창으로</td></tr>
+</table>
+
+<figure class="side">
+    <img src="img/03-keyboard.png" alt="키보드 포커스가 두 번째 줄에 있고 활성 탭은 다른 줄인 화면">
+    <figcaption>
+        테두리(키보드 포커스)는 두 번째 줄에 있는데 <b>배경으로 강조된 활성 탭은 다른 줄</b>이다 —
+        둘이 갈려 있다는 것이 이 그림의 요점이다.
+    </figcaption>
+</figure>
+
+<div class="why">
+    <b>포커스와 선택을 일부러 갈랐다.</b> 줄을 지날 때마다 탭이 바뀌면 그 탭의 출력이 화면을 덮고
+    터미널 폭이 매번 다시 적용되어 화면이 튄다. 그러면 "어느 세션이었나" 를 훑어보는 것 자체가
+    불가능해진다. 그래서 <kbd>↑</kbd><kbd>↓</kbd> 는 테두리만 옮기고, 실제로 여는 것은 <kbd>Enter</kbd> 하나다.
+    <br><br>
+    검색창의 <kbd>↑</kbd> 는 일부러 가로채지 않는다 — 한 줄 입력에서 그 키는 커서를 맨 앞으로
+    보내는 편집 동작이고, 치던 검색어를 고칠 때 실제로 쓴다.
+</div>
+
+
+<h2 id="s6"><span class="n">06</span>순서 바꾸기</h2>
+
+<p>
+    사이드바 줄을 끌어 옮기면 <b>Tabby 순정 탭 순서도 함께</b> 바뀐다.
+    끌고 목록 위·아래 끝에 커서를 대고 있으면 <b>커서를 더 움직이지 않아도 목록이 흘러가서</b>,
+    탭이 많아 화면에 안 보이는 자리로도 한 손짓에 옮길 수 있다.
+</p>
+
+<div class="note">
+    상태순 정렬(<code>sortByStatus</code>)을 켜 두면 순서를 바꿀 수 없다 — 그때는 상태가 순서를
+    정하므로 옮겨도 다음 갱신에 제자리로 돌아간다. 끌면 <b>막고 이유를 알려준다</b>.
+</div>
+
+
+<h2 id="s7"><span class="n">07</span>결과물 미리보기</h2>
+
+<p>
+    에이전트가 만든 문서·이미지·표·코드를 터미널 옆에서 그대로 본다.
+    <b>화면에 찍힌 파일 경로를 스스로 주워</b> 띄우므로, 따로 열라고 시키지 않아도 된다.
+</p>
+
+<figure class="panel v">
+    <img src="img/04-viewer.png" alt="미리보기 패널에 마크다운 문서가 렌더링된 화면">
+    <figcaption>
+        마크다운을 표·인라인 코드·인용까지 그대로 그린다. 위쪽 칩은 최근에 본 파일 목록,
+        아래 상태줄에 크기·시각·전체 경로가 나온다.
+    </figcaption>
+</figure>
+
+<table>
+    <tr><th>무엇</th><th>어떻게</th></tr>
+    <tr><td>파일 끌어다 놓기</td><td>패널에 놓으면 열린다. <b>터미널 위에 놓으면</b> 「패널에 띄우기 / 경로 붙여넣기」를 물어본다</td></tr>
+    <tr><td>고쳐 저장</td><td><code>✎</code> 로 편집, <kbd>Ctrl</kbd>+<kbd>S</kbd> 로 저장. BOM·개행을 원본대로 되돌린다</td></tr>
+    <tr><td>찾기</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td></tr>
+    <tr><td>새 파일</td><td><code>＋</code> 에 없는 경로를 넣고 <kbd>Enter</kbd> 두 번 — 만들고 편집으로 들어간다</td></tr>
+    <tr><td>닫아 두고 일하다 열면</td><td><b>그때까지 건드린 파일이 칩으로 쌓여 있고 본문은 가장 최근 파일</b>이다
+        (<b>변경</b> 을 보고 있었으면 diff 를 다시 읽는다) — 설정 → 미리보기 패널 → <b>문서 패널에 읽어두기</b>(기본 켬)</td></tr>
+    <tr><td>저절로 열리게 하려면</td><td>설정 → 미리보기 패널 → <b>패널 자동으로 열기</b> 를 켠다
+        (기본 꺼짐 — 여닫기는 사람 몫). <b>읽어두기</b> 를 끄면 아무것도 자동으로 하지 않는다</td></tr>
+</table>
+
+<div class="why">
+    <b>탭마다 따로 기억한다.</b> 세션을 옮기면 그 세션이 마지막으로 보던 파일로 본문이 바뀐다 —
+    옆에 남의 세션 문서가 떠 있는 채로 그것을 지금 세션 결과물이라고 착각하는 것을 막기 위해서다.
+</div>
+
+
+<h2 id="s8"><span class="n">08</span>변경 보기와 커밋</h2>
+
+<p>
+    같은 패널의 <code>변경</code> 탭이 그 세션 작업 폴더의 <code>git diff</code> 를 보여준다.
+    <b>누가 고쳤는지와 무관하다</b> — 에이전트가 고친 것이든 사람이 고친 것이든 작업트리 상태를 그대로 본다.
+</p>
+
+<figure class="panel">
+    <img src="img/05-diff.png" alt="변경 탭 — 파일 목록, 증감 수, 줄번호 붙은 diff, 커밋 입력창">
+    <figcaption>
+        맨 위에 <code>2개 파일 · +192 -16</code>, 그 아래 파일 목록(추적 안 된 새 파일 6개 포함),
+        그리고 줄번호가 붙은 diff. 맨 아래는 커밋 메시지 입력창이다.
+    </figcaption>
+</figure>
+
+<table>
+    <tr><th>무엇</th><th>어떻게</th></tr>
+    <tr><td>스테이지</td><td>파일 왼쪽 딱지를 누르면 <code>git add</code> / 취소</td></tr>
+    <tr><td>커밋</td><td>메시지를 적고 <code>커밋</code> — <b>두 번 눌러야</b> 실행된다(첫 누름은 확인)</td></tr>
+    <tr><td><code>파일:라인</code> 참조</td><td>diff 줄을 누르면 그 위치가 터미널에 입력된다. <kbd>Shift</kbd>+클릭 = 범위</td></tr>
+</table>
+
+<div class="why">
+    <b>줄을 눌러 위치를 넣는 것</b>이 이 패널에서 가장 자주 쓰는 기능이다.
+    "이 줄 고쳐" 를 말하려면 파일명과 줄번호를 손으로 타이핑해야 했는데, 그 왕복을 없앤다.
+    커밋을 두 번 누르게 한 것은 실수로 커밋되는 것을 막기 위해서다.
+</div>
+
+
+<h2 id="s9"><span class="n">09</span>한글 입력 보정</h2>
+
+<p>
+    한글을 치는 중에 <kbd>Home</kbd> · <kbd>End</kbd> · <kbd>Shift</kbd>+<kbd>Enter</kbd> 를 누르면
+    <b>조합 중이던 마지막 음절이 커서를 따라가거나 새 줄로 내려가는</b> 문제가 있었다.
+    입력이 확정되기를 기다린 뒤에 키를 보내도록 고쳐 두었다.
+</p>
+
+<table>
+    <tr><th>키</th><th>하는 일</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd> · <kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>줄바꿈(보내지 않고 다음 줄)</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>붙여넣기. 클립보드에 <b>이미지만</b> 있으면 이미지로 붙인다</td></tr>
+    <tr><td>우클릭</td><td>선택이 있으면 복사, 없으면 붙여넣기. 길게 누르면 메뉴</td></tr>
+</table>
+
+
+<h2 id="s10"><span class="n">10</span>설정</h2>
+
+<p>사이드바 <code>설정</code> 버튼 → <b>AgentDeck</b> 항목.</p>
+
+<figure>
+    <img src="img/06-settings.png" alt="설정 창 AgentDeck 항목 — 사이드바 목록·세션 그룹 절">
+    <figcaption>
+        각 항목에 <b>왜 그 기본값인지</b>까지 적어 두었다. 대부분 바꾸면 곧바로 적용된다.
+    </figcaption>
+</figure>
+
+<p>자주 건드릴 만한 것만 추리면:</p>
+
+<table>
+    <tr><th>항목</th><th>기본</th><th>뜻</th></tr>
+    <tr><td>키보드로 다루기</td><td>켜짐</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> 목록 조작</td></tr>
+    <tr><td>끝에서 반대쪽으로 감싸기</td><td>꺼짐</td><td>맨 아래에서 <kbd>↓</kbd> 가 맨 위로</td></tr>
+    <tr><td>서브에이전트 개수 보이기</td><td>켜짐</td><td>줄에 <code>❖3</code></td></tr>
+    <tr><td>끌 때 목록 끝에서 저절로 흐르기</td><td>켜짐</td><td>드래그 자동 스크롤</td></tr>
+    <tr><td>프로젝트로 묶기</td><td>켜짐</td><td>세션 그룹</td></tr>
+    <tr><td>상태순 정렬</td><td>꺼짐</td><td>급한 순서로 자동 정렬(켜면 순서 못 바꿈)</td></tr>
+    <tr><td>경과 시간 표시</td><td>켜짐</td><td>줄 오른쪽 <code>2분</code></td></tr>
+</table>
+
+<div class="note">
+    <b>서브에이전트 개수</b>(<code>❖3</code>)는 그 세션이 백그라운드로 돌리는 에이전트 수다.
+    대화 기록에서 <b>띄운 것과 끝난 것을 대조</b>해 세므로 훅이 알려주지 않아도 맞는다.
+    줄에 마우스를 올리면 무엇이 도는지와 가장 오래된 것의 경과가 나온다.
+</div>
+
+
+<h2 id="s11"><span class="n">11</span>키 목록</h2>
+
+<table>
+    <tr><th>키</th><th>하는 일</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd></td><td>세션 목록에 포커스 / 같은 키로 터미널 복귀</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd> · <kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>줄바꿈</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>붙여넣기(이미지 포함)</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>미리보기 패널 안에서 찾기</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>패널에서 편집 중 저장</td></tr>
+</table>
+
+<p>
+    배정되지 않은 것도 있다 — 사이드바 즉시 on/off, 화면 복구, 패널 여닫기, 패널 모드 전환.
+    Tabby 설정 → <b>단축키</b>에서 <code>agentdeck-</code> 으로 찾아 원하는 키를 붙이면 된다.
+</p>
+
+
+<h2 id="s12"><span class="n">12</span>문제가 생기면</h2>
+
+<h3>화면이 깨졌을 때</h3>
+<p>
+    TUI 가 깨져 보이면 사이드바 <code>↻</code> 를 누른다(또는 줄 우클릭 → <code>화면 복구</code>).
+    지우고 다시 그리게 한다. 설정에서 <b>자동 복구</b>를 켜면 깨짐을 감지해 알아서 처리한다.
+</p>
+
+<h3>신고할 때</h3>
+<p>
+    설정 → <b>문제 신고</b> → <code>모으기</code> 를 누르면 진단 파일 묶음(zip)이 만들어진다.
+    버전·환경·설정·예외 기록이 들어간다. <b>터미널에 찍힌 내용은 기본적으로 빠진다</b> —
+    코드가 그대로 들어가는 파일이라, 보내는 사람이 명시적으로 켤 때만 담는다.
+    그 zip 을 <a href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">GitHub 이슈</a>에 붙이면 된다.
+</p>
+
+<h3>새 탭이 열리지 않을 때</h3>
+<p>
+    Tabby 1.0.235 에는 지난 탭 복원과 얽힌 문제가 있다.
+    설정에서 <b>기동 시 탭 복원 끄기</b>를 켜면 해결된다 — 복원되는 건 셸뿐이고
+    그 안의 에이전트 세션은 이미 죽어 있어 어차피 의미가 없다.
+</p>
+
+
+<footer>
+    AgentDeck <span class="ad-version">1.2.0</span> · 이 문서의 그림은 모두 실제 구동 화면을 캡처한 것이다.<br>
+    설정 항목 전체와 개발 배경은 저장소의
+    <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/README.ko.md"><code>README.ko.md</code></a> 를,
+    검증 항목은 <code>docs/REGRESSION.md</code> 를 참고할 것.
+</footer>
+
+</div>
+</body>
+</html>

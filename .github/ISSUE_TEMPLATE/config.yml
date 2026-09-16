@@ -1,0 +1,12 @@
+# 빈 이슈를 막지 않는다 — 폼에 안 맞는 보고(질문·한 줄 제보)를 굳이 돌려보낼 이유가 없다.
+blank_issues_enabled: true
+contact_links:
+  - name: User guide
+    url: https://jghwang2.github.io/tabby-agentdeck/guide/
+    about: Settings, keys and how each part works — check here before filing.
+  - name: 사용 설명서 (한국어)
+    url: https://jghwang2.github.io/tabby-agentdeck/guide/ko.html
+    about: 설정·단축키·동작 설명. 신고 전에 여기부터 확인해 주세요.
+  - name: Tabby itself
+    url: https://github.com/Eugeny/tabby/issues
+    about: Problems with Tabby that happen with this plugin disabled belong upstream.

@@ -1,0 +1,88 @@
+/* AgentDeck 사용 설명서 공용 스타일 — ko.html 과 index.html(영문)이 함께 쓴다.
+   `.why::before` 의 라벨만 언어마다 다르므로 `--why-label` 로 빼 두었다. */
+:root {
+    --bg: #16181d; --panel: #1d2027; --line: #2c313b; --fg: #d6dae2;
+    --dim: #8c95a5; --accent: #56b6c2; --warn: #e5c07b; --ok: #98c379; --err: #e06c75;
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.75 "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px 120px; }
+header {
+    padding: 56px 0 28px; border-bottom: 1px solid var(--line); margin-bottom: 40px;
+}
+h1 { font-size: 30px; margin: 0 0 10px; letter-spacing: -.4px; }
+h1 small { font-size: 15px; color: var(--dim); font-weight: normal; margin-left: 10px; }
+.lead { color: var(--dim); margin: 0; max-width: 760px; }
+h2 {
+    font-size: 22px; margin: 64px 0 6px; padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+h2:first-of-type { border-top: 0; }
+h2 .n { color: var(--accent); margin-right: 10px; font-variant-numeric: tabular-nums; }
+h3 { font-size: 17px; margin: 34px 0 8px; }
+p { margin: 10px 0; }
+code {
+    background: #23262e; padding: 1px 6px; border-radius: 4px;
+    font-family: Consolas, "D2Coding", monospace; font-size: .9em; color: #c8ccd4;
+}
+kbd {
+    background: #2a2e37; border: 1px solid #3a4049; border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 7px; font-size: .85em;
+    font-family: Consolas, monospace; color: #e2e6ec; white-space: nowrap;
+}
+figure { margin: 22px 0 8px; }
+/* 그림마다 원본 크기가 다르다(사이드바만 자른 것 275px, 설정 창 1100px).
+   `width: 100%` 로 늘리면 작은 그림이 흐려지므로 원본 크기를 상한으로 둔다. */
+figure img {
+    max-width: 100%; display: block; border: 1px solid var(--line); border-radius: 8px;
+    background: #000; image-rendering: -webkit-optimize-contrast;
+}
+figure.side img { width: 275px; }
+figure.side { display: flex; gap: 22px; align-items: flex-start; }
+figure.side figcaption { flex: 1; margin-top: 0; }
+figure.side.ctx img { width: 205px; }
+figure.panel img { width: 625px; }
+figure.panel.v img { width: 425px; }
+figcaption { color: var(--dim); font-size: 13.5px; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14.5px; }
+th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+td code { white-space: nowrap; }
+.note {
+    background: var(--panel); border-left: 3px solid var(--accent);
+    padding: 14px 18px; margin: 22px 0; border-radius: 0 6px 6px 0;
+}
+.note b { color: #e8ecf2; }
+.why {
+    background: #1b1f26; border-left: 3px solid var(--warn);
+    padding: 14px 18px; margin: 22px 0; border-radius: 0 6px 6px 0; font-size: 14.5px;
+}
+.why::before {
+    content: var(--why-label, "Why it works this way"); display: block; color: var(--warn);
+    font-size: 12px; letter-spacing: .06em; margin-bottom: 6px;
+}
+nav.toc {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 18px 24px; margin: 0 0 8px;
+}
+nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; }
+nav.toc a { color: var(--fg); text-decoration: none; }
+nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+.st { display: inline-block; padding: 0 7px; border-radius: 4px; font-size: 13px; }
+.st.run { color: var(--warn); } .st.wait { color: #61afef; }
+.st.done { color: var(--ok); } .st.err { color: var(--err); }
+.st.idle { color: var(--dim); } .st.lim { color: #e06c9f; }
+footer {
+    margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 13.5px;
+}
+
+/* 언어 전환 줄 — 헤더 맨 위. 지금 보고 있는 언어는 링크가 아니라 굵은 글씨다 */
+.lang {
+    margin: 0 0 18px; font-size: 13px; color: var(--dim);
+}
+.lang a { color: var(--accent); text-decoration: none; }
+.lang a:hover { text-decoration: underline; }

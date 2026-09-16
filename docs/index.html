@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentDeck — a live deck of AI agent sessions for Tabby</title>
+<meta name="description" content="A Tabby terminal plugin for people who run Claude Code, Codex and Gemini CLI in several tabs at once. See which agent is working and which one is waiting for you, preview what they produced, and fix the terminal problems agent CLIs run into.">
+<meta property="og:title" content="AgentDeck — a live deck of AI agent sessions for Tabby">
+<meta property="og:description" content="Run AI coding agents side by side in Tabby. Status at a glance, a preview panel for the files they touch, agent-friendly hotkeys and image paste.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jghwang2.github.io/tabby-agentdeck/">
+<meta property="og:image" content="https://jghwang2.github.io/tabby-agentdeck/guide/img/01-overview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+    <span class="brand">AgentDeck</span>
+    <nav>
+        <a href="guide/">Guide</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck">GitHub</a>
+        <a href="https://www.npmjs.com/package/tabby-agentdeck">npm</a>
+        <a href="ko.html">한국어</a>
+    </nav>
+</div>
+
+<section class="hero">
+    <!-- The version is stamped by `tools/sync-version.js` from package.json - do not type it by hand -->
+    <h1>Run your agents side by side.<span class="ver">v<span class="ad-version">1.2.0</span></span></h1>
+    <p class="tag">
+        A Tabby plugin for people who keep Claude Code, Codex and Gemini CLI open in several tabs at once.
+    </p>
+    <p class="sub">
+        It replaces the tab bar with a live session deck, so you can see which agent is working, which one is
+        blocked on your approval, and which one hit a usage limit &mdash; without clicking through tabs.
+        It previews the files they produce next to the terminal, and fixes the things agent CLIs get wrong
+        inside a Windows terminal: image paste, newline keys, pty width drift, double paste.
+    </p>
+
+    <p class="install"><span class="p">Tabby → Settings → Plugins → search</span> agentdeck</p>
+
+    <div class="cta">
+        <a class="primary" href="guide/">Read the guide</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck">Source on GitHub</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">Report a problem</a>
+    </div>
+</section>
+
+<div class="shots">
+    <figure class="deck">
+        <img src="guide/img/01-overview.png" alt="The session deck - four agent sessions grouped by working folder, each with a task name and status">
+        <figcaption>
+            Four sessions grouped by working folder. Each row carries the task name, status and elapsed time;
+            a waiting row says what it is waiting for.
+        </figcaption>
+    </figure>
+    <figure class="panel">
+        <img src="guide/img/04-viewer.png" alt="The preview panel rendering a markdown document beside the terminal">
+        <figcaption>
+            The preview panel. Markdown, images, tables and code &mdash; picked up from the paths the agent printed.
+        </figcaption>
+    </figure>
+    <figure class="diff">
+        <img src="guide/img/05-diff.png" alt="The Changes tab - file list with insertion and deletion counts, and a unified diff with line numbers">
+        <figcaption>
+            The <code>Changes</code> tab: the working tree's diff, staging, and a two-press commit.
+        </figcaption>
+    </figure>
+</div>
+
+<h2>What it does</h2>
+<p class="lead">
+    Everything below works with no hook installed &mdash; status is read from what is printed on screen,
+    so Codex and Gemini are covered too, not just Claude Code.
+</p>
+
+<div class="cards">
+    <div class="card">
+        <h3>Status at a glance</h3>
+        <p>
+            running · waiting · rate limited · done · error · idle, with elapsed time.
+            A waiting row tells you <i>what</i> it wants approved, and a rate-limited one tells you when it resets.
+        </p>
+    </div>
+    <div class="card">
+        <h3>Preview what they made</h3>
+        <p>
+            Markdown, images, CSV and code open in a panel beside the terminal. Paths printed on screen are
+            picked up automatically, so nothing has to be opened by hand. Edit and save in place.
+        </p>
+    </div>
+    <div class="card">
+        <h3>Diff and commit</h3>
+        <p>
+            The working tree's <code>git diff</code> with per-file counts, staging and a two-press commit.
+            Click a diff line to type <code>file:line</code> into the terminal.
+        </p>
+    </div>
+    <div class="card">
+        <h3>Resume a past session</h3>
+        <p>
+            Closed Claude Code sessions are listed by the prompt you actually typed, not by UUID.
+            Click one and it reopens with <code>claude --resume</code> in its own working folder.
+        </p>
+    </div>
+    <div class="card">
+        <h3>Terminal fixes</h3>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>V</kbd> image paste, <kbd>Shift</kbd>+<kbd>Enter</kbd> newline,
+            right-click copy/paste without the double-paste bug, and IME composition that no longer
+            jumps a syllable onto the next line.
+        </p>
+    </div>
+    <div class="card">
+        <h3>Keyboard and groups</h3>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> to walk the deck without switching tabs as you go.
+            Sessions group themselves by repository root, with no configuration.
+        </p>
+    </div>
+</div>
+
+<h2>Install</h2>
+<p class="lead">Inside Tabby: Settings → Plugins → search <code>agentdeck</code> → Install → restart Tabby.</p>
+
+<p>From source:</p>
+<pre><code>npm install
+npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1</code></pre>
+
+<div class="note">
+    <b>It keeps itself up to date.</b> On startup it asks npm whether there is a newer version and, if you say
+    yes, closes Tabby, installs, and starts Tabby back up on its own. Development installs (a link to a source
+    tree) are detected and left alone.
+</div>
+
+<h2>Built and verified on Windows</h2>
+<p class="lead">
+    The status-notification hook is a PowerShell script, so that part is Windows-only.
+    Everything else is platform-agnostic, but it has not been exercised elsewhere &mdash;
+    if you run Tabby on macOS or Linux, an
+    <a href="https://github.com/jghwang2/tabby-agentdeck/issues">issue</a> telling us what broke is genuinely useful.
+</p>
+
+<h2>Something broken?</h2>
+<p class="lead">
+    Settings → AgentDeck → <b>Report a problem</b> → <code>collect</code> builds a diagnostics zip
+    (version, environment, settings, recorded exceptions). Terminal contents are excluded unless you turn
+    them on. Attach it to an issue and it is usually enough to find the cause without a back-and-forth.
+</p>
+<div class="cta">
+    <a class="primary" href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">Open an issue</a>
+    <a href="https://github.com/jghwang2/tabby-agentdeck/issues">Browse existing issues</a>
+</div>
+
+<footer>
+    AgentDeck v<span class="ad-version">1.2.0</span> · MIT licensed ·
+    <a href="https://github.com/jghwang2/tabby-agentdeck">GitHub</a> ·
+    <a href="https://www.npmjs.com/package/tabby-agentdeck">npm</a> ·
+    <a href="guide/">Guide</a> ·
+    <a href="ko.html">한국어</a>
+</footer>
+
+</div>
+</body>
+</html>

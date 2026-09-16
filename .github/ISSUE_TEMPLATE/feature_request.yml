@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest something the plugin should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Write in English or Korean — either is fine. / 영어·한국어 아무거나 좋습니다.**
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: Describe the situation you are in, not the solution yet. The problem is what decides whether a feature is the right shape.
+      placeholder: |
+        I run six agents at once and I keep losing track of which ones I have already reviewed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: How you imagine it working. A rough sketch is fine.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent CLI does this concern
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - Gemini CLI
+        - Any / not agent-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: The workaround you are living with, if there is one. It says a lot about how much the feature is worth.

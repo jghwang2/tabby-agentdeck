@@ -1,0 +1,70 @@
+{
+  "name": "tabby-agentdeck",
+  "version": "1.2.0",
+  "description": "Run AI coding agents side by side in Tabby - a live deck of agent sessions with status, a preview panel for the files they touch, agent-friendly hotkeys and image paste",
+  "keywords": [
+    "tabby-plugin",
+    "tabby",
+    "ai",
+    "agent",
+    "claude-code",
+    "codex",
+    "terminal"
+  ],
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:release": "node tools/sync-version.js && webpack --mode production --env release",
+    "prepack": "npm run build:release && node tools/check-release.js",
+    "watch": "webpack --progress --color --watch",
+    "test": "npm run test:existing && npm run test:codex",
+    "prebuild": "node tools/sync-version.js",
+    "sync-version": "node tools/sync-version.js",
+    "release": "node tools/release.js",
+    "test:existing": "tsc src/codexHooks.ts src/i18n.ts src/prompt.ts src/detect.ts src/claudeHooks.ts src/screen.ts src/bind.ts src/order.ts src/reason.ts src/tabenv.ts src/viewer.ts src/markdown.ts src/ime.ts src/gitDiff.ts src/agents.ts src/group.ts src/project-root.ts src/gitCommit.ts src/diag.ts src/subagents.ts src/nav.ts src/sessionLedger.ts src/update.ts src/api.ts src/dock.ts src/status.service.ts src/profile.service.ts src/recovery.service.ts src/meta.ts src/statusLine.ts src/codexMeta.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --experimentalDecorators --esModuleInterop && node test/version.test.js && node test/tags.test.js && node test/prompt.test.js && node test/detect.test.js && node test/claudeHooks.test.js && node test/screen.test.js && node test/bind.test.js && node test/order.test.js && node test/reason.test.js && node test/tabenv.test.js && node test/viewer.test.js && node test/markdown.test.js && node test/ime.test.js && node test/gitDiff.test.js && node test/agents.test.js && node test/group.test.js && node test/gitCommit.test.js && node test/diag.test.js && node test/subagents.test.js && node test/nav.test.js && node test/sessionLedger.test.js && node test/update.test.js && node test/api.test.js && node test/dock.test.js && node test/status.service.test.js && node test/profile.service.test.js && node test/recovery.service.test.js && node test/meta.test.js && node test/i18n.test.js && node test/statusLine.test.js && node test/hotkeys.test.js && node test/codexMeta.test.js && node test/codexHooks.test.js",
+    "test:codex": "node test/regression.cjs && node test/resume.cjs && node test/cursor.cjs && node test/wheel.cjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "hooks",
+    "updater",
+    "install.ps1",
+    "CHANGELOG.md",
+    "README.ko.md"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@angular/common": "^15.2.6",
+    "@angular/core": "^15.2.6",
+    "@angular/forms": "^15.2.6",
+    "@types/node": "^20.19.43",
+    "@types/webpack-env": "^1.18.4",
+    "@xterm/headless": "^5.5.0",
+    "css-loader": "^6.10.0",
+    "rxjs": "^7.5.7",
+    "sass": "^1.71.1",
+    "sass-loader": "^14.1.1",
+    "style-loader": "^3.3.4",
+    "tabby-core": "^1.0.231-nightly.0",
+    "tabby-local": "^1.0.231-nightly.0",
+    "tabby-settings": "^1.0.231-nightly.0",
+    "tabby-terminal": "^1.0.231-nightly.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^4.9.5",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "author": {
+    "name": "junggon"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jghwang2/tabby-agentdeck.git"
+  },
+  "homepage": "https://jghwang2.github.io/tabby-agentdeck/",
+  "bugs": {
+    "url": "https://github.com/jghwang2/tabby-agentdeck/issues"
+  }
+}

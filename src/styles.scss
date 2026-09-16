@@ -1,0 +1,2015 @@
+// AgentDeck 사이드바 스타일
+// Tabby 테마 변수(--bs-*)를 우선 쓰되, 없을 때를 대비해 폴백 색을 함께 준다.
+
+// tabby-background 의 배경 이미지 레이어(.content-tab-active::before)를 터미널 영역으로 자른다.
+// 좌표 변수(--ad-bg-*)는 deck.service 의 syncBackgroundClip 이 relayout 마다 내려준다.
+// 그 플러그인은 런타임에 <style> 을 만들어 head 뒤쪽에 붙이므로 순서로는 못 이긴다 — !important 필수.
+// ---------- 설정 > AgentDeck 탭의 폭 ----------
+//
+// Tabby 는 **모든** 설정 탭 본문에 `settings-tab-body { max-width: 600px }` 를 건다
+// (tabby-settings/dist, `settings-tab-body` 컴포넌트 styles). 그래서 창이 아무리 넓어도
+// 오른쪽이 통째로 빈다 (2026-09-14 유저: "이거 놀고있는공간 전체 활용은 어케 안되는겨?").
+// 제한은 컴포넌트가 켜질 때 코드로 푼다 (`settings.component.ts` — 우리 탭에서만, 나갈 때 되돌린다).
+//
+// 푼 폭을 **한 줄을 늘리는 데** 쓰면 안 된다 — 토글·버튼이 오른쪽 끝까지 날아가 제 이름에서
+// 1000px 떨어지고, 설명은 한 줄이 너무 길어 눈이 되돌아올 자리를 잃는다. 그래서 줄 자체는
+// 읽기 좋은 폭으로 두고 **여러 줄을 나란히** 세운다. 좁아지면 auto-fill 이 알아서 한 칸이 된다.
+agentdeck-settings-tab {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+    gap: 0 32px;
+    // 칸마다 설명 길이가 달라 높이가 제각각이다 — 늘려 맞추면 빈 줄이 생긴다
+    align-items: start;
+
+    // 절 제목과 안내문은 그 절 전체를 덮으므로 한 줄을 다 쓴다
+    > h3,
+    > .text-muted {
+        grid-column: 1 / -1;
+    }
+}
+
+body.agentdeck-active.ad-bg-clip .content-tab-active::before {
+    left: var(--ad-bg-left) !important;
+    top: var(--ad-bg-top) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: var(--ad-bg-width) !important;
+    height: var(--ad-bg-height) !important;
+}
+
+#agentdeck-sidebar {
+    display: flex;
+    flex-direction: column;
+    // 실제 위치와 크기는 deck.service 의 relayout 이 인라인으로 준다 (도킹 방향에 따라 달라짐)
+    z-index: 5;
+    overflow: hidden;
+    // --ad-panel-bg 는 agentdeck 이 sidebarOpacity 로 내려준다 (배경 이미지가 비치게)
+    background: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
+    font-size: 12px;
+    user-select: none;
+    -webkit-app-region: no-drag;
+
+    // 붙어 있는 쪽 반대편에만 경계선을 그린다
+    &.ad-dock-right { border-left: 1px solid rgba(255, 255, 255, 0.08); }
+    &.ad-dock-left { border-right: 1px solid rgba(255, 255, 255, 0.08); }
+    &.ad-dock-top { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    &.ad-dock-bottom { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+
+    // 상/하 도킹은 세로가 짧으므로 목록을 가로로 흘린다
+    &.ad-dock-top,
+    &.ad-dock-bottom {
+        .ad-list {
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 0 6px;
+            overflow-y: auto;
+        }
+
+        // 한 줄에 여러 탭이 나란히 서므로 폭을 220px 로 못박는다 — 제목 길이에 따라
+        // 들쭉날쭉하면 어느 칸이 어느 세션인지 눈으로 못 따라가고, 제목이 바뀔 때마다 자리가 밀린다.
+        //
+        // **`min-width: 0` 이 있어야 `flex-basis` 가 살아남는다.** flex 아이템은
+        // `min-width: auto`(초깃값) + `overflow: visible` 이면 **자동 최소 크기**가 걸려
+        // 최소내용폭(min-content) 밑으로는 줄지 않는다. 그래서 제목이 긴 탭은 220 을 밀어올렸다
+        // (2026-09-09 CDP 실측: 1700 창·탭 6개에서 220 지정인데 384.7px, 한 줄에 4개 +
+        // 둘째 줄이 반쯤 잘림). 폭을 못박아도 제목은 읽힌다 — `.ad-title` 이 이미 말줄임을
+        // 갖고 있고, 220 은 좌/우 도킹의 평소 줄 폭(사이드바 기본 200px)보다 오히려 넓다.
+        .ad-tab {
+            flex: 0 0 220px;
+            min-width: 0;
+        }
+
+        // 그룹 헤더는 한 줄을 다 차지해 가로 흘림을 끊는다 — 그래야 헤더 아래 줄부터 그 그룹의
+        // 탭이 흐른다. 헤더를 div 로 감싸는 대신 형제로 두는 이유가 이것이다(deck.service renderGroupHead)
+        .ad-group-head {
+            flex: 0 0 100%;
+            margin-top: 2px;
+        }
+
+        // 지난 세션 서랍은 **여기서는 그리지 않는다.**
+        //
+        // 상/하 도킹의 사이드바는 기본 200px 짜리 가로 띠다. 머리줄·검색줄·버튼줄을 빼면
+        // 목록에 남는 것이 한 줄 남짓인데, 서랍 머리줄(약 28px)이 그 한 줄을 밀어내
+        // **첫 줄이 목록 아래로 잘린다** (2026-09-14 회귀 LY9 실측).
+        // 세로로 쌓는 서랍은 애초에 이 가로 띠와 성질이 맞지 않는다 — 좌/우 도킹으로
+        // 돌리면 그대로 돌아온다.
+        .ad-resume-drawer {
+            display: none;
+        }
+    }
+
+    .ad-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px 8px;
+        letter-spacing: 0.12em;
+        font-size: 10px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.4);
+        // 헤더를 잡아 끌면 도킹 방향을 바꾼다 (OS 창 이동에 뺏기면 안 되므로 no-drag)
+        -webkit-app-region: no-drag;
+        cursor: grab;
+
+        &:active {
+            cursor: grabbing;
+        }
+    }
+
+    // 경계선 — 잡아 끌면 크기가 바뀐다. 붙어 있는 쪽 반대편 가장자리에 놓는다
+    .ad-resize {
+        position: absolute;
+        z-index: 6;
+        background: transparent;
+        transition: background 0.12s ease;
+
+        &:hover,
+        body.ad-resizing & {
+            background: rgba(97, 175, 239, 0.5);
+        }
+    }
+
+    .ad-resize-right,
+    .ad-resize-left {
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: col-resize;
+    }
+
+    .ad-resize-right { left: 0; }
+    .ad-resize-left { right: 0; }
+
+    .ad-resize-top,
+    .ad-resize-bottom {
+        left: 0;
+        right: 0;
+        height: 6px;
+        cursor: row-resize;
+    }
+
+    .ad-resize-bottom { top: 0; }
+    .ad-resize-top { bottom: 0; }
+
+    // 상태별 집계 칩 한 줄 — `⏸ 2  ● 3  ○ 1`. 헤더 높이는 총 개수만 있던 때와 같게 유지한다
+    .ad-head-count {
+        -webkit-app-region: no-drag;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+        white-space: nowrap;
+        letter-spacing: 0;
+        color: rgba(255, 255, 255, 0.55);
+    }
+
+    .ad-cnt {
+        padding: 1px 6px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--ad-color, rgba(255, 255, 255, 0.55));
+        font-size: 10px;
+        line-height: 1.3;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // 요구 2-1: 탭이 많아지면 이 영역만 스크롤된다
+    .ad-list {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 2px 6px 8px;
+        // **못박아 둔다** — 드래그 자동 스크롤(deck.service `dragScrollTick`)이 매 프레임
+        // `scrollTop` 에 몇 px 를 더하는 식으로 목록을 흘린다. 여기가 `smooth` 면 그 대입마다
+        // 새 애니메이션이 시작돼 서로를 덮어써서 목록이 기어가거나 아예 멈춘다.
+        // 지금 이 값을 `smooth` 로 켜는 곳은 없지만(전역 검색 0건), 나중에 누가 켜면
+        // 그 기능이 **조용히** 못 쓰게 되는 자리라 의도를 여기 남긴다.
+        scroll-behavior: auto;
+
+        &::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.14);
+            border-radius: 4px;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.24);
+            }
+        }
+    }
+
+    // 프로젝트(작업 폴더) 그룹 헤더 — `▾ tabby-agentdeck  3`. 그룹이 둘 이상일 때만 그린다.
+    // 헤더 자체는 탭보다 작고 어둡게 둔다 — 세션 목록이 주인공이고 이건 칸막이다.
+    .ad-group-head {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 7px 0 2px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        color: rgba(255, 255, 255, 0.42);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: background 0.1s ease, color 0.1s ease;
+
+        // 첫 그룹은 목록 맨 위에 붙어야 자연스럽다 (.ad-list 가 이미 위쪽 여백을 준다)
+        &:first-child {
+            margin-top: 1px;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        // 접힌 그룹은 "여기 뭔가 숨어 있다" 가 보여야 한다 — 개수 칩을 살짝 밝게
+        &.collapsed .ad-group-count {
+            background: rgba(255, 255, 255, 0.14);
+            color: rgba(255, 255, 255, 0.75);
+        }
+    }
+
+    .ad-group-caret {
+        flex: 0 0 auto;
+        width: 9px;
+        font-size: 9px;
+        line-height: 1;
+        opacity: 0.75;
+    }
+
+    .ad-group-label {
+        // 폴더 이름은 길 수 있다(사이드바는 200~560px) — 개수 칩을 밀어내지 않게 줄이고 말줄임
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    // 검색 때문에 임시로 펴 둔 그룹 — 캐럿만 흐리게 해서 "내가 접어 둔 그룹인데 지금은
+    // 검색 때문에 보이는 중" 임을 알린다. 이유 전문은 헤더 title 에 있다(renderGroupHead).
+    // 줄 배경이나 라벨 색을 바꾸지 않는 이유: 검색 결과 자체가 이미 강조된 화면이라
+    // 여기서 또 강조하면 무엇이 걸린 줄인지가 흐려진다.
+    .ad-group-head.filter-open .ad-group-caret {
+        opacity: 0.45;
+    }
+
+    .ad-group-count {
+        flex: 0 0 auto;
+        padding: 0 5px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 9.5px;
+        line-height: 1.5;
+        letter-spacing: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ad-tab {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+        margin-bottom: 3px;
+        padding: 7px 6px 7px 0;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.1s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+
+            .ad-close {
+                opacity: 0.65;
+            }
+        }
+
+        &.active {
+            background: rgba(255, 255, 255, 0.1);
+
+            .ad-title {
+                color: #fff;
+            }
+        }
+    }
+
+    // 상태색 표시 바
+    .ad-bar {
+        flex: 0 0 3px;
+        border-radius: 2px;
+        background: var(--ad-color, #6b727d);
+    }
+
+    .ad-body {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .ad-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 12.5px;
+        line-height: 1.35;
+    }
+
+    // 어느 에이전트인지 말하는 표식 (deck.service.ts `decorateAgent`).
+    //
+    // **`.ad-title` 을 flex 로 바꾸지 않는다** — 그 줄은 말줄임(text-overflow)으로 제목을
+    // 자르는데, flex 로 만들면 그 말줄임이 죽는다. inline-block 은 글자처럼 흘러가므로
+    // 긴 제목의 말줄임이 그대로 산다.
+    .ad-agent {
+        display: inline-block;
+        flex: none;
+        margin-right: 5px;
+        // 글자 기준선보다 살짝 내려야 12.5px 제목의 가운데에 온다
+        vertical-align: -2px;
+        // 표식은 상태가 아니다 — 상태색(`--ad-color`)과 같은 세기로 칠하면 배지와 경쟁한다.
+        // 브랜드색은 SVG 안에 박혀 있으므로 여기서는 세기만 낮춘다
+        opacity: 0.92;
+
+        svg {
+            display: block;
+        }
+    }
+
+    .ad-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 2px;
+        font-size: 10.5px;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.45);
+    }
+
+    .ad-badge {
+        // 이유가 붙으면(승인대기 · Bash 권한) 길어질 수 있다 — 경과시간을 밀어내지 않게 줄이고 말줄임
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--ad-color, #6b727d);
+        font-weight: 600;
+
+        // 수동/훅으로 고정된 상태는 밑줄로 구분
+        &.pinned {
+            text-decoration: underline dotted;
+            text-underline-offset: 2px;
+        }
+    }
+
+    // 도는 서브에이전트 개수 (`❖3`) — 상태 배지 바로 뒤. 자리 선정 이유는 deck.service `renderTab` 주석
+    .ad-subagents {
+        // 배지가 길어져도 이건 줄이지 않는다 — 개수는 한두 글자고, 줄어들면 읽을 수가 없다
+        flex: 0 0 auto;
+        padding: 0 4px;
+        border-radius: 7px;
+        // 상태색(`--ad-color`)을 쓰지 않는다 — 상태와 다른 축의 정보라 같은 색이면 배지의
+        // 일부로 읽힌다. 배경까지 넣어 숫자가 상태 문구에 섞이지 않게 칩으로 떼어 둔다
+        background: rgba(86, 182, 194, 0.18);
+        color: #56b6c2;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // 두 번째 줄 — 마지막으로 보낸 프롬프트
+    .ad-prompt {
+        display: flex;
+        align-items: center;
+        margin-top: 2px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .ad-label {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.6);
+
+        // 아직 프롬프트가 없는 탭 — 자리는 지키되 눈에 덜 걸리게
+        &.empty {
+            color: rgba(255, 255, 255, 0.25);
+        }
+    }
+
+    .ad-elapsed {
+        flex: 0 0 auto;
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.55;
+    }
+
+    // ── 지난 세션 (닫힌 Claude Code 세션 이어받기) ─────────────────────────
+    //
+    // 사이드바 **바닥**의 서랍이다 — 목록 밖, "지금 이 탭" 줄 바로 위에 고정된다.
+    // 줄 순서가 [목록][헤더] 라서, 펼치면 목록이 헤더 **위로** 자란다
+    // (2026-09-14 유저: "지난세션을 항상 여기 위에 붙이고 위로 펼쳐지게 하자").
+    //
+    // 목록이 아무리 길어도 살아 있는 탭을 밀어내지 않아야 한다 —
+    // 서랍 전체가 `flex: 0 0 auto` 이고, 안쪽 줄 상자만 최대 높이를 갖는 스크롤 상자다.
+    // 그래서 몇 백 개가 들어 있어도 화면은 다섯 줄 남짓만 내주고, 나머지는 굴려서 찾는다.
+    .ad-resume-drawer {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .ad-resume-rows {
+        // 다섯 줄 남짓 (한 줄 ≈ 38px) — 그 이상은 굴린다
+        max-height: 200px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 4px 4px 0;
+    }
+
+    .ad-resume-empty {
+        padding: 6px 8px;
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 11px;
+    }
+
+    // 들여쓰기(11px)는 서랍이 목록 안에 있던 시절의 흔적이다 — 바닥으로 내려온 지금은
+    // 감쌀 그룹이 없으므로 왼쪽 여백을 도로 가져온다
+    .ad-resume-head {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 0;
+        padding: 6px 8px;
+        border-radius: 4px;
+        // 그룹 헤더(0.42)보다 더 죽인다 — 살아 있는 목록이 먼저 읽혀야 한다
+        color: rgba(255, 255, 255, 0.34);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: background 0.1s ease, color 0.1s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .ad-group-count {
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        // 캐럿은 오른쪽 끝으로 — 그룹 헤더는 캐럿이 앞에 있는데, 이 줄은 그룹의 하위라
+        // 같은 자리에 두면 두 헤더가 같은 층으로 읽힌다
+        .ad-group-caret {
+            margin-left: auto;
+        }
+    }
+
+    .ad-resume {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+        margin: 0 0 3px;
+        padding: 5px 6px 5px 0;
+        border-radius: 5px;
+        cursor: pointer;
+        // 죽은 세션은 **색이 아니라 형태**로 구분한다. 상태 6색(api.ts STATUS_STYLES)이 이미
+        // 꽉 차 있어 일곱 번째 색을 들이면 배지가 뜻하는 바가 흐려진다
+        opacity: 0.66;
+        transition: background 0.1s ease, opacity 0.1s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 1;
+        }
+
+        // 좌측 바를 점선으로 끊는다 — 살아 있는 줄의 실선 상태바와 한눈에 갈린다
+        .ad-bar {
+            background: #3a404b;
+            background-image: linear-gradient(var(--ad-panel-bg, var(--bs-body-bg, #1e2127)) 50%, transparent 0);
+            background-size: 100% 5px;
+        }
+
+        .ad-title {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.72);
+        }
+
+        .ad-meta {
+            gap: 5px;
+            margin-top: 1px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.36);
+        }
+    }
+
+    // 끝난 상태의 흔적 — 살아 있는 배지와 같은 세기로 칠하지 않는다(그러면 도는 줄로 읽힌다)
+    .re-was {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+
+        &.s-done { color: rgba(152, 195, 121, 0.62); }
+        &.s-error { color: rgba(224, 108, 117, 0.68); }
+        &.s-limited { color: rgba(198, 120, 221, 0.62); }
+        &.s-waiting { color: rgba(97, 175, 239, 0.62); }
+        &.s-running { color: rgba(229, 192, 123, 0.62); }
+        &.s-idle { color: rgba(255, 255, 255, 0.3); }
+
+        // 이미 열려 있는 세션 — 이건 죽지 않았으므로 상태색을 그대로 쓴다
+        &.live {
+            padding: 0 4px;
+            border-radius: 7px;
+            background: rgba(229, 192, 123, 0.16);
+            color: #e5c07b;
+        }
+    }
+
+    .re-when {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding-left: 6px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // 열려 있는 세션은 흐리게 두지 않는다 — 지금 도는 작업이라 목록에서도 살아 보여야 한다
+    .ad-resume.open {
+        opacity: 0.9;
+
+        .ad-bar {
+            background: #e5c07b;
+            background-image: none;
+        }
+    }
+
+    .ad-label-input {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0 4px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 3px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font-size: 10.5px;
+        outline: none;
+
+        &:focus {
+            border-color: var(--ad-color, #61afef);
+        }
+    }
+
+    .ad-close {
+        flex: 0 0 auto;
+        align-self: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 0;
+        border-radius: 3px;
+        opacity: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+        transition: opacity 0.1s ease, background 0.1s ease;
+
+        &:hover {
+            opacity: 1 !important;
+            background: rgba(255, 80, 80, 0.35);
+        }
+    }
+
+    // ---------- 하단 "지금 이 탭" 줄 (deck.service renderNow) ----------
+    // 목록과 버튼 줄 **사이**에 고정된다. 목록이 아무리 길어도 밀려나지 않아야 하므로
+    // flex 에서 줄어들지 않게 못 박는다(`flex: 0 0 auto`) — 목록만 스크롤을 먹는다.
+    // 크기는 한 자리에서 정한다 — 이 줄만 목록보다 크게 쓰는 이유는 "곁눈으로 읽는 값" 이라서다.
+    // 12px -> 18px 로 한 번 더 올렸다 (2026-09-14 유저: "아직도 잘 안보여", 1.5배 요청)
+    .ad-now {
+        --ad-now-font: 18px;
+        flex: 0 0 auto;
+        padding: 12px 14px 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        font-size: var(--ad-now-font);
+        line-height: 1.5;
+        // 200px 폭에서 긴 모델 이름·계정 메일이 사이드바를 밀어내지 않게
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .ad-now-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 19px;
+        font-weight: 600;
+    }
+
+    .ad-now-account {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 16px;
+    }
+
+    // 한도 막대 묶음 — 한 줄에 하나씩 쌓는다. 나란히 붙이면 막대가 셋으로 쪼개져
+    // 길이로 읽는다는 이 표시의 전제가 깨진다
+    .ad-now-gauges {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 9px;
+    }
+
+    // 한도 한 줄 — `ctx [▓▓▓░░░░] 32%`. 색은 급한 정도만 가른다
+    // (상태 배지 `--ad-color` 와 다른 축이라 같은 색을 쓰지 않는다)
+    .ad-now-gauge {
+        --ad-gauge: rgba(97, 175, 239, 0.85);
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: rgba(255, 255, 255, 0.62);
+        font-variant-numeric: tabular-nums;
+
+        &.ad-now-warn {
+            --ad-gauge: #e5c07b;
+            color: rgba(229, 192, 123, 0.9);
+        }
+
+        &.ad-now-hot {
+            --ad-gauge: #e06c75;
+            color: #e06c75;
+            font-weight: 600;
+        }
+    }
+
+    // 이름(`ctx` · `5h` · `7d` · 모델 주간 한도 이름)은 폭을 고정해 막대 왼쪽 끝이
+    // 모든 줄에서 같은 자리에 오게 한다. 긴 이름은 말줄임 — 막대가 밀리면 안 된다
+    .ad-now-gauge-key {
+        flex: 0 0 52px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 16px;
+        letter-spacing: 0.02em;
+    }
+
+    .ad-now-bar {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 12px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+
+    .ad-now-bar-fill {
+        display: block;
+        height: 100%;
+        border-radius: 6px;
+        background: var(--ad-gauge);
+        // 한도는 몇 분에 한 번씩 올라간다 — 툭 끊기지 않게 채워지는 것이 보이도록
+        transition: width 0.3s ease;
+    }
+
+    .ad-now-gauge-pct {
+        flex: 0 0 auto;
+        min-width: 46px;
+        text-align: right;
+        font-size: 16px;
+    }
+
+    // 리셋까지 남은 시간 — 막대 **아래 줄**. 값보다 한 단계 죽인 색이다 (눈이 먼저 잡을 것은 % 다).
+    // 아래 여백이 곧 묶음 구분이다 — 같은 시각에 풀리는 칸들이 이 줄 하나를 같이 쓴다
+    .ad-now-reset {
+        margin: -1px 0 4px;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+    .ad-foot {
+        display: flex;
+        gap: 6px;
+        padding: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .ad-btn {
+        flex: 1 1 auto;
+        padding: 5px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+    }
+
+    // 글자가 한 자뿐인 버튼들은 나머지와 같은 비율로 늘어나면 허전하다
+    .ad-repair,
+    .ad-viewtoggle {
+        flex: 0 0 auto;
+        min-width: 28px;
+        font-size: 13px;
+        line-height: 1;
+    }
+    // ---------- 세션 검색 / 상태 필터 (deck.service buildSidebar · wireSearch) ----------
+    // 유닛 T 가 넘긴 CSS — 그 유닛은 이 파일을 소유하지 않아 배리어에서 메인이 넣는다.
+    //
+    // 검색 줄은 헤더와 목록 사이의 별도 flex 아이템이다. `.ad-list` 안에 두면 `render()` 의
+    // innerHTML 초기화에 입력창이 매 글자마다 새로 만들어져 포커스·IME 조합이 날아간다.
+    .ad-search {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 4px;
+        align-items: center;
+        padding: 0 8px 6px;
+        -webkit-app-region: no-drag;
+    }
+
+    .ad-search-input {
+        // 사이드바는 200~560px — 입력창이 남는 폭을 다 쓰되 줄어들 때 버튼을 밀지 않게
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 3px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 4px;
+        outline: none;
+        background: rgba(0, 0, 0, 0.28);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 11px;
+        line-height: 1.4;
+
+        &::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        &:focus {
+            border-color: rgba(97, 175, 239, 0.7);
+            color: #fff;
+        }
+    }
+
+    // 지우기 버튼은 **걸린 필터가 있을 때만** 보인다 (deck.service syncSearchUi 가 `.has-query`).
+    // 늘 자리를 잡으면 입력창이 그만큼 좁아지고, 빈 칸 옆의 ✕ 는 무엇을 지우는지 알 수 없다.
+    .ad-search-clear {
+        display: none;
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 0;
+        border-radius: 3px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+    }
+
+    .ad-search.has-query .ad-search-clear {
+        display: block;
+    }
+
+    // 집계 칩은 상태 필터의 조작부다 (renderHeadCount → toggleStatusFilter).
+    // 위쪽 `.ad-cnt` 규칙에 "누를 수 있다" 와 "지금 걸려 있다" 만 덧붙인다.
+    .ad-cnt {
+        cursor: pointer;
+        // 헤더는 도킹 드래그 핸들이라 글자가 잡히면 드래그가 지저분해진다
+        user-select: none;
+        transition: background 0.1s ease, color 0.1s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        // 걸려 있는 필터 — 배경 알파는 SCSS 가 var() 를 계산할 수 없으니
+        // 상태색은 안쪽 테두리와 글자색으로만 쓴다
+        &.active {
+            box-shadow: inset 0 0 0 1px var(--ad-color, #61afef);
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--ad-color, #fff);
+        }
+    }
+
+    // 필터에 아무것도 안 걸렸을 때의 한 줄 (deck.service renderEmpty).
+    // 빈 목록만 남기면 "탭이 다 닫혔다" 로 읽히므로 이유를 글로 남긴다.
+    .ad-empty {
+        padding: 10px 8px;
+        color: rgba(255, 255, 255, 0.42);
+        text-align: center;
+        word-break: break-all;
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    // 키보드 포커스 링 (deck.service `isNavFocused`) — **활성 탭 표시와 다른 것이어야 한다.**
+    // 활성(선택)은 배경으로, 키보드 포커스는 테두리로 말한다. 둘을 같은 모양으로 그리면
+    // "지금 보고 있는 줄" 과 "지금 쓰고 있는 탭" 이 화면에서 구별되지 않고, 그 구별이 이
+    // 기능의 전부다(이동만으로는 탭이 바뀌지 않는다, `navFocus` 주석).
+    //
+    // outline 대신 inset box-shadow 를 쓰는 이유 둘 — outline 은 `.ad-list` 의
+    // `overflow-y: auto` 경계에서 잘리고, border 는 줄 높이를 1px 밀어 포커스가 지나갈 때마다
+    // 목록 전체가 흔들린다. 상태색(`--ad-color`)을 쓰지 않는 것도 일부러다: 포커스는 세션 상태와
+    // 무관한 "내 손이 어디 있나" 라서, 상태색으로 그리면 배지 색과 섞여 읽힌다.
+    .ad-tab.ad-nav-focus,
+    .ad-group-head.ad-nav-focus {
+        box-shadow: inset 0 0 0 1px rgba(97, 175, 239, 0.85);
+        background: rgba(97, 175, 239, 0.1);
+    }
+
+    // 포커스가 활성 탭 위에 있을 때 — 배경은 활성 쪽(밝은 회색)을 유지하고 테두리만 얹는다.
+    // 그래야 "이 줄이 지금 쓰는 탭이고, 포커스도 여기 있다" 가 한 줄에서 다 읽힌다
+    .ad-tab.active.ad-nav-focus {
+        background: rgba(255, 255, 255, 0.14);
+    }
+
+    // 목록 자체가 포커스를 받는다(tabindex=-1) — 브라우저 기본 outline 은 지운다.
+    // 사각형이 목록 전체에 둘러쳐지면 어느 **줄**에 있는지가 오히려 안 보인다
+    .ad-list:focus,
+    .ad-list:focus-visible {
+        outline: none;
+    }
+
+    // 끌고 있는 줄 — 원래 자리에 흐릿하게 남긴다. 줄을 실제로 옮겨 그리지 않는 이유는
+    // deck.service `render` 의 드래그 가드에 있다(목록을 다시 만들면 끌던 DOM 이 사라진다).
+    // "무엇을 들고 있나" 는 이 흐릿한 줄이, "어디에 놓이나" 는 삽입선(.ad-reorder-line)이 말한다.
+    .ad-tab.ad-dragging {
+        opacity: 0.45;
+        background: rgba(255, 255, 255, 0.06);
+        outline: 1px dashed rgba(255, 255, 255, 0.28);
+        outline-offset: -1px;
+    }
+
+    // 순서를 바꿀 수 없는 상태에서 끌었을 때의 한 줄 (deck.service noteReorderBlocked).
+    // 목록 위에 겹쳐 띄운다 — flex 자식으로 흐르면 줄들이 밀려 드래그하던 자리가 움직인다.
+    .ad-reorder-note {
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        bottom: 34px;
+        z-index: 3;
+        padding: 7px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 5px;
+        background: rgba(38, 42, 49, 0.96);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 11px;
+        line-height: 1.45;
+        // 안내를 누르려는 손짓이 아래 줄의 클릭(탭 선택)으로 가지 않게
+        pointer-events: none;
+    }
+
+    // 상/하 도킹 — 세로가 짧다(기본 sidebarHeight 200px). 검색 줄 높이를 줄이고,
+    // 가로로 흐르는 목록에서 안내 한 줄은 폭을 다 차지하게 한다 (`.ad-group-head` 와 같은 이유)
+    &.ad-dock-top .ad-search,
+    &.ad-dock-bottom .ad-search {
+        padding: 0 8px 4px;
+    }
+
+    &.ad-dock-top .ad-list .ad-empty,
+    &.ad-dock-bottom .ad-list .ad-empty {
+        flex: 0 0 100%;
+    }
+}
+
+// ---------- 결과물 미리보기 패널 (viewPanel.ts) ----------
+// 사이드바와 같은 규칙을 따른다 — 위치·폭은 deck.service 의 relayout 이 인라인으로 준다.
+#agentdeck-view {
+    display: flex;
+    flex-direction: column;
+    z-index: 5;
+    overflow: hidden;
+    background: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
+    font-size: 12px;
+    -webkit-app-region: no-drag;
+
+    // 터미널과 닿는 쪽에만 경계선
+    &.ad-view-right { border-left: 1px solid rgba(255, 255, 255, 0.08); }
+    &.ad-view-left { border-right: 1px solid rgba(255, 255, 255, 0.08); }
+
+    &.ad-view-dropping {
+        outline: 1px dashed rgba(97, 175, 239, 0.8);
+        outline-offset: -3px;
+    }
+
+    .ad-view-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 8px 8px 6px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        user-select: none;
+    }
+
+    .ad-view-title {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        color: rgba(255, 255, 255, 0.82);
+        font-weight: 600;
+    }
+
+    .ad-view-tools {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 2px;
+    }
+
+    .ad-view-btn {
+        min-width: 24px;
+        padding: 2px 5px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 12px;
+        line-height: 1.2;
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        // 켜져 있는 도구(편집 중의 ✎) — 지금 어떤 상태인지 버튼만 보고 알 수 있어야 한다
+        &.ad-view-btn-on {
+            background: rgba(97, 175, 239, 0.22);
+            color: #9ecbff;
+        }
+    }
+
+    .ad-view-path {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+        input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.25);
+            color: #e6e6e6;
+            font-family: monospace;
+            font-size: 11px;
+
+            &:focus {
+                outline: 0;
+                border-color: rgba(97, 175, 239, 0.7);
+            }
+        }
+    }
+
+    // 경로 줄 안내 — "없는 파일이다, 한 번 더 Enter" 같은 말이 여기 뜬다
+    .ad-view-path-note {
+        width: 100%;
+        overflow: hidden;
+        color: rgba(229, 192, 123, 0.9);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &:empty {
+            display: none;
+        }
+    }
+
+    // 찾기 줄 (Ctrl+F). 경로 줄과 같은 자리·같은 옷을 입힌다 — 둘 다 헤더 아래 한 줄짜리 도구다
+    .ad-view-find {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+        input {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 4px 6px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.25);
+            color: #e6e6e6;
+            font-family: monospace;
+            font-size: 11px;
+
+            &:focus {
+                outline: 0;
+                border-color: rgba(97, 175, 239, 0.7);
+            }
+        }
+    }
+
+    .ad-view-find-count {
+        flex: 0 0 auto;
+        min-width: 44px;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 11px;
+        text-align: right;
+    }
+
+    // 일치 표시. 지금 보고 있는 것 하나만 진하게 — 개수가 많아도 어디에 있는지 눈에 든다
+    mark.ad-find-hit {
+        border-radius: 2px;
+        background: rgba(229, 192, 123, 0.35);
+        color: inherit;
+    }
+
+    mark.ad-find-cur {
+        background: rgba(229, 192, 123, 0.85);
+        color: #1a1a1a;
+    }
+
+    // 편집 줄 — 저장/취소는 본문 밖에 둔다 (본문은 갱신마다 다시 그려진다)
+    .ad-view-editbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 5px 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(0, 0, 0, 0.18);
+    }
+
+    .ad-view-edit-note {
+        overflow: hidden;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ad-view-edit-btns {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 4px;
+    }
+
+    .ad-view-edit-save,
+    .ad-view-edit-cancel {
+        padding: 2px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+
+        &:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+    }
+
+    .ad-view-edit-save {
+        border-color: rgba(97, 175, 239, 0.5);
+        color: #9ecbff;
+    }
+
+    // 편집기 — 본문 자리를 그대로 채운다. 글꼴·줄간격을 코드 보기와 맞춰야 편집 전후로
+    // 글자가 튀지 않는다
+    textarea.ad-view-edit {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        min-height: 200px;
+        padding: 6px 8px;
+        border: 0;
+        background: rgba(0, 0, 0, 0.22);
+        color: #e6e6e6;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        resize: none;
+        tab-size: 4;
+
+        &:focus {
+            outline: 0;
+        }
+    }
+
+    // 최근 파일 칩 — Codex 앱의 결과물 탭 자리
+    .ad-view-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        user-select: none;
+    }
+
+    .ad-view-tab {
+        max-width: 100%;
+        overflow: hidden;
+        padding: 2px 7px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        &.ad-view-tab-on {
+            border-color: rgba(97, 175, 239, 0.6);
+            background: rgba(97, 175, 239, 0.14);
+            color: #cfe6ff;
+        }
+    }
+
+    .ad-view-body {
+        flex: 1 1 auto;
+        overflow: auto;
+        padding: 10px 12px 16px;
+        color: rgba(255, 255, 255, 0.85);
+        // 문서를 읽는 자리라 글자 선택은 열어 둔다 (사이드바는 막아 둔다)
+        user-select: text;
+    }
+
+    .ad-view-foot {
+        flex: 0 0 auto;
+        overflow: hidden;
+        padding: 5px 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.35);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 10px;
+    }
+
+    // 폭 조절 손잡이 — 터미널과 닿는 쪽 경계선
+    .ad-view-resize {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: col-resize;
+        z-index: 6;
+    }
+
+    &.ad-view-right .ad-view-resize { left: -2px; }
+    &.ad-view-left .ad-view-resize { right: -2px; }
+
+    .ad-view-empty {
+        padding: 8px 2px;
+        color: rgba(255, 255, 255, 0.55);
+        line-height: 1.7;
+
+        ul { padding-left: 18px; margin: 6px 0 0; }
+        li { margin: 2px 0; }
+    }
+
+    .ad-view-dim {
+        color: rgba(255, 255, 255, 0.35);
+        font-size: 11px;
+    }
+
+    // ---------- 종류별 본문 ----------
+
+    .ad-view-image {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+
+        img {
+            max-width: 100%;
+            // 원본보다 키우지 않는다 — 확대하면 스크린샷 글자가 뭉개진다
+            height: auto;
+            background: rgba(255, 255, 255, 0.04);
+        }
+    }
+
+    .ad-view-code {
+        display: flex;
+        gap: 8px;
+        font-family: monospace;
+        font-size: 11px;
+        line-height: 1.5;
+
+        pre {
+            margin: 0;
+            white-space: pre;
+        }
+
+        .ad-view-gutter {
+            flex: 0 0 auto;
+            color: rgba(255, 255, 255, 0.25);
+            text-align: right;
+            user-select: none;
+        }
+
+        .ad-view-src {
+            flex: 1 1 auto;
+            overflow-x: auto;
+            color: rgba(255, 255, 255, 0.85);
+        }
+    }
+
+    .ad-view-table {
+        overflow-x: auto;
+
+        table {
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        th, td {
+            max-width: 260px;
+            overflow: hidden;
+            padding: 3px 6px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: #262a31;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .ad-view-rownum {
+            color: rgba(255, 255, 255, 0.3);
+            text-align: right;
+        }
+    }
+
+    // ---------- 마크다운 ----------
+    .ad-view-md {
+        line-height: 1.65;
+        word-break: break-word;
+
+        h1, h2, h3, h4, h5, h6 {
+            margin: 1.1em 0 0.5em;
+            color: #fff;
+            line-height: 1.3;
+        }
+        h1 { font-size: 18px; }
+        h2 { font-size: 16px; padding-bottom: 3px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        h3 { font-size: 14px; }
+        h4, h5, h6 { font-size: 13px; }
+
+        p { margin: 0.6em 0; }
+
+        a {
+            color: #61afef;
+            text-decoration: none;
+            cursor: pointer;
+
+            &:hover { text-decoration: underline; }
+        }
+
+        code {
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.08);
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        pre {
+            overflow-x: auto;
+            margin: 0.7em 0;
+            padding: 8px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.28);
+
+            code {
+                padding: 0;
+                background: transparent;
+                line-height: 1.5;
+            }
+        }
+
+        ul, ol { padding-left: 20px; margin: 0.5em 0; }
+        li { margin: 0.15em 0; }
+
+        .ad-md-task { list-style: none; margin-left: -14px; }
+        .ad-md-check { color: rgba(255, 255, 255, 0.6); }
+
+        blockquote {
+            margin: 0.7em 0;
+            padding: 2px 0 2px 10px;
+            border-left: 3px solid rgba(255, 255, 255, 0.18);
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        hr {
+            margin: 1.2em 0;
+            border: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        table {
+            display: block;
+            overflow-x: auto;
+            border-collapse: collapse;
+            margin: 0.7em 0;
+            font-size: 11px;
+        }
+
+        th, td {
+            padding: 4px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: left;
+        }
+
+        th { background: rgba(255, 255, 255, 0.05); color: #fff; }
+
+        img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+
+        .ad-md-noimg {
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 11px;
+        }
+    }
+
+    // ---------- 변경 탭 (파일/변경 스위치 + git diff) ----------
+    // 최근 파일 칩과 같은 모양을 쓴다 — 같은 자리에서 같은 방식으로 고르는 것이라서.
+    .ad-view-modes {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 4px;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        user-select: none;
+    }
+
+    .ad-view-mode {
+        flex: 0 0 auto;
+        padding: 3px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: rgba(255, 255, 255, 0.25);
+            color: #fff;
+        }
+
+        &.ad-view-mode-on {
+            border-color: rgba(97, 175, 239, 0.6);
+            background: rgba(97, 175, 239, 0.14);
+            color: #cfe6ff;
+        }
+    }
+
+    // `변경` 목록의 범위 스위치 (세션 / 전체).
+    // 모드 버튼과 **다른 모양**이어야 한다 — 같은 줄에 있지만 고르는 대상이 다르다
+    // (모드는 무엇을 보나, 이건 얼마나 보나). 그래서 오른쪽 끝으로 밀고 테두리를 점선으로 둔다
+    .ad-view-scope {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 3px 10px;
+        border: 1px dashed rgba(255, 255, 255, 0.18);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #fff;
+        }
+
+        // '전체' = 저장소의 커밋 안 된 전부. 기본(세션)에서 벗어난 상태라는 것이 보여야 한다
+        &.ad-view-scope-all {
+            border-style: solid;
+            border-color: rgba(229, 192, 123, 0.5);
+            color: #e5c07b;
+        }
+    }
+
+    .ad-view-diff {
+        .ad-plus { color: #98c379; }
+        .ad-minus { color: #e06c75; }
+    }
+
+    // `2 files changed +9 -6` 자리
+    .ad-view-diff-sum {
+        padding-bottom: 6px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 600;
+    }
+
+    .ad-view-diff-list {
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ad-view-diff-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 2px 4px;
+        border: 0;
+        border-radius: 3px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.7);
+        text-align: left;
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover { background: rgba(255, 255, 255, 0.07); }
+
+        .ad-view-diff-st {
+            flex: 0 0 auto;
+            min-width: 40px;
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            font-size: 10px;
+        }
+
+        .ad-view-diff-st-added { color: #98c379; }
+        .ad-view-diff-st-deleted { color: #e06c75; }
+        .ad-view-diff-st-renamed { color: #61afef; }
+
+        .ad-view-diff-name {
+            flex: 1 1 auto;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            // 경로는 등폭이 읽기 쉽다 — 같은 폴더가 세로로 줄을 맞춘다
+            font-family: monospace;
+        }
+
+        .ad-view-diff-num {
+            flex: 0 0 auto;
+
+            b {
+                margin-left: 5px;
+                font-weight: 500;
+            }
+        }
+    }
+
+    .ad-view-diff-sub {
+        margin: 4px 0;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 11px;
+    }
+
+    .ad-view-diff-untracked {
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+        .ad-view-diff-u {
+            overflow: hidden;
+            padding: 1px 4px;
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-family: monospace;
+            font-size: 11px;
+
+            &[data-ad-open] {
+                cursor: pointer;
+
+                &:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+            }
+        }
+    }
+
+    .ad-view-diff-file {
+        margin-bottom: 14px;
+    }
+
+    // 파일명은 스크롤해도 남아 있어야 한다 — 긴 diff 를 내려가다 보면 어느 파일인지 잊는다
+    .ad-view-diff-fhead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        overflow: hidden;
+        padding: 4px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 4px 4px 0 0;
+        background: #262a31;
+        color: rgba(255, 255, 255, 0.8);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-family: monospace;
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover { color: #fff; }
+    }
+
+    .ad-view-diff-note {
+        padding: 4px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 0;
+        color: rgba(255, 255, 255, 0.35);
+        font-size: 11px;
+    }
+
+    .ad-view-diff-lines {
+        overflow-x: auto;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 0;
+        font-family: monospace;
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    // 한 줄 = 구 번호 · 신 번호 · 본문. 배경이 줄 전체를 덮어야 추가/삭제가 눈에 띈다
+    .ad-dl {
+        display: flex;
+        // 가로 스크롤 안에서도 배경이 끊기지 않게 (본문이 넘치면 줄이 넓어진다)
+        min-width: 100%;
+        min-height: 17px;
+        white-space: pre;
+
+        .ad-dl-no {
+            flex: 0 0 auto;
+            width: 38px;
+            padding-right: 6px;
+            color: rgba(255, 255, 255, 0.25);
+            text-align: right;
+            user-select: none;
+        }
+
+        .ad-dl-tx {
+            flex: 1 0 auto;
+            padding-right: 8px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+    }
+
+    .ad-dl-add {
+        background: rgba(152, 195, 121, 0.12);
+
+        .ad-dl-tx { color: #b7d99b; }
+    }
+
+    .ad-dl-del {
+        background: rgba(224, 108, 117, 0.12);
+
+        .ad-dl-tx { color: #eda3a9; }
+    }
+
+    .ad-dl-hunk {
+        background: rgba(97, 175, 239, 0.1);
+
+        .ad-dl-tx { color: rgba(97, 175, 239, 0.85); }
+    }
+
+    // ---------- 스테이지 딱지 (파일 목록 / 추적 안 됨 줄) ----------
+    // 유닛 L 이 넘긴 CSS — 그 유닛은 이 파일을 소유하지 않아 배리어에서 메인이 넣는다.
+    // 상태 색은 `.ad-view-diff-st-*` 와 같은 팔레트를 쓴다 (같은 줄에서 두 딱지가 싸우지 않게).
+    .ad-view-stage {
+        flex: 0 0 auto;
+        min-width: 44px;
+        padding: 0 4px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 3px;
+        color: rgba(255, 255, 255, 0.45);
+        text-align: center;
+        font-size: 10px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+    }
+
+    .ad-view-stage-staged {
+        border-color: rgba(152, 195, 121, 0.5);
+        background: rgba(152, 195, 121, 0.14);
+        color: #b7d99b;
+    }
+
+    .ad-view-stage-both {
+        border-color: rgba(229, 192, 123, 0.5);
+        background: rgba(229, 192, 123, 0.12);
+        color: #e5c07b;
+    }
+
+    .ad-view-stage-conflict {
+        border-color: rgba(224, 108, 117, 0.6);
+        background: rgba(224, 108, 117, 0.14);
+        color: #eda3a9;
+    }
+
+    // ---------- `파일:라인` 참조 ----------
+    // 유닛 U 가 넘긴 CSS — 그 유닛은 이 파일을 소유하지 않아 배리어에서 메인이 넣는다.
+    //
+    // 누를 수 있는 줄은 커서와 왼쪽 선으로 알린다. 줄번호 칸은 `user-select: none` 이라
+    // 거기를 눌러도 글자 선택이 시작되지 않는다 (본문 복사와 싸우지 않게)
+    .ad-dl[data-ad-ref-line],
+    .ad-dl[data-ad-ref-del],
+    .ad-cl[data-ad-ref-line] {
+        cursor: pointer;
+    }
+
+    .ad-dl[data-ad-ref-line]:hover,
+    .ad-cl[data-ad-ref-line]:hover {
+        box-shadow: inset 2px 0 0 rgba(97, 175, 239, 0.55);
+    }
+
+    // 고른 줄. 추가/삭제 배경(`.ad-dl-add`/`.ad-dl-del`)을 덮어야 하므로 두 클래스로 특정한다
+    .ad-dl.ad-ref-sel,
+    .ad-cl.ad-ref-sel {
+        box-shadow: inset 2px 0 0 #61afef;
+        background: rgba(97, 175, 239, 0.22);
+
+        .ad-dl-no,
+        .ad-cl-no {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .ad-dl-tx,
+        .ad-cl-tx {
+            color: #fff;
+        }
+    }
+
+    // ---------- `파일` 모드 코드 보기: 줄마다 한 칸 ----------
+    // 원래는 `<pre>` 두 장을 좌우로 놓는 flex 였다. 줄 단위로 그리게 되면서(어느 줄을 눌렀는지
+    // 알아야 한다) 세로로 쌓아야 하므로 배치만 되돌린다 — 글꼴·크기·줄높이는 그대로 쓴다
+    .ad-view-code.ad-view-code-rows {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .ad-cl {
+        display: flex;
+        // 가로 스크롤 안에서도 강조 배경이 끊기지 않게 (`.ad-dl` 과 같은 사정)
+        min-width: 100%;
+        min-height: 17px;
+        white-space: pre;
+
+        .ad-cl-no {
+            flex: 0 0 auto;
+            width: 44px;
+            padding-right: 8px;
+            color: rgba(255, 255, 255, 0.25);
+            text-align: right;
+            user-select: none;
+        }
+
+        .ad-cl-tx {
+            flex: 1 0 auto;
+            padding-right: 8px;
+            color: rgba(255, 255, 255, 0.85);
+        }
+    }
+
+    // ---------- 참조 안내줄 (본문 밖 — 자동 갱신에 지워지지 않는 자리) ----------
+    .ad-view-ref {
+        flex: 0 0 auto;
+        overflow: hidden;
+        padding: 4px 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.5);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 10px;
+    }
+
+    // 방금 넣었다 — REF_FLASH_MS(2.5초)만 켜진다
+    .ad-view-ref-on {
+        background: rgba(97, 175, 239, 0.14);
+        color: #cfe6ff;
+    }
+
+    // ---------- 커밋 줄 (본문 밖 — 자동 갱신에 지워지지 않는 자리) ----------
+    .ad-view-commit {
+        flex: 0 0 auto;
+        padding: 6px 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .ad-view-commit-sum {
+        margin-bottom: 4px;
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 11px;
+    }
+
+    .ad-view-commit-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .ad-view-commit-msg {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 4px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.25);
+        color: #e6e6e6;
+        font-family: monospace;
+        font-size: 11px;
+
+        &:focus {
+            border-color: rgba(97, 175, 239, 0.6);
+            outline: 0;
+        }
+    }
+
+    .ad-view-commit-go {
+        flex: 0 0 auto;
+        padding: 4px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 11px;
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #fff;
+        }
+
+        // 메시지가 비면 잠긴다 — 잠긴 것이 눈에 보여야 "왜 안 눌리나" 를 묻지 않는다
+        &:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
+
+        // 확인 대기: 다음 누름이 실제 커밋이라는 것을 색으로 경고한다
+        &.ad-view-commit-armed {
+            border-color: rgba(224, 108, 117, 0.7);
+            background: rgba(224, 108, 117, 0.18);
+            color: #ffd7da;
+        }
+    }
+
+    .ad-view-commit-note {
+        margin-top: 4px;
+        overflow: hidden;
+        color: rgba(255, 255, 255, 0.4);
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 11px;
+    }
+}
+
+// 우클릭 상태 메뉴
+.ad-menu {
+    position: fixed;
+    z-index: 10000;
+    min-width: 130px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: #262a31;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+    user-select: none;
+
+    .ad-menu-item {
+        padding: 6px 10px;
+        border-radius: 4px;
+        color: rgba(255, 255, 255, 0.75);
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+    }
+}
+
+// 도킹 가이드 — 헤더를 끌고 있는 동안만 창 위에 뜬다
+.ad-dock-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    // 커서 판정은 좌표로 직접 하므로 오버레이가 이벤트를 가로채면 안 된다
+    pointer-events: none;
+}
+
+// 놓으면 사이드바가 자리잡을 영역
+.ad-dock-preview {
+    position: fixed;
+    display: none;
+    border: 1px solid rgba(97, 175, 239, 0.9);
+    background: rgba(97, 175, 239, 0.22);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.18);
+    transition: left 0.08s ease, top 0.08s ease, width 0.08s ease, height 0.08s ease;
+}
+
+// 네 가장자리에 뜨는 도킹 표적
+.ad-dock-zone {
+    position: fixed;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(38, 42, 49, 0.92);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .ad-dock-mark {
+        width: 26px;
+        height: 26px;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 3px;
+    }
+
+    &.active {
+        border-color: rgba(97, 175, 239, 0.95);
+        background: rgba(97, 175, 239, 0.35);
+    }
+
+    // 표적 안의 작은 사각형이 "어느 쪽 절반에 붙는지" 를 그대로 보여준다
+    &.ad-dock-zone-left .ad-dock-mark { border-left: 4px solid rgba(97, 175, 239, 0.95); }
+    &.ad-dock-zone-right .ad-dock-mark { border-right: 4px solid rgba(97, 175, 239, 0.95); }
+    &.ad-dock-zone-top .ad-dock-mark { border-top: 4px solid rgba(97, 175, 239, 0.95); }
+    &.ad-dock-zone-bottom .ad-dock-mark { border-bottom: 4px solid rgba(97, 175, 239, 0.95); }
+}
+
+// 놓일 자리를 가리키는 삽입선 — 줄을 끌고 있는 동안만 뜬다 (deck.service drawReorderLine).
+// 좌표는 인라인으로 준다(가로 도킹은 세로선, 상/하 도킹은 가로선). `.ad-list` 안이 아니라
+// body 에 붙는 이유는 그 함수 주석에 있다 — 목록을 다시 그릴 때 날아가지 않게, 그리고
+// 회귀 프로브가 목록의 자식만 훑어 그룹을 읽으므로 낯선 노드를 끼워 넣지 않게.
+.ad-reorder-line {
+    position: fixed;
+    z-index: 9997;
+    border-radius: 1px;
+    background: rgba(97, 175, 239, 0.95);
+    box-shadow: 0 0 5px rgba(97, 175, 239, 0.6);
+    // 좌표 판정은 elementFromPoint 로 한다 — 선이 이벤트를 가로채면 자기 자신을 짚는다
+    pointer-events: none;
+}
+
+// 줄을 끄는 동안 — 커서를 옮기기 모양으로 두고, 커서가 터미널 위로 넘어가도 모양이 유지되게
+body.ad-reordering {
+    cursor: grabbing;
+
+    // 줄 자신은 `cursor: pointer`(클릭=탭 선택)라 body 것으로는 덮이지 않는다.
+    // 끌고 있는 동안만 사이드바 안쪽을 통째로 덮어써 손 모양이 도중에 바뀌지 않게 한다.
+    #agentdeck-sidebar,
+    #agentdeck-sidebar * {
+        cursor: grabbing !important;
+    }
+
+    .content.main {
+        pointer-events: none;
+    }
+}
+
+// 경계선을 끄는 동안에는 터미널이 커서를 뺏지 않게 한다
+body.ad-resizing {
+    cursor: inherit;
+
+    .content.main {
+        pointer-events: none;
+    }
+}
+
+// AgentDeck 이 켜져 있을 때만 순정 탭바를 감춘다 (사이드바가 그 역할을 대신함)
+body.agentdeck-active {
+    .content.main > .tab-bar {
+        display: none !important;
+    }
+
+    .window {
+        display: flex;
+        flex-direction: row;
+        // 사이드바를 창 안에 절대 배치하므로 기준점이 필요하다
+        position: relative;
+        // 터미널 옆에 남는 여백이 밝은 기본 배경으로 튀지 않게 한다
+        // (--ad-panel-bg 가 있으면 배경 이미지가 이 여백으로도 비친다)
+        background: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
+    }
+}
+
+// ---------- 드롭 확인 배너 (터미널 위에 파일을 끌어다 놓았을 때) ----------
+// OS 모달이 아니라 인라인 카드다 — 모달은 터미널 흐름을 끊고 CDP 로 검증할 수 없다.
+// 화면 오른쪽 아래에 띄운다: 입력창(아래 중앙)과 사이드바(좌/우 가장자리)를 둘 다 피하려면
+// 그 모서리가 가장 덜 겹친다. `z-index` 는 사이드바(#agentdeck-sidebar)보다 위여야 한다.
+.ad-drop-ask {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 10000;
+    min-width: 260px;
+    max-width: 420px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 6px;
+    background: rgba(24, 26, 30, 0.97);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    color: #e6e6e6;
+    font-size: 12px;
+
+    .ad-drop-ask-msg {
+        overflow: hidden;
+        margin-bottom: 8px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-weight: 600;
+    }
+
+    .ad-drop-ask-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    button {
+        flex: 1 1 auto;
+        padding: 5px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: rgba(97, 175, 239, 0.6);
+            background: rgba(97, 175, 239, 0.14);
+            color: #fff;
+        }
+    }
+
+    // 닫기는 강조하지 않는다 — 기본 선택이 아니다
+    .ad-drop-ask-close {
+        flex: 0 0 auto;
+        min-width: 26px;
+        padding: 5px 6px;
+        color: rgba(255, 255, 255, 0.45);
+    }
+
+    .ad-drop-ask-again {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        margin-top: 8px;
+        margin-bottom: 0;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        cursor: pointer;
+    }
+}

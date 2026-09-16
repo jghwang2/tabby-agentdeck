@@ -1,0 +1,110 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. **Write in English or Korean — either is fine. / 영어·한국어 아무거나 좋습니다.**
+
+        Before you fill this in, please press **Settings → AgentDeck → Report a problem → `collect`** inside Tabby.
+        It builds a single diagnostics zip and opens the folder holding it. Attaching that zip usually means
+        the cause can be found without a round of questions.
+
+        Terminal contents are **excluded** from that zip unless you explicitly turn them on, so it does not carry your code.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+      placeholder: |
+        The sidebar kept showing "running" after the agent had already finished.
+        I expected it to switch to "done" within a couple of seconds.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The shortest sequence that brings it back. "It happens randomly" is a valid answer — say so and describe when you have noticed it.
+      placeholder: |
+        1. Open a tab in a git repository
+        2. Run `claude` and give it any prompt
+        3. Wait for the answer to finish
+        4. The row stays on "running"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: AgentDeck version
+      description: Settings → AgentDeck shows it, and it is the first line of `report.txt` in the diagnostics zip.
+      placeholder: "1.1.3"
+    validations:
+      required: true
+
+  - type: input
+    id: tabby-version
+    attributes:
+      label: Tabby version
+      description: Settings → About.
+      placeholder: "1.0.235"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent CLI was in the tab
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - Gemini CLI
+        - Just a shell (no agent)
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hook
+    attributes:
+      label: Is the Claude Code status hook installed?
+      description: Settings → AgentDeck → status notification hook.
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure"
+      default: 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics zip
+      description: |
+        Drag the zip from **Report a problem → `collect`** into this box.
+        Too broken to open settings? Run `__agentdeck.collectDiag()` in the devtools console — it builds the same zip and returns its path.
+      placeholder: Drop the zip here, or paste the relevant lines of `~/.agentdeck-diag.log`.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, a non-default setting you think matters, or anything you already tried.

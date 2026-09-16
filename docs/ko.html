@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentDeck — Tabby 용 에이전트 세션 데크</title>
+<meta name="description" content="Claude Code · Codex · Gemini CLI 를 여러 탭에 띄워 놓고 쓰는 사람을 위한 Tabby 터미널 플러그인. 어느 에이전트가 돌고 어느 쪽이 내 승인을 기다리는지 한눈에 보고, 만든 결과물은 터미널 옆에서 바로 확인한다.">
+<meta property="og:title" content="AgentDeck — Tabby 용 에이전트 세션 데크">
+<meta property="og:description" content="AI 에이전트 CLI 를 여러 탭에 띄워 놓고 쓴다. 작업 상태 한눈에, 결과물 미리보기, 에이전트에 맞춘 단축키와 이미지 붙여넣기.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jghwang2.github.io/tabby-agentdeck/ko.html">
+<meta property="og:image" content="https://jghwang2.github.io/tabby-agentdeck/guide/img/01-overview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+    <span class="brand">AgentDeck</span>
+    <nav>
+        <a href="guide/ko.html">사용 설명서</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck">GitHub</a>
+        <a href="https://www.npmjs.com/package/tabby-agentdeck">npm</a>
+        <a href="index.html">English</a>
+    </nav>
+</div>
+
+<section class="hero">
+    <!-- 버전은 손으로 적지 않는다 — `tools/sync-version.js` 가 package.json 에서 찍어 넣는다 -->
+    <h1>에이전트를 나란히 세워 둔다.<span class="ver">v<span class="ad-version">1.2.0</span></span></h1>
+    <p class="tag">
+        Claude Code · Codex · Gemini CLI 를 여러 탭에 띄워 놓고 쓰는 사람을 위한 Tabby 플러그인.
+    </p>
+    <p class="sub">
+        순정 탭바를 세션 데크로 바꾼다. 어느 에이전트가 돌고 있고, 어느 쪽이 내 승인에 막혀 있고,
+        어느 쪽이 사용량 한도에 걸렸는지 &mdash; 탭을 옮겨 다니지 않고 한눈에 본다.
+        만든 결과물은 터미널 옆 패널에서 그대로 보고, 에이전트 CLI 가 터미널에서 겪는 문제들
+        (이미지 붙여넣기, 줄바꿈 키, pty 폭 어긋남, 2중 붙여넣기)도 같이 손봐 뒀다.
+    </p>
+
+    <p class="install"><span class="p">Tabby → 설정 → 플러그인 → 검색</span> agentdeck</p>
+
+    <div class="cta">
+        <a class="primary" href="guide/ko.html">사용 설명서 보기</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck">GitHub 소스</a>
+        <a href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">문제 신고</a>
+    </div>
+</section>
+
+<div class="shots">
+    <figure class="deck">
+        <img src="guide/img/01-overview.png" alt="세션 데크 — 작업 폴더별로 묶인 에이전트 세션 4개, 각 줄에 작업 이름과 상태">
+        <figcaption>
+            세션 4개가 작업 폴더별로 묶여 있다. 각 줄에 작업 이름·상태·경과 시간이 있고,
+            승인대기인 줄에는 무엇을 승인해야 하는지가 같이 붙는다.
+        </figcaption>
+    </figure>
+    <figure class="panel">
+        <img src="guide/img/04-viewer.png" alt="미리보기 패널에 마크다운 문서가 렌더링된 화면">
+        <figcaption>
+            미리보기 패널. 마크다운·이미지·표·코드를 &mdash; 에이전트가 화면에 찍은 경로에서 주워서 띄운다.
+        </figcaption>
+    </figure>
+    <figure class="diff">
+        <img src="guide/img/05-diff.png" alt="변경 탭 — 파일 목록과 증감 수, 줄번호가 붙은 유니파이드 diff">
+        <figcaption>
+            <code>변경</code> 탭: 작업트리의 diff, 스테이지, 두 번 눌러 커밋.
+        </figcaption>
+    </figure>
+</div>
+
+<h2>무엇을 하나</h2>
+<p class="lead">
+    아래는 전부 <b>훅을 설치하지 않아도</b> 동작한다 &mdash; 상태를 화면에 찍힌 문구로 판정하므로
+    Claude Code 뿐 아니라 Codex · Gemini 도 함께 잡힌다.
+</p>
+
+<div class="cards">
+    <div class="card">
+        <h3>작업 상태 한눈에</h3>
+        <p>
+            진행중 · 승인대기 · 한도 도달 · 완료 · 오류 · 대기 를 경과 시간과 함께.
+            승인대기면 <i>무엇을</i> 승인해야 하는지, 한도면 언제 풀리는지까지 줄에 붙는다.
+        </p>
+    </div>
+    <div class="card">
+        <h3>결과물 미리보기</h3>
+        <p>
+            마크다운 · 이미지 · CSV · 코드를 터미널 옆 패널에서 본다. 화면에 찍힌 경로를 스스로 주우므로
+            열라고 시킬 필요가 없다. 그 자리에서 고쳐 저장까지 된다.
+        </p>
+    </div>
+    <div class="card">
+        <h3>변경 보기와 커밋</h3>
+        <p>
+            작업트리의 <code>git diff</code> 를 파일별 증감과 함께. 스테이지하고, 두 번 눌러 커밋한다.
+            diff 줄을 누르면 <code>파일:라인</code> 이 터미널에 입력된다.
+        </p>
+    </div>
+    <div class="card">
+        <h3>지난 세션 이어받기</h3>
+        <p>
+            닫힌 Claude Code 세션이 UUID 가 아니라 <b>내가 실제로 친 프롬프트</b>로 보인다.
+            누르면 그 세션의 작업 폴더에서 <code>claude --resume</code> 으로 되살아난다.
+        </p>
+    </div>
+    <div class="card">
+        <h3>터미널 보정</h3>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>V</kbd> 이미지 붙여넣기, <kbd>Shift</kbd>+<kbd>Enter</kbd> 줄바꿈,
+            2중 붙여넣기 없는 우클릭 복사/붙여넣기, 그리고 조합 중인 한글 음절이 새 줄로
+            내려가지 않는 IME 보정.
+        </p>
+    </div>
+    <div class="card">
+        <h3>키보드와 그룹</h3>
+        <p>
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> 로 탭을 바꾸지 않고 목록만 훑는다.
+            세션은 저장소 루트를 기준으로 저절로 묶이므로 설정할 것이 없다.
+        </p>
+    </div>
+</div>
+
+<h2>설치</h2>
+<p class="lead">Tabby 안에서: 설정 → 플러그인 → <code>agentdeck</code> 검색 → 설치 → Tabby 재시작.</p>
+
+<p>소스에서:</p>
+<pre><code>npm install
+npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1</code></pre>
+
+<div class="note">
+    <b>업데이트는 스스로 한다.</b> 기동할 때 npm 에 새 버전이 있는지 묻고, 승낙하면 Tabby 를 닫고 →
+    설치하고 → 스스로 다시 켠다. 소스 트리를 가리키는 개발 설치는 알아보고 손대지 않는다.
+</div>
+
+<h2>Windows 에서 만들고 검증했다</h2>
+<p class="lead">
+    상태 통보 훅이 PowerShell 스크립트라 그 부분은 Windows 전용이다.
+    나머지는 플랫폼을 가리지 않지만 다른 OS 에서 돌려 본 적은 없다 &mdash;
+    macOS · Linux 에서 Tabby 를 쓴다면 무엇이 깨졌는지 적어 주는
+    <a href="https://github.com/jghwang2/tabby-agentdeck/issues">이슈</a>가 실제로 도움이 된다.
+</p>
+
+<h2>문제가 생기면</h2>
+<p class="lead">
+    설정 → AgentDeck → <b>문제 신고</b> → <code>모으기</code> 를 누르면 진단 묶음(zip)이 만들어진다
+    (버전 · 환경 · 설정 · 예외 기록). 터미널에 찍힌 내용은 켜지 않는 한 빠진다.
+    그 zip 을 이슈에 붙이면 대개 되묻지 않고 원인을 찾을 수 있다.
+</p>
+<div class="cta">
+    <a class="primary" href="https://github.com/jghwang2/tabby-agentdeck/issues/new/choose">이슈 남기기</a>
+    <a href="https://github.com/jghwang2/tabby-agentdeck/issues">올라온 이슈 보기</a>
+</div>
+
+<footer>
+    AgentDeck v<span class="ad-version">1.2.0</span> · MIT 라이선스 ·
+    <a href="https://github.com/jghwang2/tabby-agentdeck">GitHub</a> ·
+    <a href="https://www.npmjs.com/package/tabby-agentdeck">npm</a> ·
+    <a href="guide/ko.html">사용 설명서</a> ·
+    <a href="index.html">English</a>
+</footer>
+
+</div>
+</body>
+</html>
