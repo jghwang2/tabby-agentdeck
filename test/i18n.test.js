@@ -73,7 +73,7 @@ check('영어에 없는 키를 혼자 들고 있는 언어가 없다 (키 오타
     langs.filter(l => Object.keys(LANGUAGES[l]).some(k => !keys.includes(k))), [])
 // 자리표시자를 옮기다 놓치면 화면에 `{px}` 대신 빈 자리가 남는다 — 눈으로는 안 보인다
 const PLACEHOLDERS = { 'reset.now': ['dock', 'size'], 'size.width': ['px'], 'size.height': ['px'],
-    'diag.intro': ['path'], 'diag.collect.desc': ['version'] }
+    'diag.intro': ['path'], 'diag.collect.desc': ['version'], 'keys.conflict': ['names'] }
 check('자리표시자가 모든 언어에 그대로 살아 있다',
     langs.flatMap(l => Object.entries(PLACEHOLDERS)
         .filter(([k, names]) => names.some(n => !LANGUAGES[l][k].includes('{' + n + '}')))

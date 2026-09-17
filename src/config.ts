@@ -390,6 +390,11 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              */
             claimNewTabKey: true,
             /**
+             * `Ctrl+Shift+R` 을 agentdeck 화면 복구가 받는다 — 순정 `rename-tab` 에서 그 키를 뗀다.
+             * false 면 떼지 않고 우리 핫키도 무시한다(순정 그대로). 탭 이름은 사이드바 더블클릭으로 바꾼다
+             */
+            claimRepairKey: true,
+            /**
              * 순정 `close-pane`(포커스된 분할 패널 닫기)이 **비어 있으면** 이 키를 채운다.
              * Tabby 기본표는 이 항목이 빈 채로 오고, agentdeck 은 짧은 우클릭을 복사/붙여넣기로
              * 쓰기 때문에 컨텍스트 메뉴로 패널을 닫기가 번거롭다. `Ctrl-Shift-Q` 는 순정 네 패키지
@@ -728,12 +733,34 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              * 우리 것을 얹고 순정 표에서 그 키를 뗀다(`ensureNewTabHotkey`, `claimNewTabKey`) —
              * 안 떼면 한 번 눌러 탭이 둘 열린다. `Ctrl+V` 를 가져온 방식(`ensurePasteHotkey`)과 같다.
              *
-             * `Ctrl-Shift-{O,U}` 는 순정 네 패키지(core·terminal·local·settings) 기본표에 없다
+             * `Ctrl-Shift-O` 는 순정 네 패키지(core·terminal·local·settings) 기본표에 없다
              * (2026-09-16 grep 0건 — 순정이 쓰는 것은 `Ctrl-Shift-{A,C,D,E,F,I,P,R,S,T,V,W,Z}`).
+             *
+             * **화면 복구는 순정 `rename-tab`(Ctrl+Shift+R)을 대체한다** (2026-09-17). 이름 바꾸기는
+             * 사이드바 더블클릭이 주 경로라 키를 잃어도 아쉽지 않고, R(repair)이 외우기 쉽다.
+             * 새 탭과 같은 방식 — 우리 것을 얹고 순정 표에서 뗀다(`ensureRepairHotkey`, `claimRepairKey`).
+             * 옛 기본값 `Ctrl-Shift-U` 가 config 에 그대로 저장돼 있으면(사람이 안 바꾼 것) R 로 옮긴다.
              */
             'agentdeck-new-tab': ['Ctrl-Shift-T', '⌘-T'],
             'agentdeck-view': ['Ctrl-Shift-O'],
-            'agentdeck-repair': ['Ctrl-Shift-U'],
+            /** 패널의 파일 ↔ 변경 전환 — 기본은 미배정 (설정 창 단축키 절에서 매긴다) */
+            'agentdeck-view-mode': [],
+            'agentdeck-repair': ['Ctrl-Shift-R'],
         },
     }
+}
+
+/**
+ * 우리 기본 핫키 표 — 설정 창 **단축키** 절의 `기본값` 버튼이 쓴다.
+ *
+ * `defaults` 는 인스턴스 필드라 클래스에서 바로 못 읽는다. ConfigProvider 는 생성자 의존이
+ * 없으므로 하나 만들어 꺼내는 것이 가장 싸다. 순정 `close-pane` 은 우리 표에 없고
+ * `agentDeck.closePaneKey` 가 원천이라 여기서 함께 얹는다(`ensureClosePaneHotkey` 와 같은 값).
+ */
+export function defaultHotkeys (): Record<string, string[]> {
+    const p = new AgentDeckConfigProvider()
+    const table = { ...(p.defaults.hotkeys as Record<string, string[]>) }
+    const closePane = String(p.defaults.agentDeck.closePaneKey ?? '').trim()
+    table['close-pane'] = closePane ? [closePane] : []
+    return table
 }

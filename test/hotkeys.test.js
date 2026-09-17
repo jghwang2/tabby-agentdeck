@@ -86,7 +86,7 @@ check('전환만 하고 목록에 포커스를 주지 않는다',
 // ── 하단 버튼 세 개의 키 — 묶여 있고, 순정 기본표와 겹치지 않는다 ──
 // 선언만 있고 묶기가 없으면 "설정에서 직접 매라" 는 뜻인데, 사이드바 버튼 셋은 매일 누르는 것이라
 // 기본값이 있어야 한다(2026-09-16 요청). 순정과 겹치면 둘 다 도는데 어느 쪽이 이겼는지 안 보인다
-const BUTTON_KEYS = { 'agentdeck-view': 'Ctrl-Shift-O', 'agentdeck-repair': 'Ctrl-Shift-U' }
+const BUTTON_KEYS = { 'agentdeck-view': 'Ctrl-Shift-O', 'agentdeck-repair': 'Ctrl-Shift-R' }
 const firstKey = id => {
     const i = configSrc.indexOf(`'${id}': [`)
     if (i < 0) { return null }
@@ -95,9 +95,18 @@ const firstKey = id => {
 }
 for (const [id, key] of Object.entries(BUTTON_KEYS)) {
     check(`${id} 기본 묶기 = ${key}`, firstKey(id), key)
-    check(`${key} 는 순정 기본표에 없다`, tabbyDefaults.includes(`'${key}'`), false)
     check(`${id} 를 deck.service 가 처리한다`, deckSrc.includes(`hotkey === '${id}'`), true)
 }
+check('Ctrl-Shift-O 는 순정 기본표에 없다', tabbyDefaults.includes("'Ctrl-Shift-O'"), false)
+// 화면 복구는 **일부러** 순정 rename-tab(Ctrl+Shift+R)과 겹친다 (2026-09-17) — 새 탭과 같이 순정 표에서
+// 그 키를 떼어 우리 것만 남긴다. 겹치는데 안 떼면 둘 다 도는데 어느 쪽이 이겼는지 안 보인다
+check('Ctrl-Shift-R 은 순정 rename-tab 키다', tabbyDefaults.includes("'Ctrl-Shift-R'"), true)
+check('ensureRepairHotkey 가 rename-tab 에서 우리 키를 뗀다',
+    /ensureRepairHotkey[\s\S]{0,1500}?hotkeys\['rename-tab'\] = kept/.test(deckSrc), true)
+check('옛 기본값 Ctrl-Shift-U 하나뿐이면 R 로 옮긴다',
+    /cur\[0\] === 'Ctrl-Shift-U'[\s\S]{0,120}?\['Ctrl-Shift-R'\]/.test(deckSrc), true)
+check('claimRepairKey=false 면 핸들러도 무시한다',
+    deckSrc.includes("hotkey === 'agentdeck-repair' && this.config.store.agentDeck.claimRepairKey !== false"), true)
 
 // 새 탭은 반대다 — **순정과 같은 키(Ctrl-Shift-T)를 일부러 쓰고** 순정 표에서 그 키를 뗀다.
 // 떼는 코드가 없으면 한 번 눌러 탭이 둘 열리고, 어느 쪽이 먼저인지는 저장 순서에 달려 보이지 않는다

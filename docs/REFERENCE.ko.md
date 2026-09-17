@@ -445,12 +445,13 @@ agentdeck 은 그 답을 이미 갖고 있다 — Enter 를 칠 때 입력창에
 | `Ctrl+Shift+L` | 사이드바 목록에 포커스를 준다 / 같은 키로 터미널로 돌아온다. `agentdeck-focus-list` |
 | `Ctrl+W` | 지금 탭을 닫는다 — 터미널에서 누르면 **활성 탭**, 목록이 키보드를 가졌으면 **포커스 줄의 탭**. `keyboardNav` + `keyboardCloseTab` 이 켜져 있을 때만이고, 끄면 터미널의 앞 단어 지우기(`0x17`)로 그대로 흐른다 |
 | (미배정) | `agentdeck-toggle` — 사이드바/4:3 즉시 on-off |
-| `Ctrl+Shift+U` | 화면 복구 — 사이드바 `↻` 와 같다. `agentdeck-repair` |
+| `Ctrl+Shift+R` | 화면 복구 — 사이드바 `↻` 와 같다. **순정 `rename-tab` 을 대체한다**: 기동 때 그 키를 뗀다(이름은 사이드바 줄 더블클릭으로). 저장돼 있던 옛 기본값 `Ctrl-Shift-U` 는 옮겨 준다. 되돌리려면 `claimRepairKey: false`. `agentdeck-repair` |
 | `Ctrl+Shift+O` | 미리보기 패널 여닫기 — 사이드바 `▤` 와 같다. `agentdeck-view` |
+| `Ctrl+Shift+S` / `Ctrl+Shift+D` | 패널을 좌우 / 위아래로 분할 — Tabby 순정 `split-right` / `split-bottom`. 아래 닫기 키와 짝이라 여기(와 설정 → AgentDeck → 단축키)에 같이 둔다 |
 | `Ctrl+Shift+Q` | 포커스된 분할 패널 닫기 — Tabby 순정 `close-pane` 인데 **비어 있는 채로** 출고된다. 기동 때 비어 있을 때만 `closePaneKey` 로 채우고, 직접 넣어 둔 키는 그대로 둔다. `closePaneKey: ''` 면 채우지 않는다 |
 | (미배정) | `agentdeck-view-mode` — 패널의 `파일` / `변경` 모드 전환 |
 
-키 배정은 Tabby 설정 → 단축키의 `agentdeck-*` 항목에서 바꾼다.
+키는 **설정 → AgentDeck → 단축키** 에서 바꾼다: *바꾸기* 를 누르고 키를 누른다. Tabby 순정이나 AgentDeck 이 이미 쓰는 키면 무엇과 겹치는지 알려 주고, 다시 고르거나 그 키를 가져올 수 있다(상대 바인딩에서 뗀다). Tabby 설정 → 단축키의 `agentdeck-*` 항목으로도 된다.
 `Ctrl+V` 는 **핫키가 아니라 캡처 단계에서 한 번만** 처리한다. 그래서 기동할 때 순정 `hotkeys.paste` 와
 `agentdeck-paste` **양쪽에서** `Ctrl-V` 를 뺀다 — 핫키에 남겨 두면 Tabby 가 같은 키를 두 경로로 밀어 넣어
 한 번 눌러 두 번 붙는 일이 있었다(`docs/DEVELOPMENT.md` 에 원인).

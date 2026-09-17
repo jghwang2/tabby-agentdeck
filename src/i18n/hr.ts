@@ -100,4 +100,30 @@ export default {
         + 'fiksirano je na zadane vrijednosti. Treba li što promijeniti, uredite <code>agentDeck.*</code> '
         + 'izravno u konfiguracijskoj datoteci. '
         + 'Prečaci su na kartici <b>Prečaci</b> pod <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Prečaci',
+    'keys.intro': 'Tipke s naslovne stranice. Pritisnite <b>Promijeni</b>, zatim novu tipku. Ako je već zauzeta — od samog Tabbyja ili AgentDecka — bit će vam rečeno <b>s čime se sudara</b> i možete birati ponovno ili je preuzeti. Vrijedi odmah.',
+    'keys.change': 'Promijeni',
+    'keys.default': 'Zadano',
+    'keys.cancel': 'Odustani',
+    'keys.force': 'Svejedno koristi',
+    'keys.press': 'Pritisnite novu tipku… (Esc odustaje)',
+    'keys.conflict': 'Sudara se s {names}. Ako je svejedno koristite, tipka se ondje uklanja.',
+    'keys.unbound': 'nije dodijeljeno',
+    'keys.stock': 'ugrađeno u Tabby',
+    'keys.digit': 'Ovo mora završavati znamenkom 1–9 — znamenka je broj sesije. Pritisnite npr. Alt+1 i 2…9 slijede.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, desni klik i <code>Ctrl+F</code> / <code>Ctrl+S</code> u panelu nisu prečaci i ovdje se ne mijenjaju.',
+    'keys.item.newtab': 'Nova kartica u radnom korijenu',
+    'keys.item.jump': 'Skoči na N-tu sesiju',
+    'keys.item.focus': 'Fokus na popis sesija / natrag u terminal',
+    'keys.item.view': 'Otvori / zatvori ploču pretpregleda',
+    'keys.item.repair': 'Popravi zaslon',
+    'keys.item.splitright': 'Podijeli jedno uz drugo (novo okno desno)',
+    'keys.item.splitbottom': 'Podijeli gore / dolje (novo okno dolje)',
+    'keys.item.closepane': 'Zatvori aktivno podijeljeno okno',
+    'keys.item.newline': 'Novi red bez slanja',
+    'keys.item.toggle': 'Bočna traka / 4:3 uklj-isklj',
+    'keys.item.viewmode': 'Ploča: Datoteke ↔ Promjene',
 }

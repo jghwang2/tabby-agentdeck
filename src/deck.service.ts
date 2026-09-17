@@ -655,6 +655,7 @@ export class AgentDeckService {
         this.disableBackgroundThrottling()
         this.ensurePasteHotkey()
         this.ensureNewTabHotkey()
+        this.ensureRepairHotkey()
         this.ensureClosePaneHotkey()
         this.ensureNewlineHotkey()
         this.releaseHomeEndHotkey()
@@ -745,7 +746,7 @@ export class AgentDeckService {
             if (hotkey === 'agentdeck-paste') {
                 this.doPaste('hotkey')
             }
-            if (hotkey === 'agentdeck-repair') {
+            if (hotkey === 'agentdeck-repair' && this.config.store.agentDeck.claimRepairKey !== false) {
                 this.repair('all')
             }
             if (hotkey === 'agentdeck-view') {
@@ -1978,6 +1979,44 @@ export class AgentDeckService {
         hotkeys['close-pane'] = [key]
         this.config.save()
         this.diag(`hotkeys close-pane filled: ${JSON.stringify(hotkeys['close-pane'])}`)
+    }
+
+    /**
+     * `Ctrl+Shift+R` 을 순정 `rename-tab` 에서 **걷어내** 우리 `agentdeck-repair` 만 남긴다.
+     *
+     * 방식과 이유는 `ensureNewTabHotkey` 와 같다 — 같은 키가 두 id 에 매여 있으면 어느 쪽이
+     * 발화할지 저장 순서에 달리므로 표에서 떼는 것만이 확실하다. 탭 이름 바꾸기는 사이드바
+     * 더블클릭이 주 경로라 키를 잃어도 아쉽지 않다.
+     *
+     * 옛 기본값 이관 — 2026-09-17 전에는 기본이 `Ctrl-Shift-U` 였고 Tabby 는 기본값도 config.yaml 에
+     * 그대로 써 두므로, 사람이 손대지 않은 표에도 `['Ctrl-Shift-U']` 가 남아 있다. **정확히 옛 기본값
+     * 하나뿐일 때만** 새 기본값으로 바꾼다 — 다른 값이면 사람이 고른 것이니 건드리지 않는다.
+     *
+     * `claimRepairKey: false` 면 건드리지 않고 우리 핸들러도 무시한다(hotkey$ 구독). 게이트를 켰다
+     * 끄면 뗀 키는 되살리지 않는다 — `ensureNewTabHotkey` 와 같은 판단.
+     */
+    private ensureRepairHotkey (): void {
+        const hotkeys = this.config.store.hotkeys
+        if (!hotkeys || this.config.store.agentDeck.claimRepairKey === false) {
+            return
+        }
+        let changed = false
+        const cur: string[] = Array.isArray(hotkeys['agentdeck-repair']) ? hotkeys['agentdeck-repair'] : []
+        if (cur.length === 1 && cur[0] === 'Ctrl-Shift-U') {
+            hotkeys['agentdeck-repair'] = ['Ctrl-Shift-R']
+            changed = true
+        }
+        const ours: string[] = Array.isArray(hotkeys['agentdeck-repair']) ? hotkeys['agentdeck-repair'] : []
+        const theirs: string[] = Array.isArray(hotkeys['rename-tab']) ? hotkeys['rename-tab'] : []
+        const kept = theirs.filter(k => !ours.includes(k))
+        if (kept.length !== theirs.length) {
+            hotkeys['rename-tab'] = kept
+            changed = true
+        }
+        if (changed) {
+            this.config.save()
+            this.diag(`hotkeys repair claimed: ours=${JSON.stringify(ours)} rename-tab=${JSON.stringify(theirs)} -> ${JSON.stringify(kept)}`)
+        }
     }
 
     /**

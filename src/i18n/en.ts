@@ -97,4 +97,30 @@ export default {
     'footer': 'The rest — window ratio, sidebar width, opacity, state detection, input handling — is pinned to '
         + 'its defaults. Edit <code>agentDeck.*</code> in the config file if you need to change one. '
         + 'Hotkeys live under the <b>Hotkeys</b> tab as <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Shortcuts',
+    'keys.intro': 'The keys from the front page. Press <b>Change</b>, then the new key. If it is already taken — by Tabby itself or by AgentDeck — you are told <b>what it clashes with</b> and can pick again or take the key over. Applies immediately.',
+    'keys.change': 'Change',
+    'keys.default': 'Default',
+    'keys.cancel': 'Cancel',
+    'keys.force': 'Use it anyway',
+    'keys.press': 'Press the new key… (Esc to cancel)',
+    'keys.conflict': 'Clashes with {names}. Use it anyway and the key is removed there.',
+    'keys.unbound': 'unbound',
+    'keys.stock': 'Tabby\'s own',
+    'keys.digit': 'This one has to end in a digit 1–9 — the digit is the session number. Press e.g. Alt+1 and 2…9 follow.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, right-click and the panel\'s <code>Ctrl+F</code> / <code>Ctrl+S</code> are not hotkeys and are not changed here.',
+    'keys.item.newtab': 'New tab in the work root',
+    'keys.item.jump': 'Jump to the Nth session',
+    'keys.item.focus': 'Focus the session list / back to the terminal',
+    'keys.item.view': 'Open / close the preview panel',
+    'keys.item.repair': 'Screen repair',
+    'keys.item.splitright': 'Split side by side (new pane on the right)',
+    'keys.item.splitbottom': 'Split top / bottom (new pane below)',
+    'keys.item.closepane': 'Close the focused split pane',
+    'keys.item.newline': 'Newline without sending',
+    'keys.item.toggle': 'Sidebar / 4:3 on-off',
+    'keys.item.viewmode': 'Panel: Files ↔ Changes',
 }

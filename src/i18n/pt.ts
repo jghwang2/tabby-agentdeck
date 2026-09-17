@@ -102,4 +102,30 @@ export default {
         + 'tratamento da entrada — está fixado nos valores predefinidos. Se precisar de mudar algum, '
         + 'edite <code>agentDeck.*</code> diretamente no ficheiro de configuração. '
         + 'Os atalhos estão no separador <b>Atalhos</b> como <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Atalhos',
+    'keys.intro': 'As teclas da página inicial. Carregue em <b>Alterar</b> e depois na nova tecla. Se já estiver ocupada — pelo próprio Tabby ou pelo AgentDeck — é-lhe dito <b>com o que colide</b> e pode escolher outra ou ficar com ela. Aplica-se de imediato.',
+    'keys.change': 'Alterar',
+    'keys.default': 'Padrão',
+    'keys.cancel': 'Cancelar',
+    'keys.force': 'Usar mesmo assim',
+    'keys.press': 'Carregue na nova tecla… (Esc cancela)',
+    'keys.conflict': 'Colide com {names}. Se usar mesmo assim, a tecla é retirada de lá.',
+    'keys.unbound': 'sem atribuição',
+    'keys.stock': 'nativo do Tabby',
+    'keys.digit': 'Este tem de terminar num dígito 1–9 — o dígito é o número da sessão. Carregue p. ex. em Alt+1 e 2…9 seguem.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, o clique direito e <code>Ctrl+F</code> / <code>Ctrl+S</code> do painel não são atalhos e não se alteram aqui.',
+    'keys.item.newtab': 'Novo separador na raiz de trabalho',
+    'keys.item.jump': 'Ir para a sessão N',
+    'keys.item.focus': 'Foco na lista de sessões / voltar ao terminal',
+    'keys.item.view': 'Abrir / fechar o painel de pré-visualização',
+    'keys.item.repair': 'Reparar o ecrã',
+    'keys.item.splitright': 'Dividir lado a lado (novo painel à direita)',
+    'keys.item.splitbottom': 'Dividir em cima / em baixo (novo painel em baixo)',
+    'keys.item.closepane': 'Fechar o painel dividido ativo',
+    'keys.item.newline': 'Nova linha sem enviar',
+    'keys.item.toggle': 'Barra lateral / 4:3 ligar-desligar',
+    'keys.item.viewmode': 'Painel: Ficheiros ↔ Alterações',
 }

@@ -21,7 +21,9 @@
 | `Ctrl+Shift+L` | 세션 목록에 포커스 / 같은 키로 터미널 복귀. 이어서 `↑↓` 이동, `Enter` 선택, `Esc` 나가기 |
 | `Ctrl+W` | 지금 탭 닫기 (목록이 키보드를 가졌으면 포커스 줄) |
 | `Ctrl+Shift+O` | 미리보기 패널 여닫기 |
-| `Ctrl+Shift+U` | 화면 복구 (`↻` 와 같다) |
+| `Ctrl+Shift+R` | 화면 복구 (`↻` 와 같다). 순정 탭 이름 바꾸기를 대체 — 이름은 줄 더블클릭으로 |
+| `Ctrl+Shift+S` | 좌우로 분할 (Tabby 순정) |
+| `Ctrl+Shift+D` | 위아래로 분할 (Tabby 순정) |
 | `Ctrl+Shift+Q` | 포커스된 분할 패널 닫기 |
 | `Ctrl+Enter` / `Shift+Enter` | 전송하지 않고 줄바꿈 |
 | `Ctrl+V` | 붙여넣기. 클립보드에 이미지만 있으면 이미지로 에이전트에 넘긴다 |
@@ -29,7 +31,7 @@
 | `Ctrl+F` / `Ctrl+S` | 미리보기 패널 안에서 찾기 / 저장 |
 
 배정되지 않은 것은 둘: `agentdeck-toggle`(사이드바 / 4:3 즉시 on-off), `agentdeck-view-mode`(파일 ↔ 변경).
-Tabby 설정 → 단축키 → `agentdeck-*` 에서 바꿀 수 있다.
+**설정 → AgentDeck → 단축키** 에서 바꾼다 — Tabby 순정이나 AgentDeck 이 이미 쓰는 키면 적용 전에 무엇과 겹치는지 알려 준다. Tabby 설정 → 단축키 → `agentdeck-*` 로도 된다.
 
 ## 설치
 

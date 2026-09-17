@@ -102,4 +102,30 @@ export default {
         + 'invoerhantering — is op die verstekwaardes vasgepen. Moet jy een verander, wysig '
         + '<code>agentDeck.*</code> direk in die konfigurasielêer. '
         + 'Kortpaaie is onder die <b>Kortpaaie</b>-oortjie as <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Kortpaaie',
+    'keys.intro': 'Die sleutels van die voorblad. Druk <b>Verander</b>, dan die nuwe sleutel. As dit reeds gebruik word — deur Tabby self of deur AgentDeck — word gesê <b>waarmee dit bots</b>, en jy kan weer kies of die sleutel oorneem. Geld dadelik.',
+    'keys.change': 'Verander',
+    'keys.default': 'Verstek',
+    'keys.cancel': 'Kanselleer',
+    'keys.force': 'Gebruik dit in elk geval',
+    'keys.press': 'Druk die nuwe sleutel… (Esc kanselleer)',
+    'keys.conflict': 'Bots met {names}. Gebruik jy dit in elk geval, word die sleutel daar verwyder.',
+    'keys.unbound': 'nie toegeken',
+    'keys.stock': 'Tabby se eie',
+    'keys.digit': 'Hierdie een moet op \'n syfer 1–9 eindig — die syfer is die sessienommer. Druk bv. Alt+1 en 2…9 volg.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, regsklik en die paneel se <code>Ctrl+F</code> / <code>Ctrl+S</code> is nie kortpaaie nie en word nie hier verander nie.',
+    'keys.item.newtab': 'Nuwe oortjie in die werkwortel',
+    'keys.item.jump': 'Spring na die N-de sessie',
+    'keys.item.focus': 'Fokus op die sessielys / terug na die terminaal',
+    'keys.item.view': 'Maak die voorskoupaneel oop / toe',
+    'keys.item.repair': 'Herstel die skerm',
+    'keys.item.splitright': 'Deel langs mekaar (nuwe paneel regs)',
+    'keys.item.splitbottom': 'Deel bo / onder (nuwe paneel onder)',
+    'keys.item.closepane': 'Maak die aktiewe verdeelde paneel toe',
+    'keys.item.newline': 'Nuwe reël sonder om te stuur',
+    'keys.item.toggle': 'Kantbalk / 4:3 aan-af',
+    'keys.item.viewmode': 'Paneel: Lêers ↔ Veranderinge',
 }

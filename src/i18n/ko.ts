@@ -95,4 +95,30 @@ export default {
     'footer': '화면비·사이드바 폭·투명도·상태 감지·입력 처리 등 나머지 값은 기본값으로 고정돼 있다. '
         + '바꿔야 한다면 설정 파일의 <code>agentDeck.*</code> 를 직접 고친다. '
         + '단축키는 <b>단축키</b> 탭의 <code>agentdeck-*</code> 항목에서 바꾼다.',
+
+
+    // 설정 창 '단축키' 절 (keybind.ts · settings.component.ts)
+    'keys.head': '단축키',
+    'keys.intro': '첫 화면에 올린 키들이다. <b>바꾸기</b>를 누르고 새 키를 누른다. 이미 쓰는 키면 — Tabby 순정이든 AgentDeck 것이든 — <b>무엇과 겹치는지</b> 알려 주고, 다시 고르거나 그 키를 가져올 수 있다. 바로 적용된다.',
+    'keys.change': '바꾸기',
+    'keys.default': '기본값',
+    'keys.cancel': '취소',
+    'keys.force': '그래도 쓰기',
+    'keys.press': '새 키를 누르세요… (Esc 취소)',
+    'keys.conflict': '{names} 와 겹칩니다. 그래도 쓰면 그쪽에서 이 키를 뗍니다.',
+    'keys.unbound': '미배정',
+    'keys.stock': 'Tabby 순정',
+    'keys.digit': '이 항목은 1~9 숫자로 끝나야 한다 — 숫자가 곧 세션 번호다. 예를 들어 Alt+1 을 누르면 2…9 가 따라온다.',
+    'keys.fixed': '<code>Ctrl+V</code> · <code>Ctrl+W</code> · 우클릭 · 패널의 <code>Ctrl+F</code> / <code>Ctrl+S</code> 는 핫키가 아니라 여기서 바꾸지 않는다.',
+    'keys.item.newtab': '작업 루트에 새 탭',
+    'keys.item.jump': 'N 번째 세션으로',
+    'keys.item.focus': '세션 목록에 포커스 / 터미널 복귀',
+    'keys.item.view': '미리보기 패널 여닫기',
+    'keys.item.repair': '화면 복구',
+    'keys.item.splitright': '좌우로 분할 (새 패널이 오른쪽)',
+    'keys.item.splitbottom': '위아래로 분할 (새 패널이 아래)',
+    'keys.item.closepane': '포커스된 분할 패널 닫기',
+    'keys.item.newline': '전송하지 않고 줄바꿈',
+    'keys.item.toggle': '사이드바 / 4:3 즉시 on-off',
+    'keys.item.viewmode': '패널: 파일 ↔ 변경',
 }

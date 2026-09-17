@@ -1,9 +1,13 @@
-import { AfterViewInit, Component, ElementRef, Optional, OnDestroy } from '@angular/core'
+import { AfterViewInit, Component, ElementRef, NgZone, Optional, OnDestroy } from '@angular/core'
 import { Subscription } from 'rxjs'
-import { ConfigService, LocaleService, PlatformService } from 'tabby-core'
+import { ConfigService, HotkeysService, LocaleService, PlatformService } from 'tabby-core'
 
 import { Lang, pickLang, translate } from './i18n'
-import { LAYOUT_DEFAULTS } from './config'
+import { LAYOUT_DEFAULTS, defaultHotkeys } from './config'
+import {
+    KEY_ITEMS, KeyItem, BindingPlan, Platform, applyBinding, displayStrokes, isDefaultBinding,
+    keystrokeFromEvent, planBinding, resetBinding,
+} from './keybind'
 import { hooksInstalled, hooksSupported, installHooks, uninstallHooks } from './claudeHooks'
 import { installStatusLine, statusLineInstalled, statusLineSupported, uninstallStatusLine } from './statusLine'
 import { codexDisabledEvents, codexEventLabel, codexHooksInstalled, setCodexHooks } from './codexHooks'
@@ -163,6 +167,44 @@ const DOCK_KEYS: Record<string, string> = {
 </div>
 
 -->
+
+<h3 class="mt-4 mb-3">{{t('keys.head')}}</h3>
+<div class="text-muted mb-3" [innerHTML]="t('keys.intro')"></div>
+
+<div class="form-line ad-keyrow" *ngFor="let it of keyItems">
+    <div class="header">
+        <div class="title">
+            {{t(it.label)}}
+            <span class="badge bg-secondary ms-1" *ngIf="it.stock">{{t('keys.stock')}}</span>
+        </div>
+        <div class="description">
+            <ng-container *ngIf="capturing !== it.id && !isPending(it)">
+                <kbd class="me-1" *ngFor="let k of keysOf(it)">{{k}}</kbd>
+                <span class="text-muted" *ngIf="!keysOf(it).length">{{t('keys.unbound')}}</span>
+            </ng-container>
+            <span class="text-info" *ngIf="capturing === it.id">{{t('keys.press')}}</span>
+            <div class="text-warning" *ngIf="isPending(it)">
+                <kbd>{{pending!.plan.display}}</kbd> — {{t('keys.conflict', { names: pending!.names })}}
+                <div class="mt-1">
+                    <button class="btn btn-sm btn-warning me-1" type="button" (click)="confirmPending()">{{t('keys.force')}}</button>
+                    <button class="btn btn-sm btn-secondary me-1" type="button" (click)="startCapture(it)">{{t('keys.change')}}</button>
+                    <button class="btn btn-sm btn-link" type="button" (click)="pending = null">{{t('keys.cancel')}}</button>
+                </div>
+            </div>
+            <span class="text-danger d-block mt-1" *ngIf="keyMsgFor === it.id && keyMsg">{{keyMsg}}</span>
+        </div>
+    </div>
+    <div class="d-flex gap-1">
+        <button class="btn btn-secondary" type="button"
+                (click)="capturing === it.id ? stopCapture() : startCapture(it)">
+            {{t(capturing === it.id ? 'keys.cancel' : 'keys.change')}}
+        </button>
+        <button class="btn btn-outline-secondary" type="button" [disabled]="isDefault(it)" (click)="resetKeys(it)">
+            {{t('keys.default')}}
+        </button>
+    </div>
+</div>
+<div class="text-muted mb-3" [innerHTML]="t('keys.fixed')"></div>
 
 <!-- [설정 화면에서 숨김 사이드바 목록·세션 그룹·미리보기 패널 — 기본값(config.ts)으로 고정, 바꿀 땐 config.yaml agentDeck.* 직접]
 <h3 class="mt-4 mb-3">사이드바 목록</h3>
@@ -542,6 +584,22 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     /** 마지막 확인 결과 한 줄 */
     updateMsg = ''
 
+    // ── 단축키 절 (계산은 keybind.ts) ──
+    /** 늘어놓는 항목 — README 첫 화면의 표와 같은 순서 */
+    keyItems: KeyItem[] = KEY_ITEMS
+    /** 지금 키를 받고 있는 항목 id */
+    capturing: string | null = null
+    /** 겹침이 나와 확인을 기다리는 계획 */
+    pending: { plan: BindingPlan, names: string } | null = null
+    /** 한 줄 안내(숫자로 끝나야 한다 등) 와 그 대상 */
+    keyMsg = ''
+    keyMsgFor = ''
+    /** id → 사람이 읽는 이름. Tabby 순정·다른 플러그인 것까지 HotkeysService 가 모아 준다 */
+    private hotkeyNames = new Map<string, string>()
+    private captureHandler: ((e: KeyboardEvent) => void) | null = null
+    private readonly keyPlatform: Platform = (process.platform === 'darwin' || process.platform === 'linux')
+        ? process.platform : 'win32'
+
     /** 600px 제한을 풀어 둔 Tabby 의 본문 엘리먼트 (나갈 때 되돌린다) */
     private widened: HTMLElement | null = null
     /** 풀기 전의 값 — 인라인으로 없던 상태면 빈 문자열이라 그대로 되돌려진다 */
@@ -561,8 +619,13 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         // 주입에 실패하면 Angular 가 컴포넌트 생성 자체를 막아 **탭이 통째로 빈 화면**이 되는데,
         // 얻는 것이 "문구 언어" 하나뿐인 것과 견주면 그 대가가 너무 크다.
         @Optional() private locale: LocaleService | null,
+        // 겹침 안내에 쓸 **이름**만 얻는다 — 매칭·처리는 여전히 Tabby 와 deck.service 의 일이다.
+        // 없어도 설정 탭은 떠야 하므로 @Optional (그때는 id 를 그대로 보여 준다)
+        @Optional() private hotkeys: HotkeysService | null,
+        private zone: NgZone,
     ) {
         this.refreshHooks()
+        void this.loadHotkeyNames()
         // 첫 값은 물어봐서 잡는다 — `localeChanged$` 는 **바뀔 때만** 흘리므로
         // 구독만 해 두면 사용자가 언어를 건드릴 때까지 영어로 떠 있는다.
         // 서비스가 없으면 설정 파일의 값, 그것도 비어 있으면(자동) 브라우저 로케일을 본다
@@ -615,6 +678,126 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         }
         this.localeSub?.unsubscribe()
         this.localeSub = null
+        this.stopCapture()
+    }
+
+    // ───────────────────────── 단축키 절 ─────────────────────────
+
+    /** 이 항목이 지금 쓰는 키들 (사람 표기) */
+    keysOf (it: KeyItem): string[] {
+        return displayStrokes(this.config.store.hotkeys ?? {}, it, this.keyPlatform)
+    }
+
+    isPending (it: KeyItem): boolean {
+        return !!this.pending && this.pending.plan.item.id === it.id
+    }
+
+    isDefault (it: KeyItem): boolean {
+        return isDefaultBinding(this.config.store.hotkeys ?? {}, it, this.keyDefaults(), this.keyPlatform)
+    }
+
+    /**
+     * 키 받기 시작. **window 캡처 단계**에 건다 — 그래야 document 에 걸린 Tabby 의 HotkeysService
+     * 리스너와 우리 deck.service 의 캡처 리스너(Ctrl+V · Shift+Enter)보다 먼저 받고, 전파를 끊어
+     * 그 키가 진짜로 실행되는 일(검색창이 열리거나 터미널에 붙여지는 일)을 막는다.
+     * 수식키만 눌린 이벤트는 그냥 흘린다 — 아직 조합 중이고, 막으면 Shift 추적이 어긋난다.
+     */
+    startCapture (it: KeyItem): void {
+        this.stopCapture()
+        this.pending = null
+        this.keyMsg = ''
+        this.capturing = it.id
+        this.captureHandler = (e: KeyboardEvent) => {
+            if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+                return
+            }
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            this.zone.run(() => {
+                if (e.key === 'Escape') {
+                    this.stopCapture()
+                    return
+                }
+                const stroke = keystrokeFromEvent(e, this.keyPlatform)
+                if (!stroke) {
+                    return
+                }
+                this.stopCapture()
+                const table = this.config.store.hotkeys ?? {}
+                const plan = planBinding(table, it, stroke, this.keyPlatform)
+                if (plan.error === 'digit') {
+                    this.keyMsg = this.t('keys.digit')
+                    this.keyMsgFor = it.id
+                    return
+                }
+                if (plan.conflicts.length) {
+                    this.pending = { plan, names: plan.conflicts.map(id => this.nameOf(id)).join(', ') }
+                    return
+                }
+                this.commit(plan, false)
+            })
+        }
+        window.addEventListener('keydown', this.captureHandler, true)
+    }
+
+    stopCapture (): void {
+        if (this.captureHandler) {
+            window.removeEventListener('keydown', this.captureHandler, true)
+            this.captureHandler = null
+        }
+        this.capturing = null
+    }
+
+    /** 겹침을 알고도 쓰기 — 겹치는 쪽에서 그 키를 뗀다 (한 번 눌러 둘이 도는 상태를 남기지 않는다) */
+    confirmPending (): void {
+        if (!this.pending) {
+            return
+        }
+        this.commit(this.pending.plan, true)
+        this.pending = null
+    }
+
+    resetKeys (it: KeyItem): void {
+        this.pending = null
+        this.keyMsg = ''
+        resetBinding(this.config.store.hotkeys, it, this.keyDefaults())
+        this.config.save()
+    }
+
+    private commit (plan: BindingPlan, force: boolean): void {
+        applyBinding(this.config.store.hotkeys, plan, force, this.keyPlatform)
+        // HotkeysService 는 매칭할 때마다 config.store 를 다시 읽으므로 저장만 하면 바로 산다
+        this.config.save()
+    }
+
+    /**
+     * 기본값 표 — 순정 항목(split-right · split-bottom …)은 Tabby 의 플랫폼 기본표에서,
+     * 우리 항목과 close-pane 은 `defaultHotkeys()` 에서. 순정 기본표는 ConfigService 가 들고 있다
+     * (`getDefaults()`), 없으면 우리 표만으로 간다(그때 순정 항목의 `기본값` 은 비운다).
+     */
+    private keyDefaults (): Record<string, unknown> {
+        let stock: Record<string, unknown> = {}
+        try {
+            stock = (this.config.getDefaults?.()?.hotkeys ?? {}) as Record<string, unknown>
+        } catch (e) { /* 순정 표를 못 읽으면 우리 표만 */ }
+        return { ...stock, ...defaultHotkeys() }
+    }
+
+    private nameOf (id: string): string {
+        return this.hotkeyNames.get(id) ?? id
+    }
+
+    private async loadHotkeyNames (): Promise<void> {
+        try {
+            const list = await this.hotkeys?.getHotkeyDescriptions()
+            for (const d of list ?? []) {
+                if (d?.id && d.name) {
+                    this.hotkeyNames.set(d.id, d.name)
+                }
+            }
+        } catch (e) {
+            // 이름을 못 얻으면 id 로 보여 준다 — 겹침 판정 자체는 표만 보므로 영향이 없다
+        }
     }
 
     /**

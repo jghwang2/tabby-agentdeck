@@ -395,12 +395,13 @@ With nothing staged it does not commit — it never widens to `git commit -a`.
 | `Ctrl+Shift+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
 | `Ctrl+W` | Close the current tab — the **active tab** from the terminal, the **focused row** when the list has the keyboard. Only while `keyboardNav` + `keyboardCloseTab` are on; off, it flows through as the shell's delete-previous-word (`0x17`) |
 | (unbound) | `agentdeck-toggle` — sidebar / 4:3 on-off |
-| `Ctrl+Shift+U` | Screen repair — same as the sidebar `↻`. `agentdeck-repair` |
+| `Ctrl+Shift+R` | Screen repair — same as the sidebar `↻`. **Replaces Tabby's own `rename-tab`**: on startup the key is removed from it (rename by double-clicking the sidebar row). A saved `Ctrl-Shift-U` (the old default) is migrated. Set `claimRepairKey: false` to undo. `agentdeck-repair` |
 | `Ctrl+Shift+O` | Open/close the preview panel — same as the sidebar `▤`. `agentdeck-view` |
+| `Ctrl+Shift+S` / `Ctrl+Shift+D` | Split the pane side by side / top-bottom — Tabby's own `split-right` / `split-bottom`, listed here (and in Settings → AgentDeck → Shortcuts) because they pair with the close key below |
 | `Ctrl+Shift+Q` | Close the focused split pane — Tabby's own `close-pane`, which ships **unbound**. On startup agentdeck fills it with `closePaneKey` only while it is empty; a key you set yourself is left alone, and `closePaneKey: ''` turns the fill off |
 | (unbound) | `agentdeck-view-mode` — switch the panel between `Files` and `Changes` |
 
-Bind keys under Tabby Settings → Hotkeys, in the `agentdeck-*` entries.
+Change keys under **Settings → AgentDeck → Shortcuts**: press *Change*, then the key. If Tabby or AgentDeck already uses it you are told what it clashes with and can pick again or take the key over (it is removed from the other binding). Tabby Settings → Hotkeys → `agentdeck-*` works too.
 `Ctrl+V` is handled **in the capture phase, not as a hotkey**. On startup it is removed from **both** Tabby's own
 `hotkeys.paste` and `agentdeck-paste` — leaving it in the hotkey table let Tabby push the same key down two paths,
 so one press pasted twice (the cause is written up in `docs/DEVELOPMENT.md`).

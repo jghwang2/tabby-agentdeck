@@ -103,4 +103,30 @@ export default {
         + 'dello stato, gestione dell’input — è fissato sui valori predefiniti. Se devi cambiarne uno, '
         + 'modifica <code>agentDeck.*</code> direttamente nel file di configurazione. '
         + 'Le scorciatoie stanno nella scheda <b>Scorciatoie</b> come <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Scorciatoie',
+    'keys.intro': 'I tasti della pagina iniziale. Premi <b>Cambia</b>, poi il nuovo tasto. Se è già occupato — da Tabby stesso o da AgentDeck — ti viene detto <b>con cosa va in conflitto</b> e puoi riscegliere o prenderlo comunque. Vale subito.',
+    'keys.change': 'Cambia',
+    'keys.default': 'Predefinito',
+    'keys.cancel': 'Annulla',
+    'keys.force': 'Usalo comunque',
+    'keys.press': 'Premi il nuovo tasto… (Esc annulla)',
+    'keys.conflict': 'In conflitto con {names}. Usandolo comunque, il tasto viene tolto da lì.',
+    'keys.unbound': 'non assegnato',
+    'keys.stock': 'nativo di Tabby',
+    'keys.digit': 'Questo deve finire con una cifra 1–9 — la cifra è il numero della sessione. Premi ad es. Alt+1 e 2…9 seguono.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, il clic destro e <code>Ctrl+F</code> / <code>Ctrl+S</code> del pannello non sono scorciatoie e non si cambiano qui.',
+    'keys.item.newtab': 'Nuova scheda nella radice di lavoro',
+    'keys.item.jump': 'Vai alla sessione N',
+    'keys.item.focus': 'Focus sull\'elenco sessioni / torna al terminale',
+    'keys.item.view': 'Apri / chiudi il pannello anteprima',
+    'keys.item.repair': 'Ripara lo schermo',
+    'keys.item.splitright': 'Dividi affiancato (nuovo riquadro a destra)',
+    'keys.item.splitbottom': 'Dividi sopra / sotto (nuovo riquadro sotto)',
+    'keys.item.closepane': 'Chiudi il riquadro attivo',
+    'keys.item.newline': 'A capo senza inviare',
+    'keys.item.toggle': 'Barra laterale / 4:3 on-off',
+    'keys.item.viewmode': 'Pannello: File ↔ Modifiche',
 }

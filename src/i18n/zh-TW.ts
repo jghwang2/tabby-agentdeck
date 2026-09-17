@@ -92,4 +92,30 @@ export default {
     'footer': '其餘項目 —— 視窗比例、側邊欄寬度、不透明度、狀態偵測、輸入處理 —— 都固定為預設值。 '
         + '確實需要更動時請直接編輯設定檔裡的 <code>agentDeck.*</code>。 '
         + '快速鍵請在<b>快速鍵</b>頁的 <code>agentdeck-*</code> 項目中修改。',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': '快速鍵',
+    'keys.intro': '首頁列出的那些鍵。按<b>變更</b>，再按新鍵。若該鍵已被使用——不論是 Tabby 本身或 AgentDeck——會告訴你<b>與什麼衝突</b>，可以重選或直接接手。立即生效。',
+    'keys.change': '變更',
+    'keys.default': '預設值',
+    'keys.cancel': '取消',
+    'keys.force': '仍然使用',
+    'keys.press': '請按新鍵… (Esc 取消)',
+    'keys.conflict': '與 {names} 衝突。仍然使用的話，會從那裡移除這個鍵。',
+    'keys.unbound': '未綁定',
+    'keys.stock': 'Tabby 內建',
+    'keys.digit': '這一項必須以數字 1–9 結尾——數字就是工作階段編號。例如按 Alt+1，2…9 會跟著設定。',
+    'keys.fixed': '<code>Ctrl+V</code>、<code>Ctrl+W</code>、右鍵，以及面板內的 <code>Ctrl+F</code> / <code>Ctrl+S</code> 不是快速鍵，這裡不改。',
+    'keys.item.newtab': '在工作根目錄開新分頁',
+    'keys.item.jump': '跳到第 N 個工作階段',
+    'keys.item.focus': '聚焦工作階段清單 / 回到終端機',
+    'keys.item.view': '開啟 / 關閉預覽面板',
+    'keys.item.repair': '修復畫面',
+    'keys.item.splitright': '左右分割（新窗格在右）',
+    'keys.item.splitbottom': '上下分割（新窗格在下）',
+    'keys.item.closepane': '關閉目前的分割窗格',
+    'keys.item.newline': '換行而不送出',
+    'keys.item.toggle': '側欄 / 4:3 開關',
+    'keys.item.viewmode': '面板：檔案 ↔ 變更',
 }

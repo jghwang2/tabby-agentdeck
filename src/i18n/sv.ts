@@ -101,4 +101,30 @@ export default {
         + 'indatahantering — är låst till standardvärdena. Behöver du ändra något, redigera '
         + '<code>agentDeck.*</code> direkt i konfigurationsfilen. '
         + 'Snabbtangenterna finns under fliken <b>Snabbtangenter</b> som <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Snabbtangenter',
+    'keys.intro': 'Tangenterna från startsidan. Tryck <b>Ändra</b> och sedan den nya tangenten. Är den redan upptagen — av Tabby självt eller av AgentDeck — får du veta <b>vad den krockar med</b> och kan välja om eller ta över den. Gäller direkt.',
+    'keys.change': 'Ändra',
+    'keys.default': 'Standard',
+    'keys.cancel': 'Avbryt',
+    'keys.force': 'Använd ändå',
+    'keys.press': 'Tryck på den nya tangenten… (Esc avbryter)',
+    'keys.conflict': 'Krockar med {names}. Använder du den ändå tas tangenten bort där.',
+    'keys.unbound': 'ej tilldelad',
+    'keys.stock': 'Tabbys egen',
+    'keys.digit': 'Den här måste sluta på en siffra 1–9 — siffran är sessionsnumret. Tryck t.ex. Alt+1 så följer 2…9 med.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, högerklick och panelens <code>Ctrl+F</code> / <code>Ctrl+S</code> är inte snabbtangenter och ändras inte här.',
+    'keys.item.newtab': 'Ny flik i arbetsroten',
+    'keys.item.jump': 'Hoppa till session N',
+    'keys.item.focus': 'Fokus på sessionslistan / tillbaka till terminalen',
+    'keys.item.view': 'Öppna / stäng förhandsvisningspanelen',
+    'keys.item.repair': 'Reparera skärmen',
+    'keys.item.splitright': 'Dela sida vid sida (ny ruta till höger)',
+    'keys.item.splitbottom': 'Dela över / under (ny ruta nedanför)',
+    'keys.item.closepane': 'Stäng den aktiva delade rutan',
+    'keys.item.newline': 'Radbrytning utan att skicka',
+    'keys.item.toggle': 'Sidopanel / 4:3 på-av',
+    'keys.item.viewmode': 'Panel: Filer ↔ Ändringar',
 }

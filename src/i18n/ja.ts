@@ -97,4 +97,30 @@ export default {
     'footer': '画面比・サイドバーの幅・不透明度・状態検出・入力処理などの残りの値は既定値で固定されている。 '
         + '変えたい場合は設定ファイルの <code>agentDeck.*</code> を直接編集する。 '
         + 'ショートカットは<b>ホットキー</b>タブの <code>agentdeck-*</code> で変更する。',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'ショートカット',
+    'keys.intro': 'トップページに載せたキー。<b>変更</b>を押してから新しいキーを押す。すでに使われているキーなら — Tabby 本体でも AgentDeck でも — <b>何と重なるか</b>を表示し、選び直すかそのキーを奪える。すぐに反映される。',
+    'keys.change': '変更',
+    'keys.default': '既定値',
+    'keys.cancel': 'キャンセル',
+    'keys.force': 'それでも使う',
+    'keys.press': '新しいキーを押してください… (Esc で中止)',
+    'keys.conflict': '{names} と重なります。それでも使うと、そちらからこのキーを外します。',
+    'keys.unbound': '未割り当て',
+    'keys.stock': 'Tabby 本体',
+    'keys.digit': 'この項目は 1〜9 の数字で終わる必要がある — 数字がセッション番号になる。例えば Alt+1 を押せば 2…9 も同じ形になる。',
+    'keys.fixed': '<code>Ctrl+V</code>・<code>Ctrl+W</code>・右クリック・パネルの <code>Ctrl+F</code> / <code>Ctrl+S</code> はホットキーではないのでここでは変えない。',
+    'keys.item.newtab': '作業ルートに新しいタブ',
+    'keys.item.jump': 'N 番目のセッションへ',
+    'keys.item.focus': 'セッション一覧にフォーカス / ターミナルへ戻る',
+    'keys.item.view': 'プレビューパネルの開閉',
+    'keys.item.repair': '画面の修復',
+    'keys.item.splitright': '左右に分割 (新しいペインは右)',
+    'keys.item.splitbottom': '上下に分割 (新しいペインは下)',
+    'keys.item.closepane': 'フォーカス中の分割ペインを閉じる',
+    'keys.item.newline': '送信せずに改行',
+    'keys.item.toggle': 'サイドバー / 4:3 の切替',
+    'keys.item.viewmode': 'パネル: ファイル ↔ 変更',
 }

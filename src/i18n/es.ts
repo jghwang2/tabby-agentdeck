@@ -102,4 +102,30 @@ export default {
         + 'gestión de la entrada— está fijado en sus valores por defecto. Si necesitas cambiar alguno, '
         + 'edita <code>agentDeck.*</code> directamente en el archivo de configuración. '
         + 'Los atajos están en la pestaña <b>Atajos</b> como <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Atajos',
+    'keys.intro': 'Las teclas de la portada. Pulsa <b>Cambiar</b> y luego la tecla nueva. Si ya está ocupada — por Tabby o por AgentDeck — se te dice <b>con qué choca</b> y puedes elegir otra o quedártela. Se aplica al instante.',
+    'keys.change': 'Cambiar',
+    'keys.default': 'Predeterminado',
+    'keys.cancel': 'Cancelar',
+    'keys.force': 'Usarla de todos modos',
+    'keys.press': 'Pulsa la tecla nueva… (Esc cancela)',
+    'keys.conflict': 'Choca con {names}. Si la usas de todos modos, la tecla se quita de ahí.',
+    'keys.unbound': 'sin asignar',
+    'keys.stock': 'propio de Tabby',
+    'keys.digit': 'Este tiene que acabar en un dígito 1–9 — el dígito es el número de sesión. Pulsa p. ej. Alt+1 y 2…9 le siguen.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, el clic derecho y <code>Ctrl+F</code> / <code>Ctrl+S</code> del panel no son atajos y no se cambian aquí.',
+    'keys.item.newtab': 'Nueva pestaña en la raíz de trabajo',
+    'keys.item.jump': 'Ir a la sesión N',
+    'keys.item.focus': 'Foco en la lista de sesiones / volver a la terminal',
+    'keys.item.view': 'Abrir / cerrar el panel de vista previa',
+    'keys.item.repair': 'Reparar la pantalla',
+    'keys.item.splitright': 'Dividir en horizontal (panel nuevo a la derecha)',
+    'keys.item.splitbottom': 'Dividir en vertical (panel nuevo abajo)',
+    'keys.item.closepane': 'Cerrar el panel dividido activo',
+    'keys.item.newline': 'Salto de línea sin enviar',
+    'keys.item.toggle': 'Barra lateral / 4:3 on-off',
+    'keys.item.viewmode': 'Panel: Archivos ↔ Cambios',
 }

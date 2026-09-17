@@ -101,4 +101,30 @@ export default {
         + 'varsayılan değerlere sabitlenmiştir. Birini değiştirmeniz gerekirse yapılandırma dosyasındaki '
         + '<code>agentDeck.*</code> değerlerini doğrudan düzenleyin. '
         + 'Kısayollar <b>Kısayollar</b> sekmesinde <code>agentdeck-*</code> olarak bulunur.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Kısayollar',
+    'keys.intro': 'Ana sayfadaki tuşlar. <b>Değiştir</b>e basın, sonra yeni tuşa. Tuş zaten kullanılıyorsa — Tabby\'nin kendisi ya da AgentDeck tarafından — <b>neyle çakıştığı</b> söylenir; yeniden seçebilir ya da tuşu devralabilirsiniz. Hemen uygulanır.',
+    'keys.change': 'Değiştir',
+    'keys.default': 'Varsayılan',
+    'keys.cancel': 'İptal',
+    'keys.force': 'Yine de kullan',
+    'keys.press': 'Yeni tuşa basın… (Esc iptal eder)',
+    'keys.conflict': '{names} ile çakışıyor. Yine de kullanırsanız tuş oradan kaldırılır.',
+    'keys.unbound': 'atanmamış',
+    'keys.stock': 'Tabby\'nin kendi',
+    'keys.digit': 'Bu, 1–9 arası bir rakamla bitmeli — rakam oturum numarasıdır. Örn. Alt+1\'e basın, 2…9 da ona uyar.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, sağ tık ve paneldeki <code>Ctrl+F</code> / <code>Ctrl+S</code> kısayol değildir, burada değiştirilmez.',
+    'keys.item.newtab': 'Çalışma kökünde yeni sekme',
+    'keys.item.jump': 'N. oturuma git',
+    'keys.item.focus': 'Oturum listesine odaklan / terminale dön',
+    'keys.item.view': 'Önizleme panelini aç / kapat',
+    'keys.item.repair': 'Ekranı onar',
+    'keys.item.splitright': 'Yan yana böl (yeni bölme sağda)',
+    'keys.item.splitbottom': 'Alt alta böl (yeni bölme altta)',
+    'keys.item.closepane': 'Odaklanılan bölmeyi kapat',
+    'keys.item.newline': 'Göndermeden yeni satır',
+    'keys.item.toggle': 'Kenar çubuğu / 4:3 aç-kapat',
+    'keys.item.viewmode': 'Panel: Dosyalar ↔ Değişiklikler',
 }

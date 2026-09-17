@@ -100,4 +100,30 @@ export default {
         + 'inputhåndtering — er låst til standardværdierne. Skal noget ændres, så redigér '
         + '<code>agentDeck.*</code> direkte i konfigurationsfilen. '
         + 'Genveje findes under fanen <b>Genveje</b> som <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Genveje',
+    'keys.intro': 'Tasterne fra forsiden. Tryk <b>Skift</b> og derefter den nye tast. Er den allerede i brug — af Tabby selv eller af AgentDeck — får du at vide, <b>hvad den støder sammen med</b>, og kan vælge om eller overtage tasten. Gælder straks.',
+    'keys.change': 'Skift',
+    'keys.default': 'Standard',
+    'keys.cancel': 'Annuller',
+    'keys.force': 'Brug den alligevel',
+    'keys.press': 'Tryk på den nye tast… (Esc annullerer)',
+    'keys.conflict': 'Støder sammen med {names}. Bruger du den alligevel, fjernes tasten dér.',
+    'keys.unbound': 'ikke tildelt',
+    'keys.stock': 'Tabbys egen',
+    'keys.digit': 'Denne skal ende på et tal 1–9 — tallet er sessionsnummeret. Tryk fx Alt+1, så følger 2…9 med.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, højreklik og panelets <code>Ctrl+F</code> / <code>Ctrl+S</code> er ikke genvejstaster og ændres ikke her.',
+    'keys.item.newtab': 'Nyt faneblad i arbejdsroden',
+    'keys.item.jump': 'Spring til session nr. N',
+    'keys.item.focus': 'Fokus på sessionslisten / tilbage til terminalen',
+    'keys.item.view': 'Åbn / luk forhåndsvisningspanelet',
+    'keys.item.repair': 'Reparér skærmen',
+    'keys.item.splitright': 'Del side om side (ny rude til højre)',
+    'keys.item.splitbottom': 'Del over / under (ny rude nedenunder)',
+    'keys.item.closepane': 'Luk den aktive delte rude',
+    'keys.item.newline': 'Linjeskift uden at sende',
+    'keys.item.toggle': 'Sidebjælke / 4:3 til-fra',
+    'keys.item.viewmode': 'Panel: Filer ↔ Ændringer',
 }

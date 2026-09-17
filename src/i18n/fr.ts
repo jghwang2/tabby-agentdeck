@@ -104,4 +104,30 @@ export default {
         + 'gestion de la saisie — est figé sur les valeurs par défaut. Modifiez <code>agentDeck.*</code> '
         + 'directement dans le fichier de configuration si nécessaire. '
         + 'Les raccourcis se trouvent dans l’onglet <b>Raccourcis</b> sous <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Raccourcis',
+    'keys.intro': 'Les touches de la page d\'accueil. Appuyez sur <b>Modifier</b>, puis sur la nouvelle touche. Si elle est déjà prise — par Tabby lui-même ou par AgentDeck — on vous dit <b>avec quoi elle entre en conflit</b> et vous pouvez rechoisir ou la reprendre. S\'applique immédiatement.',
+    'keys.change': 'Modifier',
+    'keys.default': 'Par défaut',
+    'keys.cancel': 'Annuler',
+    'keys.force': 'Utiliser quand même',
+    'keys.press': 'Appuyez sur la nouvelle touche… (Échap pour annuler)',
+    'keys.conflict': 'En conflit avec {names}. En l\'utilisant quand même, la touche y est retirée.',
+    'keys.unbound': 'non assigné',
+    'keys.stock': 'natif Tabby',
+    'keys.digit': 'Celui-ci doit finir par un chiffre 1–9 — le chiffre est le numéro de session. Appuyez par ex. sur Alt+1 et 2…9 suivent.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, le clic droit et <code>Ctrl+F</code> / <code>Ctrl+S</code> du panneau ne sont pas des raccourcis et ne se changent pas ici.',
+    'keys.item.newtab': 'Nouvel onglet dans la racine de travail',
+    'keys.item.jump': 'Aller à la N-ième session',
+    'keys.item.focus': 'Focus sur la liste des sessions / retour au terminal',
+    'keys.item.view': 'Ouvrir / fermer le panneau d\'aperçu',
+    'keys.item.repair': 'Réparer l\'écran',
+    'keys.item.splitright': 'Diviser côte à côte (nouveau volet à droite)',
+    'keys.item.splitbottom': 'Diviser haut / bas (nouveau volet en bas)',
+    'keys.item.closepane': 'Fermer le volet actif',
+    'keys.item.newline': 'Nouvelle ligne sans envoyer',
+    'keys.item.toggle': 'Barre latérale / 4:3 on-off',
+    'keys.item.viewmode': 'Panneau : Fichiers ↔ Modifications',
 }

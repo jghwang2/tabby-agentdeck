@@ -92,4 +92,30 @@ export default {
     'footer': '其余项 —— 窗口比例、侧边栏宽度、不透明度、状态检测、输入处理 —— 都固定为默认值。 '
         + '确实需要改时请直接编辑配置文件里的 <code>agentDeck.*</code>。 '
         + '快捷键在<b>快捷键</b>页的 <code>agentdeck-*</code> 项中修改。',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': '快捷键',
+    'keys.intro': '首页列出的那些键。点<b>更改</b>，再按新键。若这个键已被占用——无论是 Tabby 自身还是 AgentDeck——会告诉你<b>与什么冲突</b>，可以重选或直接接管。立即生效。',
+    'keys.change': '更改',
+    'keys.default': '默认值',
+    'keys.cancel': '取消',
+    'keys.force': '仍然使用',
+    'keys.press': '请按新键… (Esc 取消)',
+    'keys.conflict': '与 {names} 冲突。仍然使用的话，会从那里移除这个键。',
+    'keys.unbound': '未绑定',
+    'keys.stock': 'Tabby 自带',
+    'keys.digit': '这一项必须以数字 1–9 结尾——数字就是会话序号。例如按 Alt+1，2…9 会随之设置。',
+    'keys.fixed': '<code>Ctrl+V</code>、<code>Ctrl+W</code>、右键，以及面板内的 <code>Ctrl+F</code> / <code>Ctrl+S</code> 不是热键，这里不改。',
+    'keys.item.newtab': '在工作根目录新建标签',
+    'keys.item.jump': '跳到第 N 个会话',
+    'keys.item.focus': '聚焦会话列表 / 回到终端',
+    'keys.item.view': '打开 / 关闭预览面板',
+    'keys.item.repair': '修复屏幕',
+    'keys.item.splitright': '左右分割（新窗格在右）',
+    'keys.item.splitbottom': '上下分割（新窗格在下）',
+    'keys.item.closepane': '关闭当前分割窗格',
+    'keys.item.newline': '换行而不发送',
+    'keys.item.toggle': '侧栏 / 4:3 开关',
+    'keys.item.viewmode': '面板：文件 ↔ 更改',
 }

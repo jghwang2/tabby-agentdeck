@@ -21,7 +21,9 @@ A 4:3 terminal, a session deck with live status, and a preview panel for what th
 | `Ctrl+Shift+L` | Focus the session list / same key returns to the terminal. Then `↑↓` walk, `Enter` picks, `Esc` leaves |
 | `Ctrl+W` | Close the current tab (the focused row when the list has the keyboard) |
 | `Ctrl+Shift+O` | Open / close the preview panel |
-| `Ctrl+Shift+U` | Screen repair (same as `↻`) |
+| `Ctrl+Shift+R` | Screen repair (same as `↻`). Replaces Tabby's own rename-tab — rename by double-clicking the row |
+| `Ctrl+Shift+S` | Split side by side (Tabby's own) |
+| `Ctrl+Shift+D` | Split top / bottom (Tabby's own) |
 | `Ctrl+Shift+Q` | Close the focused split pane |
 | `Ctrl+Enter` / `Shift+Enter` | Newline without sending |
 | `Ctrl+V` | Paste. An image-only clipboard is handed to the agent as an image |
@@ -29,7 +31,7 @@ A 4:3 terminal, a session deck with live status, and a preview panel for what th
 | `Ctrl+F` / `Ctrl+S` | Find / save inside the preview panel |
 
 Two actions ship unbound: `agentdeck-toggle` (sidebar / 4:3 on-off) and `agentdeck-view-mode` (Files ↔ Changes).
-Rebind anything under Tabby Settings → Hotkeys → `agentdeck-*`.
+Change any of them under **Settings → AgentDeck → Shortcuts** — a key already used by Tabby or AgentDeck is flagged before it is applied. Tabby Settings → Hotkeys → `agentdeck-*` works too.
 
 ## Install
 

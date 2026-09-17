@@ -101,4 +101,30 @@ export default {
         + 'dikunci pada nilai bawaan. Bila perlu diubah, sunting <code>agentDeck.*</code> langsung '
         + 'di berkas konfigurasi. '
         + 'Pintasan ada di tab <b>Pintasan</b> sebagai <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Pintasan',
+    'keys.intro': 'Tombol-tombol dari halaman depan. Tekan <b>Ubah</b>, lalu tombol barunya. Jika sudah dipakai — oleh Tabby sendiri atau oleh AgentDeck — Anda diberi tahu <b>bertabrakan dengan apa</b> dan bisa memilih lagi atau mengambil alih tombolnya. Berlaku seketika.',
+    'keys.change': 'Ubah',
+    'keys.default': 'Bawaan',
+    'keys.cancel': 'Batal',
+    'keys.force': 'Tetap pakai',
+    'keys.press': 'Tekan tombol baru… (Esc untuk batal)',
+    'keys.conflict': 'Bertabrakan dengan {names}. Jika tetap dipakai, tombol itu dilepas dari sana.',
+    'keys.unbound': 'belum diatur',
+    'keys.stock': 'bawaan Tabby',
+    'keys.digit': 'Yang ini harus diakhiri angka 1–9 — angkanya adalah nomor sesi. Tekan mis. Alt+1, maka 2…9 mengikuti.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, klik kanan, dan <code>Ctrl+F</code> / <code>Ctrl+S</code> di panel bukan hotkey dan tidak diubah di sini.',
+    'keys.item.newtab': 'Tab baru di akar kerja',
+    'keys.item.jump': 'Lompat ke sesi ke-N',
+    'keys.item.focus': 'Fokus ke daftar sesi / kembali ke terminal',
+    'keys.item.view': 'Buka / tutup panel pratinjau',
+    'keys.item.repair': 'Perbaiki layar',
+    'keys.item.splitright': 'Bagi berdampingan (panel baru di kanan)',
+    'keys.item.splitbottom': 'Bagi atas / bawah (panel baru di bawah)',
+    'keys.item.closepane': 'Tutup panel terpisah yang aktif',
+    'keys.item.newline': 'Baris baru tanpa mengirim',
+    'keys.item.toggle': 'Bilah samping / 4:3 nyala-mati',
+    'keys.item.viewmode': 'Panel: Berkas ↔ Perubahan',
 }

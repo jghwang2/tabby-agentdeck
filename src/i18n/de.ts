@@ -101,4 +101,30 @@ export default {
         + 'Eingabeverarbeitung — steht fest auf den Standardwerten. Bei Bedarf <code>agentDeck.*</code> '
         + 'direkt in der Konfigurationsdatei ändern. '
         + 'Tastenkürzel liegen im Reiter <b>Hotkeys</b> unter <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Tastenkürzel',
+    'keys.intro': 'Die Tasten von der Startseite. <b>Ändern</b> drücken, dann die neue Taste. Ist sie schon belegt – von Tabby selbst oder von AgentDeck – wird gesagt, <b>womit sie kollidiert</b>, und man kann neu wählen oder die Taste übernehmen. Gilt sofort.',
+    'keys.change': 'Ändern',
+    'keys.default': 'Standard',
+    'keys.cancel': 'Abbrechen',
+    'keys.force': 'Trotzdem verwenden',
+    'keys.press': 'Neue Taste drücken… (Esc bricht ab)',
+    'keys.conflict': 'Kollidiert mit {names}. Bei „Trotzdem verwenden“ wird die Taste dort entfernt.',
+    'keys.unbound': 'nicht belegt',
+    'keys.stock': 'Tabby-eigen',
+    'keys.digit': 'Dieser Eintrag muss auf eine Ziffer 1–9 enden – die Ziffer ist die Sitzungsnummer. Z. B. Alt+1 drücken, 2…9 folgen.',
+    'keys.fixed': '<code>Strg+V</code>, <code>Strg+W</code>, Rechtsklick und <code>Strg+F</code> / <code>Strg+S</code> im Panel sind keine Hotkeys und werden hier nicht geändert.',
+    'keys.item.newtab': 'Neuer Tab im Arbeitsordner',
+    'keys.item.jump': 'Zur N-ten Sitzung springen',
+    'keys.item.focus': 'Sitzungsliste fokussieren / zurück ins Terminal',
+    'keys.item.view': 'Vorschau-Panel öffnen / schließen',
+    'keys.item.repair': 'Bildschirm reparieren',
+    'keys.item.splitright': 'Nebeneinander teilen (neue Ansicht rechts)',
+    'keys.item.splitbottom': 'Übereinander teilen (neue Ansicht unten)',
+    'keys.item.closepane': 'Fokussierte Teilansicht schließen',
+    'keys.item.newline': 'Zeilenumbruch ohne Senden',
+    'keys.item.toggle': 'Seitenleiste / 4:3 an-aus',
+    'keys.item.viewmode': 'Panel: Dateien ↔ Änderungen',
 }

@@ -100,4 +100,30 @@ export default {
         + 'jest przypięta do wartości domyślnych. Jeśli musisz coś zmienić, edytuj <code>agentDeck.*</code> '
         + 'bezpośrednio w pliku konfiguracyjnym. '
         + 'Skróty znajdziesz w zakładce <b>Skróty</b> jako <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Skróty',
+    'keys.intro': 'Klawisze ze strony głównej. Naciśnij <b>Zmień</b>, a potem nowy klawisz. Jeśli jest już zajęty — przez samego Tabby albo AgentDeck — dowiesz się, <b>z czym koliduje</b>, i możesz wybrać inny albo go przejąć. Działa od razu.',
+    'keys.change': 'Zmień',
+    'keys.default': 'Domyślne',
+    'keys.cancel': 'Anuluj',
+    'keys.force': 'Użyj mimo to',
+    'keys.press': 'Naciśnij nowy klawisz… (Esc anuluje)',
+    'keys.conflict': 'Koliduje z {names}. Jeśli użyjesz mimo to, klawisz zostanie tam usunięty.',
+    'keys.unbound': 'nieprzypisany',
+    'keys.stock': 'wbudowany w Tabby',
+    'keys.digit': 'Ten musi kończyć się cyfrą 1–9 — cyfra to numer sesji. Naciśnij np. Alt+1, a 2…9 pójdą za nim.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, prawy przycisk myszy oraz <code>Ctrl+F</code> / <code>Ctrl+S</code> w panelu nie są skrótami i tu się ich nie zmienia.',
+    'keys.item.newtab': 'Nowa karta w katalogu roboczym',
+    'keys.item.jump': 'Skocz do N-tej sesji',
+    'keys.item.focus': 'Fokus na listę sesji / powrót do terminala',
+    'keys.item.view': 'Otwórz / zamknij panel podglądu',
+    'keys.item.repair': 'Napraw ekran',
+    'keys.item.splitright': 'Podziel obok siebie (nowy panel po prawej)',
+    'keys.item.splitbottom': 'Podziel góra / dół (nowy panel na dole)',
+    'keys.item.closepane': 'Zamknij aktywny podzielony panel',
+    'keys.item.newline': 'Nowa linia bez wysyłania',
+    'keys.item.toggle': 'Pasek boczny / 4:3 wł-wył',
+    'keys.item.viewmode': 'Panel: Pliki ↔ Zmiany',
 }

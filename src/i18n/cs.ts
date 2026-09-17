@@ -100,4 +100,30 @@ export default {
         + 'je napevno na výchozích hodnotách. Pokud potřebujete něco změnit, upravte <code>agentDeck.*</code> '
         + 'přímo v konfiguračním souboru. '
         + 'Klávesové zkratky najdete na kartě <b>Zkratky</b> pod <code>agentdeck-*</code>.',
+
+
+    // Settings → Shortcuts (keybind.ts · settings.component.ts)
+    'keys.head': 'Zkratky',
+    'keys.intro': 'Klávesy z úvodní stránky. Stiskněte <b>Změnit</b> a pak novou klávesu. Pokud je už obsazená — samotným Tabby nebo AgentDeckem — dozvíte se, <b>s čím koliduje</b>, a můžete vybrat jinou nebo ji převzít. Platí okamžitě.',
+    'keys.change': 'Změnit',
+    'keys.default': 'Výchozí',
+    'keys.cancel': 'Zrušit',
+    'keys.force': 'Přesto použít',
+    'keys.press': 'Stiskněte novou klávesu… (Esc zruší)',
+    'keys.conflict': 'Koliduje s {names}. Pokud ji přesto použijete, bude tam odebrána.',
+    'keys.unbound': 'nepřiřazeno',
+    'keys.stock': 'vestavěné v Tabby',
+    'keys.digit': 'Tato musí končit číslicí 1–9 — číslice je číslo relace. Stiskněte např. Alt+1 a 2…9 se nastaví stejně.',
+    'keys.fixed': '<code>Ctrl+V</code>, <code>Ctrl+W</code>, pravé tlačítko a <code>Ctrl+F</code> / <code>Ctrl+S</code> v panelu nejsou zkratky a tady se nemění.',
+    'keys.item.newtab': 'Nová karta v pracovním kořeni',
+    'keys.item.jump': 'Skočit na N-tou relaci',
+    'keys.item.focus': 'Fokus na seznam relací / zpět do terminálu',
+    'keys.item.view': 'Otevřít / zavřít panel náhledu',
+    'keys.item.repair': 'Opravit obrazovku',
+    'keys.item.splitright': 'Rozdělit vedle sebe (nový panel vpravo)',
+    'keys.item.splitbottom': 'Rozdělit nad sebe (nový panel dole)',
+    'keys.item.closepane': 'Zavřít aktivní rozdělený panel',
+    'keys.item.newline': 'Nový řádek bez odeslání',
+    'keys.item.toggle': 'Postranní panel / 4:3 zap-vyp',
+    'keys.item.viewmode': 'Panel: Soubory ↔ Změny',
 }
