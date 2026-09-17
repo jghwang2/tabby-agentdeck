@@ -9,12 +9,19 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
-## 1.1.3
+## 1.3.0
 
-- Codex 상태 통보 훅과 세션 재개·분기 처리를 개선했다.
-- Windows에서 Codex 커서 표시, Shift+Enter 줄바꿈, 마우스 휠로 대화 기록 보기를 보정했다.
-- 하위 프로세스가 콘솔 제목을 바꾸어도 Codex 감지를 유지하고, 현재 입력창·상태줄과 프로세스 확인으로 감지를 복구한다.
-- 기존 테스트와 Codex 회귀 테스트를 함께 실행한다. GitHub Actions 배포 설정은 [npm 배포 안내](NPM-PUBLISH.md)를 참고한다.
+- **설정 창에서 단축키를 바꾼다.** 설정 → AgentDeck → *단축키* 에 첫 화면의 키들이 늘어서고, *바꾸기* 를 누르고
+  키를 누르면 된다. Tabby 순정이든 AgentDeck 것이든 이미 쓰는 키면 **무엇과 겹치는지** 알려 주고, 다시 고르거나
+  그 키를 가져올 수 있다(상대 바인딩에서 뗀다). 이름은 모든 핫키 제공자에서 가져오므로 순정 동작도 이름으로 보인다.
+- **화면 복구는 `Ctrl+Shift+R`** (전에는 `Ctrl+Shift+U`). 새 탭이 `Ctrl+Shift+T` 를 대체하듯 순정 `rename-tab` 을
+  대체한다 — 이름은 사이드바 줄 더블클릭으로 바꾼다. 저장돼 있던 옛 기본값 `Ctrl-Shift-U` 는 옮겨 주고,
+  `claimRepairKey: false` 면 되돌린다.
+- **`Ctrl+Shift+Q` 로 포커스된 분할 패널을 닫는다.** Tabby 는 `close-pane` 을 빈 채로 출고하므로 기동 때 비어 있으면
+  `closePaneKey` 로 채운다. 좌우 / 위아래 분할(`Ctrl+Shift+S` / `D`)도 같이 나열한다.
+- 첫 화면(README, npm)은 전체 화면 스크린샷 + 단축키 표로 줄였고, 긴 문서는 `docs/REFERENCE.md`
+  (한국어: `docs/REFERENCE.ko.md`)로 옮겼다.
+- 1.2.0 은 태그만 달리고 npm 에는 못 나갔다(계정 hold). 그 변경도 여기에 실린다.
 
 Tabby 터미널 플러그인. **Claude Code · Codex 같은 AI 에이전트 CLI 를 여러 탭에 띄워 놓고 쓰는 사람**을 위한 것이다.
 

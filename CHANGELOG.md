@@ -3,7 +3,23 @@
 Every entry below is a released version with a `vX.Y.Z` tag in this repository.
 The tag points at the commit that first introduced that version, and `test/tags.test.js` keeps that true.
 
-Korean release notes for the current version are at the top of [`README.ko.md`](README.ko.md).
+Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
+
+## 1.3.0 — 2026-09-17
+
+- **Shortcuts are editable in the settings window.** Settings → AgentDeck → *Shortcuts* lists the keys
+  from the front page; press *Change*, then the key. If Tabby itself or AgentDeck already uses it you are
+  told **what it clashes with** and can pick again or take the key over (it is removed from the other
+  binding). Names come from every hotkey provider, so stock Tabby actions are named, not just ours.
+- **Screen repair is `Ctrl+Shift+R`** (was `Ctrl+Shift+U`). It replaces Tabby's own `rename-tab` the way
+  new-tab replaces `Ctrl+Shift+T` — rename by double-clicking the sidebar row. A saved `Ctrl-Shift-U`
+  (the old default, untouched) is migrated; `claimRepairKey: false` undoes the takeover.
+- **`Ctrl+Shift+Q` closes the focused split pane.** Tabby ships `close-pane` unbound; on startup it is
+  filled from `closePaneKey` while empty. Split side by side / top-bottom (`Ctrl+Shift+S` / `D`) are listed
+  alongside it.
+- The front page (README, npm) is now a full-window screenshot plus the shortcut table; the long
+  document moved to `docs/REFERENCE.md` (Korean: `docs/REFERENCE.ko.md`).
+- 1.2.0 was tagged but never reached npm (account hold); its changes ship here.
 
 ## 1.2.0 — 2026-09-16
 
