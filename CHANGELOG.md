@@ -5,7 +5,7 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
-## 1.3.0 — 2026-09-17
+## 1.2.0 — 2026-09-17
 
 - **Shortcuts are editable in the settings window.** Settings → AgentDeck → *Shortcuts* lists the keys
   from the front page; press *Change*, then the key. If Tabby itself or AgentDeck already uses it you are
@@ -19,10 +19,6 @@ Korean release notes for the current version are at the top of [`docs/REFERENCE.
   alongside it.
 - The front page (README, npm) is now a full-window screenshot plus the shortcut table; the long
   document moved to `docs/REFERENCE.md` (Korean: `docs/REFERENCE.ko.md`).
-- 1.2.0 was tagged but never reached npm (account hold); its changes ship here.
-
-## 1.2.0 — 2026-09-16
-
 - **Stale hook pins expire.** A hook-reported status is pinned so auto-detection cannot overwrite it,
   but hooks have no "session ended" event — Ctrl+C, closing the window or a CLI crash used to leave a
   row stuck on `running` forever. The pin now expires after `staleAfterMs` (5 min default) of no

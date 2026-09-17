@@ -9,7 +9,7 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
-## 1.3.0
+## 1.2.0
 
 - **설정 창에서 단축키를 바꾼다.** 설정 → AgentDeck → *단축키* 에 첫 화면의 키들이 늘어서고, *바꾸기* 를 누르고
   키를 누르면 된다. Tabby 순정이든 AgentDeck 것이든 이미 쓰는 키면 **무엇과 겹치는지** 알려 주고, 다시 고르거나
@@ -21,7 +21,6 @@
   `closePaneKey` 로 채운다. 좌우 / 위아래 분할(`Ctrl+Shift+S` / `D`)도 같이 나열한다.
 - 첫 화면(README, npm)은 전체 화면 스크린샷 + 단축키 표로 줄였고, 긴 문서는 `docs/REFERENCE.md`
   (한국어: `docs/REFERENCE.ko.md`)로 옮겼다.
-- 1.2.0 은 태그만 달리고 npm 에는 못 나갔다(계정 hold). 그 변경도 여기에 실린다.
 
 Tabby 터미널 플러그인. **Claude Code · Codex 같은 AI 에이전트 CLI 를 여러 탭에 띄워 놓고 쓰는 사람**을 위한 것이다.
 
