@@ -11,7 +11,10 @@ git push origin main --follow-tags
 태그와 `package.json` 버전이 일치해야 하며, 타입 검사·테스트·빌드·패키징이
 모두 성공한 아카이브만 npm의 `latest`로 배포한다. 일반 main 푸시는 배포하지 않는다.
 프리릴리스 태그는 거부한다. 이미 배포한 버전은 재사용하지 않는다.
-아래 npm Trusted Publisher 연결이 등록되어 있어야 자동 배포가 성공한다.
+2026-09-17 npm Trusted Publisher 등록과 재조회까지 완료했다.
+등록 대상은 `jghwang2/tabby-agentdeck` / `npm-publish.yml`이며 직접 publish 권한이 있다.
+등록 ID: `3fb0b433-8a6a-4a2d-bbe8-5a28e5f263c8`.
+연결 조회: `npx -y npm@11 trust list tabby-agentdeck --json`.
 
 | 경로 | 상태 | 쓰는 때 |
 |---|---|---|
