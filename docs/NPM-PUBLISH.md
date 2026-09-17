@@ -1,13 +1,24 @@
 # npm 배포
 
-배포 경로는 두 가지다.
+기본 배포는 버전 태그를 GitHub에 푸시하는 방식이다.
+
+```powershell
+npm run release -- patch
+git push origin main --follow-tags
+```
+
+`v1.2.1` 같은 정식 버전 태그가 올라가면 `npm-publish.yml`이 자동 실행된다.
+태그와 `package.json` 버전이 일치해야 하며, 타입 검사·테스트·빌드·패키징이
+모두 성공한 아카이브만 npm의 `latest`로 배포한다. 일반 main 푸시는 배포하지 않는다.
+프리릴리스 태그는 거부한다. 이미 배포한 버전은 재사용하지 않는다.
+아래 npm Trusted Publisher 연결이 등록되어 있어야 자동 배포가 성공한다.
 
 | 경로 | 상태 | 쓰는 때 |
 |---|---|---|
-| **로컬 `npm publish`** | **지금 쓰는 것.** 0.1.0~1.1.3 전부 이 경로로 나갔다 | 지금 |
-| GitHub Actions + Trusted Publishing(OIDC) | 워크플로는 준비됨. **npm 쪽 등록만 남았다** — 계정 hold 로 보류 중, [재시도 절차](#재시도-절차-2026-09-17-이후) | 등록되면 |
+| GitHub Actions + Trusted Publishing(OIDC) | `v*` 태그 푸시로 자동 실행 | 기본 |
+| **로컬 `npm publish`** | 기존 수동 배포 경로 | 수동 복구 시 |
 
-## 지금: 로컬에서 배포
+## 수동 복구: 로컬에서 배포
 
 ```powershell
 npm run build      # dist 를 최신으로 (prebuild 가 sync-version 을 먼저 돌린다)
@@ -23,12 +34,12 @@ npm publish        # package.json 의 version 그대로 나간다
 - 나가는 파일은 `package.json` 의 `files` 가 정한다. 미리 보려면 `npm pack --dry-run`.
 - **이미 배포한 버전은 다시 올릴 수 없다.** 버전을 올리려면 `npm run release -- 1.1.4`.
 
-## 나중: Actions + Trusted Publishing
+## Actions + Trusted Publishing
 
-npm 액세스 토큰 없이 OIDC 로 발행한다. GitHub 에 push 하는 것만으로 실행되지는 않고,
-Actions → Publish to npm → Run workflow 에서 `main` 을 골라 수동 실행한다.
+npm 액세스 토큰 없이 OIDC로 발행한다. `v*` 태그 푸시로 자동 실행하며,
+Actions → Publish to npm → Run workflow에서 `main`을 선택하는 수동 실행도 유지한다.
 
-### npm 쪽 등록 (아직 안 돼 있다 — 2026-09-14 계정 hold 로 보류)
+### npm 쪽 등록 (아래는 2026-09-14 보류 당시의 기록과 복구 절차)
 
 #### 왜 보류됐나 (2026-09-14 실측)
 

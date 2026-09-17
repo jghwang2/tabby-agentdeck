@@ -125,4 +125,4 @@ run('git', ['commit', '-am', subject])
 run('git', ['tag', '-a', `v${next}`, '-m', subject])
 
 console.log(`\n완료: ${out('git', ['log', '-1', '--format=%h %s'])}  /  태그 v${next}`)
-console.log('다음: npm publish   (푸시는 원격이 붙어 있을 때 `git push --follow-tags`)')
+console.log('다음: git push origin main --follow-tags   (버전 태그가 올라가면 GitHub Actions에서 검증 후 npm 자동 배포)')
