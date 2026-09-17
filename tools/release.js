@@ -18,7 +18,7 @@
  * 우리 파생 파일(`docs/guide`)은 모른다. 순서를 우리가 쥐어야 한다 —
  * **맞추고 → 재고 → 커밋한다.** 테스트가 깨지면 커밋도 태그도 만들지 않는다.
  */
-const { execFileSync } = require('child_process')
+const { execFileSync, execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
@@ -33,6 +33,12 @@ const run = (cmd, args, opts) => execFileSync(cmd, args, {
     cwd: root, encoding: 'utf8', stdio: opts?.quiet ? 'pipe' : 'inherit', maxBuffer: 64 * 1024 * 1024, ...opts,
 })
 const out = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).trim()
+/**
+ * npm 은 **셸을 거쳐** 부른다 — Node 18.20/20.12 부터 `.cmd`/`.bat` 를 셸 없이 spawn 하면 EINVAL 로
+ * 즉시 실패한다(CVE-2024-27980 대응). 2026-09-17 실측(Node 24): 테스트가 돌기도 전에 "테스트/빌드 실패" 로
+ * 끝났고 원문 에러도 안 찍혀 원인을 못 봤다. 명령은 고정 문자열뿐이라 인용 문제가 없다.
+ */
+const sh = (cmd) => execSync(cmd, { cwd: root, stdio: 'inherit', maxBuffer: 64 * 1024 * 1024 })
 
 function die (msg) {
     console.error(`릴리스 중단: ${msg}`)
@@ -103,12 +109,14 @@ run(process.execPath, [path.join(__dirname, 'sync-version.js')])
 
 // ── 3~4) 재고 짓는다. 여기서 깨지면 커밋도 태그도 없다 ──────────────────────
 try {
-    run('npm.cmd', ['test'])
-    run('npm.cmd', ['run', 'build'])
-} catch {
+    sh('npm test')
+    sh('npm run build')
+} catch (e) {
     // 되돌린다 — 반쯤 올라간 버전이 작업트리에 남으면 다음 사람이 그걸 밟는다
-    console.error('\n테스트/빌드 실패 — 버전 변경을 되돌린다')
-    run('git', ['checkout', '--', 'package.json', 'package-lock.json', 'docs/guide/index.html'], { quiet: true })
+    console.error(`\n테스트/빌드 실패 — 버전 변경을 되돌린다 (${e?.code ?? ''} ${e?.message ?? e})`)
+    // sync-version 이 만지는 파일 **전부** — 예전엔 셋을 빠뜨려 문서에 새 버전이 남았다 (2026-09-17)
+    run('git', ['checkout', '--', 'package.json', 'package-lock.json',
+        'docs/index.html', 'docs/ko.html', 'docs/guide/index.html', 'docs/guide/ko.html'], { quiet: true })
     die('고치고 다시 실행할 것')
 }
 
