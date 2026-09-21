@@ -1,6 +1,6 @@
 {
   "name": "tabby-agentdeck",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Run AI coding agents side by side in Tabby - a live deck of agent sessions with status, a preview panel for the files they touch, agent-friendly hotkeys and image paste",
   "keywords": [
     "tabby-plugin",
