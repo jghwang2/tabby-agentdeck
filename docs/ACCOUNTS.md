@@ -20,6 +20,9 @@ Astra는 서버에서 퍼센트 없이 사용 가능 여부만 제공하면 그 
 최초 로그인 또는 인증 만료 시 기본 브라우저가 열립니다. 선택한 계정으로 로그인하고
 추가 인증과 CLI 연결 승인을 완료하면 인증정보를 자동 저장합니다.
 실제 로그인 계정이 선택한 이메일과 다르면 전환하지 않습니다.
+Windows에서는 Tabby 실행 후 CLI를 설치하거나 PATH가 변경된 경우도 처리하도록,
+Tabby가 물려받은 PATH와 현재 사용자·시스템 PATH에서 CLI를 찾습니다.
+계정 확인과 로그인용 자식 프로세스에도 합쳐진 PATH를 전달합니다.
 
 인증정보는 각 항목의 `auth`에 Windows DPAPI로 암호화해 저장합니다.
 암호화한 인증정보는 같은 Windows 사용자 계정에서 복원할 수 있습니다.
@@ -43,6 +46,7 @@ Codex 계정 확인은 `account/read`의 `refreshToken: false`로 수행합니�
 - `tools/probe-account-login.js`: 격리 인스턴스에서 직접 로그인하는 수동 통합 검사.
   먼저 `window.__accountLoginProvider`와 `window.__accountLoginIndex`를 지정해야 합니다.
   결과는 `window.__accountLoginProbe`에 성공 여부만 남깁니다.
+- `tools/probe-account-login-start.js`: 격리 계정 파일에 인증 없는 새 계정을 추가하고 실제 Codex의 로그인 시작 및 브라우저 호출까지 확인합니다. 브라우저 호출을 가로채 의도적으로 실패시켜 기존 세션 보존·재시도 가능 여부를 검사하며, 브라우저 로그인 완료를 대신하지 않습니다.
 
 테스트 전용 계정 파일은 `AGENTDECK_ACCOUNTS_FILE`로 지정할 수 있습니다.
 실제 비밀번호·인증 토큰은 테스트 출력이나 저장소에 넣지 않습니다.

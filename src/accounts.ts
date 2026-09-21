@@ -3,7 +3,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as https from 'https'
 import { createHash } from 'crypto'
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
+import { spawn, execFileSync, ChildProcessWithoutNullStreams } from 'child_process'
 
 export type AccountProvider = 'claude' | 'codex'
 export interface SavedAccount { provider: AccountProvider, key: string, name: string, id: string }
@@ -284,25 +284,45 @@ export function seedCodexMarketplaces (source: string, dest: string): Promise<vo
     return job
 }
 
+let registeredPath = { at: 0, value: '' }
+export function accountCliRoots (): string[] {
+    // Electron can keep the PATH from before the CLI was installed. Shell profiles and
+    // newly opened terminals may see a different PATH, so also consult Windows' current settings.
+    if (process.platform === 'win32' && Date.now() - registeredPath.at > 60000) {
+        try {
+            const shell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe')
+            const value = execFileSync(shell, ['-NoProfile', '-NonInteractive', '-Command',
+                "[Environment]::GetEnvironmentVariable('Path','User') + ';' + [Environment]::GetEnvironmentVariable('Path','Machine')"],
+            { encoding: 'utf8', windowsHide: true, timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+            registeredPath = { at: Date.now(), value }
+        } catch { registeredPath.at = Date.now() }
+    }
+    return [...new Set(((process.env.PATH || '') + path.delimiter + registeredPath.value)
+        .split(path.delimiter).map(root => root.trim()).filter(Boolean))]
+}
+
 function launch (account: SavedAccount, args: string[]): ChildProcessWithoutNullStreams {
     // Resolve npm's real entry point; never interpolate credentials into a shell command.
-    const roots = (process.env.PATH || '').split(path.delimiter)
+    const roots = accountCliRoots()
+    const env = accountEnv(account)
+    for (const key of Object.keys(env)) { if (key.toLowerCase() === 'path') { delete env[key] } }
+    env.PATH = roots.join(path.delimiter)
     for (const root of roots) {
         if (account.provider === 'codex' && process.platform === 'win32') {
             const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
             const triple = process.arch === 'arm64' ? 'aarch64' : 'x86_64'
             const binary = path.join(root, 'node_modules/@openai/codex/node_modules/@openai', `codex-win32-${arch}`, 'vendor', `${triple}-pc-windows-msvc`, 'bin/codex.exe')
             if (fs.existsSync(binary)) {
-                return spawn(binary, args, { env: accountEnv(account), windowsHide: true, stdio: 'pipe' })
+                return spawn(binary, args, { env, windowsHide: true, stdio: 'pipe' })
             }
         }
         const entry = path.join(root, 'node_modules', account.provider === 'claude' ? '@anthropic-ai/claude-code/bin/claude.exe' : '@openai/codex/bin/codex.js')
         if (fs.existsSync(entry)) {
             return spawn(account.provider === 'claude' ? entry : 'node', account.provider === 'claude' ? args : [entry, ...args],
-                { env: accountEnv(account), windowsHide: true, stdio: 'pipe' })
+                { env, windowsHide: true, stdio: 'pipe' })
         }
     }
-    return spawn(account.provider, args, { env: accountEnv(account), windowsHide: true, stdio: 'pipe' })
+    return spawn(account.provider, args, { env, windowsHide: true, stdio: 'pipe' })
 }
 
 class CodexAccountClient {
