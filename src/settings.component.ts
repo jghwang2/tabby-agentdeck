@@ -216,7 +216,7 @@ const DOCK_KEYS: Record<string, string> = {
     <div class="header">
         <div class="title">키보드로 다루기</div>
         <div class="description">
-            <code>Ctrl+Shift+L</code> 로 목록에 들어가 <code>↑↓</code> 로 훑고 Enter 로 그 탭으로 옮긴다
+            <code>Ctrl+L</code> 로 목록에 들어가 <code>↑↓</code> 로 훑고 Enter 로 그 탭으로 옮긴다
             (<code>Esc</code> 로 터미널로 돌아온다). <b>훑는 동안 활성 탭은 바뀌지 않는다</b> —
             줄마다 탭이 바뀌면 그 탭의 출력이 화면을 덮어 훑어보는 것 자체가 안 된다.
             포커스가 사이드바에 없는 동안은 키를 한 개도 가로채지 않으므로 켜 둬서 잃는 것이 없다.
@@ -607,6 +607,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     /** 지금 그릴 언어 — Tabby 의 `설정 > 응용 프로그램 > 언어` 를 따라간다 */
     private lang: Lang = 'en'
     private localeSub: Subscription | null = null
+    private hooksRefreshTimer: ReturnType<typeof setInterval> | null = null
 
     constructor (
         public config: ConfigService,
@@ -662,6 +663,8 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
      * 풀어 둔 채 나가면 남의 탭이 우리 때문에 넓어진다.
      */
     ngAfterViewInit (): void {
+        // 설정 파일은 다른 창이나 설치 도구에서도 바뀐다. 생성 시점의 판정을 고정하지 않는다.
+        this.hooksRefreshTimer = setInterval(() => this.refreshHooks(), 2000)
         const body = this.host.nativeElement.closest('settings-tab-body') as HTMLElement | null
         if (!body) {
             return // Tabby 가 구조를 바꿨다 — 600px 그대로 쓰면 될 뿐 깨지지는 않는다
@@ -672,6 +675,10 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     }
 
     ngOnDestroy (): void {
+        if (this.hooksRefreshTimer) {
+            clearInterval(this.hooksRefreshTimer)
+            this.hooksRefreshTimer = null
+        }
         if (this.widened) {
             this.widened.style.maxWidth = this.prevMaxWidth
             this.widened = null

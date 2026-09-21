@@ -50,11 +50,11 @@ const ours = {}
 for (const m of configSrc.matchAll(/'(agentdeck-[a-z0-9-]+)': \[([^\]]*)\]/g)) {
     ours[m[1]] = [...m[2].matchAll(/'([^']*)'/g)].map(x => x[1])
 }
-check('agentdeck 표를 읽었다 — repair 는 Ctrl-Shift-R', ours['agentdeck-repair'], ['Ctrl-Shift-R'])
+check('agentdeck 표를 읽었다 — repair 는 Ctrl-R', ours['agentdeck-repair'], ['Ctrl-R'])
 check('agentdeck 표 — jump-1 은 Ctrl-1', ours['agentdeck-jump-1'], ['Ctrl-1'])
 
 /** 기동 뒤 실제 표 — 순정 + 우리, 그리고 ensure*Hotkey 가 떼어 낸 뒤의 모습 */
-const live = { ...stock, ...ours, 'new-tab': [], 'rename-tab': [], 'close-pane': ['Ctrl-Shift-Q'] }
+const live = { ...stock, ...ours, 'new-tab': [], 'rename-tab': [], 'close-pane': ['Ctrl-Q'] }
 const W = 'win32'
 
 // ① 키 이벤트 → 문자열
@@ -89,14 +89,14 @@ check('표기: 정규 순서로 고쳐서 보여 준다', K.displayStroke('Shift
 check('Ctrl-Shift-F 는 순정 search 와 겹친다', K.findConflicts('Ctrl-Shift-F', live, [], W), ['search'])
 check('Shift-Ctrl-Alt-I (순서 다름) 도 순정 focus-all-tabs 와 겹친다',
     K.findConflicts('Shift-Ctrl-Alt-I', live, [], W), ['focus-all-tabs'])
-check('Ctrl-Shift-R 은 기동 뒤 표에서는 우리 repair 하고만 겹친다 (rename-tab 은 뗐다)',
-    K.findConflicts('Ctrl-Shift-R', live, [], W), ['agentdeck-repair'])
+check('Ctrl-R 은 기동 뒤 표에서는 우리 repair 하고만 겹친다 (rename-tab 은 뗐다)',
+    K.findConflicts('Ctrl-R', live, [], W), ['agentdeck-repair'])
 check('Ctrl-Shift-R 은 순정 원표에서는 rename-tab 과 겹친다 (뗀 이유)',
     K.findConflicts('Ctrl-Shift-R', stock, [], W), ['rename-tab'])
 check('Alt-1 은 순정 tab-1 과 겹친다', K.findConflicts('Alt-1', live, [], W), ['tab-1'])
 // ② 겹침 — agentdeck
-check('Ctrl-Shift-O 는 우리 view 와 겹친다', K.findConflicts('Ctrl-Shift-O', live, [], W), ['agentdeck-view'])
-check('Ctrl-Shift-Q 는 close-pane 과 겹친다 (우리가 채운 순정 항목)', K.findConflicts('Ctrl-Shift-Q', live, [], W), ['close-pane'])
+check('Ctrl-O 는 우리 view 와 겹친다', K.findConflicts('Ctrl-O', live, [], W), ['agentdeck-view'])
+check('Ctrl-Q 는 close-pane 과 겹친다 (우리가 채운 순정 항목)', K.findConflicts('Ctrl-Q', live, [], W), ['close-pane'])
 check('두 번 누르는 열의 마지막이 같아도 겹침이 아니다',
     K.findConflicts('C', { x: [['Ctrl-A', 'C']] }, [], W), [])
 check('문자열 하나로 저장된 값도 읽는다 (Tabby 가 허용하는 형태)',
@@ -111,11 +111,11 @@ check('순정 표 — split-right 는 Ctrl-Shift-S, split-bottom 은 Ctrl-Shift-
 check('Ctrl-Shift-S 는 순정 split-right 와 겹친다', K.findConflicts('Ctrl-Shift-S', live, [], W), ['split-right'])
 check('KEY_ITEMS 의 agentdeck id 가 전부 기본표에 있다',
     K.KEY_ITEMS.filter(i => !i.jump && !i.stock && !ours[i.id]).map(i => i.id), [])
-let plan = K.planBinding(live, item('agentdeck-view'), 'Ctrl-Shift-O', W)
+let plan = K.planBinding(live, item('agentdeck-view'), 'Ctrl-O', W)
 check('view 에 자기 키를 다시 누르면 겹침 없음', plan.conflicts, [])
-plan = K.planBinding(live, item('agentdeck-repair'), 'Ctrl-Shift-O', W)
-check('repair 에 Ctrl-Shift-O 를 주면 view 와 겹친다', plan.conflicts, ['agentdeck-view'])
-check('계획의 표기는 사람 표기', plan.display, 'Ctrl+Shift+O')
+plan = K.planBinding(live, item('agentdeck-repair'), 'Ctrl-O', W)
+check('repair 에 Ctrl-O 를 주면 view 와 겹친다', plan.conflicts, ['agentdeck-view'])
+check('계획의 표기는 사람 표기', plan.display, 'Ctrl+O')
 plan = K.planBinding(live, item('agentdeck-repair'), 'Shift-Ctrl-F', W)
 check('repair 에 Shift-Ctrl-F → 순정 search 와 겹친다 (정규화해서 써넣는다)',
     [plan.conflicts, plan.writes], [['search'], { 'agentdeck-repair': 'Ctrl-Shift-F' }])
@@ -130,7 +130,7 @@ check('그 아홉 개는 순정 tab-1…tab-9 와 겹친다',
 plan = K.planBinding(live, item('agentdeck-jump'), 'Ctrl-Shift-X', W)
 check('jump 에 숫자로 안 끝나는 키 → digit 오류', plan.error, 'digit')
 check('jump 표기는 한 줄로 접는다', K.displayStrokes(live, item('agentdeck-jump'), W), ['Ctrl+1 … Ctrl+9'])
-check('new-tab 표기는 바인딩마다 하나', K.displayStrokes(live, item('agentdeck-new-tab'), W), ['Ctrl+Shift+T', '⌘+T'])
+check('new-tab 표기는 바인딩마다 하나', K.displayStrokes(live, item('agentdeck-new-tab'), W), ['Ctrl+T', '⌘+T'])
 check('미배정은 빈 목록', K.displayStrokes(live, item('agentdeck-toggle'), W), [])
 
 // ④ 쓰기 — 강제면 겹치는 쪽에서 그 키만 뗀다
@@ -150,24 +150,24 @@ K.applyBinding(t, K.planBinding(t, item('agentdeck-repair'), 'C', W), true, W)
 check('연속 누름 열은 그대로 남는다', t.a, [['Ctrl-A', 'C']])
 
 // 기본값
-const defaults = { ...ours, 'close-pane': ['Ctrl-Shift-Q'] }
+const defaults = { ...ours, 'close-pane': ['Ctrl-Q'] }
 t = JSON.parse(JSON.stringify(live))
 check('처음엔 기본값', K.isDefaultBinding(t, item('agentdeck-repair'), defaults, W), true)
 K.applyBinding(t, K.planBinding(t, item('agentdeck-repair'), 'Ctrl-Shift-F', W), true, W)
 check('바꾸면 기본값이 아니다', K.isDefaultBinding(t, item('agentdeck-repair'), defaults, W), false)
 K.resetBinding(t, item('agentdeck-repair'), defaults)
-check('기본값으로 되돌리면 Ctrl-Shift-R', t['agentdeck-repair'], ['Ctrl-Shift-R'])
+check('기본값으로 되돌리면 Ctrl-R', t['agentdeck-repair'], ['Ctrl-R'])
 check('되돌린 뒤 기본값 판정', K.isDefaultBinding(t, item('agentdeck-repair'), defaults, W), true)
 K.applyBinding(t, K.planBinding(t, item('agentdeck-jump'), 'Alt-5', W), false, W)
 K.resetBinding(t, item('agentdeck-jump'), defaults)
 check('jump 되돌리기는 아홉 개 전부', Array.from({ length: 9 }, (_, i) => t[`agentdeck-jump-${i + 1}`][0]),
     Array.from({ length: 9 }, (_, i) => `Ctrl-${i + 1}`))
-check('순서만 다른 저장값도 기본값으로 본다', K.isDefaultBinding({ 'agentdeck-repair': ['shift-ctrl-r'] }, item('agentdeck-repair'), defaults, W), true)
+check('대소문자만 다른 저장값도 기본값으로 본다', K.isDefaultBinding({ 'agentdeck-repair': ['ctrl-r'] }, item('agentdeck-repair'), defaults, W), true)
 
 // README 표 ↔ 기본값 — 첫 화면에 적힌 키가 실제 기본값이다
 const readme = read('README.md')
-for (const [id, want] of [['agentdeck-new-tab', 'Ctrl+Shift+T'], ['agentdeck-focus-list', 'Ctrl+Shift+L'],
-    ['agentdeck-view', 'Ctrl+Shift+O'], ['agentdeck-repair', 'Ctrl+Shift+R']]) {
+for (const [id, want] of [['agentdeck-new-tab', 'Ctrl+T'], ['agentdeck-focus-list', 'Ctrl+L'],
+    ['agentdeck-view', 'Ctrl+O'], ['agentdeck-repair', 'Ctrl+R']]) {
     check(`README 가 ${id} 기본값 ${want} 을 적고 있다`,
         readme.includes('`' + want + '`') && K.displayStroke(ours[id][0], W) === want, true)
 }

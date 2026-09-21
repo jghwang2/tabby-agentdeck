@@ -62,6 +62,30 @@ assert.equal(readHead([JSON.stringify({ type: 'session_meta', payload: { source:
         const tab = {}
         await AgentDeckService.prototype.activateResume.call({ resumeTabs: new Map([[sid, tab]]), app: { tabs: [tab], selectTab: t => { selected = t } } }, { ...rows[0], openTabId: sid }, false)
         assert.equal(selected, tab)
+        for (const provider of ['claude', 'codex']) {
+            const account = { provider, key: 'fixture-account', id: 'fixture@example.test', name: 'fixture' }
+            const base = { id: 'base', options: { cwd: 'original', env: { KEEP: 'yes', OPENAI_API_KEY: 'must-not-inherit' } } }
+            let opened, sent, bound
+            const host = {
+                config: { store: { terminal: { profile: 'base' } } },
+                profiles: { getProfiles: async () => [base], openNewTabForProfile: async p => { opened = p; return tab } },
+                status: { setLabel: () => {} }, diag: () => {},
+                notify: { setAccountHome: (...args) => { bound = args } },
+                sendResumeCommand: (target, cmd) => { sent = { target, cmd } },
+            }
+            const command = resumeCommand(sid, true, provider)
+            await AgentDeckService.prototype.openResumeTab.call(host, { ...rows[0], agent: provider }, command, account)
+            assert.equal(opened.options.cwd, rows[0].cwd)
+            assert.equal(opened.options.env.KEEP, 'yes')
+            assert.equal(opened.options.env.OPENAI_API_KEY, '')
+            assert.ok(opened.options.env[provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'].endsWith('fixture-account'))
+            assert.equal(base.options.cwd, 'original')
+            assert.equal(base.options.env.OPENAI_API_KEY, 'must-not-inherit')
+            assert.equal(sent.cmd, command)
+            assert.equal(bound[1], provider)
+            host.profiles.openNewTabForProfile = async () => null
+            await assert.rejects(() => AgentDeckService.prototype.openResumeTab.call(host, rows[0], command, account))
+        }
         console.log('PASS: Codex history scan without Claude, prompt/cwd, resume/fork routing, open-tab reuse, command validation')
     } finally {
         if (oldHome === undefined) delete process.env.CODEX_HOME

@@ -16,6 +16,7 @@ import { pickTabByPids } from './bind'
 import { shortenReason } from './reason'
 import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
 import { diag, diagCatch } from './diag'
+import { accountEmail } from './accounts'
 import {
     createSubagentState, feedChunk, formatSubagentTooltip, matchesSessionTranscript, summarizeSubagents,
     summarizeLiveAgents, formatLiveAgentTooltip, LiveAgent,
@@ -1210,9 +1211,23 @@ export class WorkNotifyService {
      * 여기서 값을 꾸미지 않는다 — 화면 문구는 부르는 쪽(deck.service)이 만든다.
      * 이 서비스는 "누가 무엇을 보고했나" 만 들고 있는다.
      */
+    private accountHomes = new WeakMap<BaseTabComponent, { provider: string, home: string, email: string }>()
+
+    setAccountHome (tab: BaseTabComponent, provider: string, home: string, email: string): void {
+        this.accountHomes.set(tab, { provider, home, email })
+    }
+
     metaOf (tab: BaseTabComponent | null | undefined): AgentMeta | null {
         const sid = tab ? this.tabSession.get(tab) : null
-        return (sid && this.metaBySession.get(sid)) || null
+        const meta = (sid && this.metaBySession.get(sid)) || null
+        if (!meta || !tab) { return meta }
+        const selected = this.accountHomes?.get(tab)
+        const env = (tab as any).profile?.options?.env
+        const home = selected?.home || (meta.agent === 'codex' ? env?.CODEX_HOME : env?.CLAUDE_CONFIG_DIR)
+        if (home && (meta.agent === 'codex' || meta.agent === 'claude')) {
+            return { ...meta, configDir: home, account: accountEmail(meta.agent, home) || selected?.email || '' }
+        }
+        return meta
     }
 
     /**

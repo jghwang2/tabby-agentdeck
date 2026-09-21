@@ -13,9 +13,10 @@
 #
 # ud 폴더는 매번 새로 만든다 — 남아 있으면 recoverTabs 가 지난 실행의 탭을 되살려
 # 매번 다른 초기 상태로 뜬다 (docs/REGRESSION.md 실측).
-param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '')
+param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [string]$PluginRoot = '')
 
 $root = Split-Path -Parent $PSScriptRoot
+if ($PluginRoot) { $root = (Resolve-Path -LiteralPath $PluginRoot -ErrorAction Stop).Path }
 $base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test'
 $cfg  = Join-Path $base 'cfg'
 $ud   = Join-Path $base 'ud'
@@ -28,7 +29,8 @@ foreach ($p in $victims) { Stop-Process -Id $p.ProcessId -Force -ErrorAction Sil
 if ($Kill) { Write-Output "killed=$($victims.Count)"; exit 0 }
 
 Start-Sleep -Milliseconds 400
-if (Test-Path $ud) { Remove-Item -Recurse -Force $ud -ErrorAction SilentlyContinue }
+if ([IO.Path]::GetFullPath($ud) -ne [IO.Path]::GetFullPath((Join-Path $base 'ud'))) { throw 'Unexpected test directory' }
+if (Test-Path $ud) { Remove-Item -LiteralPath $ud -Recurse -Force -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Force -Path $cfg, $ud | Out-Null
 
 # 기본 프로필의 작업 폴더. `-Cwd` 를 주면 그 폴더에서 탭이 태어난다 —
@@ -93,5 +95,5 @@ $env:AGENTDECK_DIAG_DIR = $cfg
 $env:NODE_PATH = ''
 $env:TABBY_PLUGINS = ''
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Tabby\Tabby.exe'
-Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port")
+Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port") -WindowStyle Hidden
 Write-Output "started cfg=$cfg ud=$ud port=$Port"

@@ -144,7 +144,7 @@
     // 픽스처는 실행마다 다른 이름을 쓴다 — 최근 목록은 탭 WeakMap 에 남으므로(viewPanel.ts:172)
     // 같은 인스턴스에서 두 번 돌리면 "처음 본 파일" 조건(VW2)이 성립하지 않는다
     const stamp = Date.now().toString(36)
-    const tmpDir = path.join(os.tmpdir(), 'agentdeck-probe-viewer')
+    const tmpDir = path.join(process.env.AGENTDECK_PROBE_TMP || os.tmpdir(), 'agentdeck-probe-viewer')
     const made = []
     const fx = (name, text) => {
         const p = path.join(tmpDir, name)
@@ -812,7 +812,8 @@
                     hasDontAsk: !!pick('.ad-drop-ask-again-box'),
                     panelStillClosed: vv.isOpen === false,
                     ok: prevented && !!msg
-                        && msg.textContent.indexOf('드롭확인.md') === 0
+                        // Localized prompts can put the filename after the question prefix.
+                        && msg.textContent.includes('드롭확인.md')
                         && msg.title === dropMd
                         && !!pick('.ad-drop-ask-again-box')
                         && vv.isOpen === false,

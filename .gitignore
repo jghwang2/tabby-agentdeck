@@ -5,3 +5,7 @@ dist/
 .wt/
 tmp/
 *.tgz
+account.json
+accounts.json
+account.json.*.tmp
+accounts.json.*.tmp

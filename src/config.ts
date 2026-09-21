@@ -247,7 +247,7 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              */
             searchBox: true,
             /**
-             * 사이드바를 **키보드로** 다룬다 — 핫키(`agentdeck-focus-list`, 기본 `Ctrl-Shift-L`)로
+             * 사이드바를 **키보드로** 다룬다 — 핫키(`agentdeck-focus-list`, 기본 `Ctrl-L`)로
              * 목록에 들어가 ↑↓ 로 훑고, Enter 로 그 탭으로 전환, Esc 로 터미널에 돌아온다.
              * 검색창에서 ↓ 를 누르면 결과 목록으로 내려가고, 첫 줄에서 ↑ 면 검색창으로 돌아온다.
              * 그룹 헤더도 지나가며 Enter 로 접었다 펼 수 있다.
@@ -384,24 +384,24 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              */
             claimCtrlV: true,
             /**
-             * `Ctrl+Shift+T`(⌘+T) 를 agentdeck 새 탭이 받는다 — 순정 `new-tab` 에서 그 키를 뗀다.
+             * `Ctrl+T`(⌘+T) 를 새 탭이 받는다. 순정 `new-tab`에 겹치는 키만 뗀다.
              * false 면 떼지 않고 우리 핫키도 무시한다(순정 그대로). 순정 새 탭은 기본 프로필로 열어
              * 훅이 탭을 못 찾으므로, 이 플러그인을 쓰는 동안은 켜 두는 것이 맞다
              */
             claimNewTabKey: true,
             /**
-             * `Ctrl+Shift+R` 을 agentdeck 화면 복구가 받는다 — 순정 `rename-tab` 에서 그 키를 뗀다.
+             * `Ctrl+R`을 화면 복구가 받는다. 순정 `rename-tab`에 겹치는 키만 뗀다.
              * false 면 떼지 않고 우리 핫키도 무시한다(순정 그대로). 탭 이름은 사이드바 더블클릭으로 바꾼다
              */
             claimRepairKey: true,
             /**
              * 순정 `close-pane`(포커스된 분할 패널 닫기)이 **비어 있으면** 이 키를 채운다.
              * Tabby 기본표는 이 항목이 빈 채로 오고, agentdeck 은 짧은 우클릭을 복사/붙여넣기로
-             * 쓰기 때문에 컨텍스트 메뉴로 패널을 닫기가 번거롭다. `Ctrl-Shift-Q` 는 순정 네 패키지
+             * 쓰기 때문에 컨텍스트 메뉴로 패널을 닫기가 번거롭다. `Ctrl-Q` 는 순정 네 패키지
              * 기본표·agentdeck 어디에도 없는 키(2026-09-16 grep 0건).
              * 이미 사람이 채워 둔 표는 건드리지 않는다. 빈 문자열이면 아무것도 하지 않는다.
              */
-            closePaneKey: 'Ctrl-Shift-Q',
+            closePaneKey: 'Ctrl-Q',
             /**
              * Shift+Enter / Ctrl+Enter 를 캡처 단계에서 직접 줄바꿈으로 처리한다.
              *
@@ -695,12 +695,12 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              *
              * 기본값을 비워 두지 않은 이유 — 이것이 사이드바를 마우스 없이 만지는 **유일한
              * 진입점**이라(목록은 tabindex=-1, `wireListKeys`) 안 묶여 있으면 기능이 없는 것과
-             * 같다. `Ctrl-Shift-L` 은 Tabby 순정 기본 핫키와 겹치지 않는다 — core·terminal·
+             * 같다. `Ctrl-L` 은 Tabby 순정 기본 핫키와 겹치지 않는다 — core·terminal·
              * local·settings 네 패키지의 기본 조합을 훑어 확인했다(2026-09-09):
              * 그쪽이 쓰는 것은 `Ctrl-Shift-{A,C,D,E,F,I,P,R,S,T,V,W,Z}`·방향키·Tab·PageUp/Down·
              * Backspace·`-` 이다. 다른 플러그인과 부딪히면 설정 창에서 바꾼다.
              */
-            'agentdeck-focus-list': ['Ctrl-Shift-L'],
+            'agentdeck-focus-list': ['Ctrl-L'],
             /**
              * **사이드바에 보이는 순서로** N 번째 세션으로 건너뛴다 (`Ctrl-1` … `Ctrl-9`).
              *
@@ -714,7 +714,7 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              * 없다.
              *
              * 9 까지만 두는 이유 — 열 번째부터는 눈으로 세는 것이 키를 누르는 것보다 느리다.
-             * 그 위는 `Ctrl-Shift-L` 로 목록에 들어가 ↑↓ 로 간다
+             * 그 위는 `Ctrl-L` 로 목록에 들어가 ↑↓ 로 간다
              */
             'agentdeck-jump-1': ['Ctrl-1'],
             'agentdeck-jump-2': ['Ctrl-2'],
@@ -726,26 +726,14 @@ export class AgentDeckConfigProvider extends ConfigProvider {
             'agentdeck-jump-8': ['Ctrl-8'],
             'agentdeck-jump-9': ['Ctrl-9'],
             /**
-             * 사이드바 하단 버튼 세 개의 키.
-             *
-             * **새 탭은 순정 `new-tab`(Ctrl+Shift+T · macOS ⌘+T)을 대체한다.** 순정은 `terminal.openTab()`
-             * 으로 기본 프로필을 열어서 `AGENTDECK_TAB` 이 안 심기고 훅이 탭을 못 찾는다. 같은 키에
-             * 우리 것을 얹고 순정 표에서 그 키를 뗀다(`ensureNewTabHotkey`, `claimNewTabKey`) —
-             * 안 떼면 한 번 눌러 탭이 둘 열린다. `Ctrl+V` 를 가져온 방식(`ensurePasteHotkey`)과 같다.
-             *
-             * `Ctrl-Shift-O` 는 순정 네 패키지(core·terminal·local·settings) 기본표에 없다
-             * (2026-09-16 grep 0건 — 순정이 쓰는 것은 `Ctrl-Shift-{A,C,D,E,F,I,P,R,S,T,V,W,Z}`).
-             *
-             * **화면 복구는 순정 `rename-tab`(Ctrl+Shift+R)을 대체한다** (2026-09-17). 이름 바꾸기는
-             * 사이드바 더블클릭이 주 경로라 키를 잃어도 아쉽지 않고, R(repair)이 외우기 쉽다.
-             * 새 탭과 같은 방식 — 우리 것을 얹고 순정 표에서 뗀다(`ensureRepairHotkey`, `claimRepairKey`).
-             * 옛 기본값 `Ctrl-Shift-U` 가 config 에 그대로 저장돼 있으면(사람이 안 바꾼 것) R 로 옮긴다.
+             * Common actions use Ctrl without Shift. Existing custom shortcuts remain saved.
+             * Stock new-tab/rename-tab bindings are removed only when they overlap ours.
              */
-            'agentdeck-new-tab': ['Ctrl-Shift-T', '⌘-T'],
-            'agentdeck-view': ['Ctrl-Shift-O'],
+            'agentdeck-new-tab': ['Ctrl-T', '⌘-T'],
+            'agentdeck-view': ['Ctrl-O'],
             /** 패널의 파일 ↔ 변경 전환 — 기본은 미배정 (설정 창 단축키 절에서 매긴다) */
             'agentdeck-view-mode': [],
-            'agentdeck-repair': ['Ctrl-Shift-R'],
+            'agentdeck-repair': ['Ctrl-R'],
         },
     }
 }
@@ -760,6 +748,8 @@ export class AgentDeckConfigProvider extends ConfigProvider {
 export function defaultHotkeys (): Record<string, string[]> {
     const p = new AgentDeckConfigProvider()
     const table = { ...(p.defaults.hotkeys as Record<string, string[]>) }
+    table['split-right'] = ['Ctrl-S']
+    table['split-bottom'] = ['Ctrl-D']
     const closePane = String(p.defaults.agentDeck.closePaneKey ?? '').trim()
     table['close-pane'] = closePane ? [closePane] : []
     return table

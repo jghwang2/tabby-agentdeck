@@ -21,6 +21,12 @@ agentdeck-settings-tab {
     // 칸마다 설명 길이가 달라 높이가 제각각이다 — 늘려 맞추면 빈 줄이 생긴다
     align-items: start;
 
+    > .form-line {
+        min-width: 0;
+        > .header { min-width: 0; overflow-wrap: anywhere; }
+        > .btn { flex-shrink: 0; white-space: nowrap; }
+    }
+
     // 절 제목과 안내문은 그 절 전체를 덮으므로 한 줄을 다 쓴다
     > h3,
     > .text-muted {
@@ -622,6 +628,15 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     }
 
     .ad-now-account {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        padding: 3px 0;
+        cursor: pointer;
+        &:hover, &:focus-visible { color: #fff; outline: 1px solid #61afef; }
+        &:not(:disabled)::after { content: ' ▾'; }
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -631,7 +646,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     // 한도 막대 묶음 — 한 줄에 하나씩 쌓는다. 나란히 붙이면 막대가 셋으로 쪼개져
     // 길이로 읽는다는 이 표시의 전제가 깨진다
-    .ad-now-gauges {
+    @at-root #agentdeck-sidebar .ad-now-gauges, .ad-account-picker .ad-now-gauges {
         display: flex;
         flex-direction: column;
         gap: 6px;
@@ -640,7 +655,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     // 한도 한 줄 — `ctx [▓▓▓░░░░] 32%`. 색은 급한 정도만 가른다
     // (상태 배지 `--ad-color` 와 다른 축이라 같은 색을 쓰지 않는다)
-    .ad-now-gauge {
+    @at-root #agentdeck-sidebar .ad-now-gauge, .ad-account-picker .ad-now-gauge {
         --ad-gauge: rgba(97, 175, 239, 0.85);
         display: flex;
         align-items: center;
@@ -662,7 +677,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     // 이름(`ctx` · `5h` · `7d` · 모델 주간 한도 이름)은 폭을 고정해 막대 왼쪽 끝이
     // 모든 줄에서 같은 자리에 오게 한다. 긴 이름은 말줄임 — 막대가 밀리면 안 된다
-    .ad-now-gauge-key {
+    @at-root #agentdeck-sidebar .ad-now-gauge-key, .ad-account-picker .ad-now-gauge-key {
         flex: 0 0 52px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -671,7 +686,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         letter-spacing: 0.02em;
     }
 
-    .ad-now-bar {
+    @at-root #agentdeck-sidebar .ad-now-bar, .ad-account-picker .ad-now-bar {
         position: relative;
         flex: 1 1 auto;
         min-width: 0;
@@ -681,7 +696,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         overflow: hidden;
     }
 
-    .ad-now-bar-fill {
+    @at-root #agentdeck-sidebar .ad-now-bar-fill, .ad-account-picker .ad-now-bar-fill {
         display: block;
         height: 100%;
         border-radius: 6px;
@@ -690,7 +705,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         transition: width 0.3s ease;
     }
 
-    .ad-now-gauge-pct {
+    @at-root #agentdeck-sidebar .ad-now-gauge-pct, .ad-account-picker .ad-now-gauge-pct {
         flex: 0 0 auto;
         min-width: 46px;
         text-align: right;
@@ -699,7 +714,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     // 리셋까지 남은 시간 — 막대 **아래 줄**. 값보다 한 단계 죽인 색이다 (눈이 먼저 잡을 것은 % 다).
     // 아래 여백이 곧 묶음 구분이다 — 같은 시각에 풀리는 칸들이 이 줄 하나를 같이 쓴다
-    .ad-now-reset {
+    @at-root #agentdeck-sidebar .ad-now-reset, .ad-account-picker .ad-now-reset {
         margin: -1px 0 4px;
         color: rgba(255, 255, 255, 0.4);
         font-size: 14px;
@@ -2011,5 +2026,64 @@ body.agentdeck-active {
         color: rgba(255, 255, 255, 0.5);
         font-size: 11px;
         cursor: pointer;
+    }
+}
+.ad-account-picker {
+    position: fixed;
+    z-index: 100000;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(440px, 90vw);
+    max-height: 75vh;
+    overflow-y: auto;
+    padding: 18px;
+    color: var(--bs-body-color, #eee);
+    background: var(--ad-panel-bg, var(--bs-body-bg, #252a33));
+    border: 1px solid var(--bs-border-color, #687586);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px #0008;
+    .ad-account-close {
+        float: right;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 3px;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+        font-size: 22px;
+        line-height: 1;
+        opacity: .7;
+        cursor: pointer;
+        &:hover, &:focus-visible { opacity: 1; background: #ffffff18; }
+    }
+    p { font-size: 13px; color: #bbc4d0; clear: both; }
+    .ad-account-option {
+        float: none;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        width: 100%;
+        margin-top: 10px;
+        padding: 12px;
+        text-align: left;
+        color: inherit;
+        background: #303846;
+        border: 1px solid #59677b;
+        border-radius: 5px;
+        cursor: pointer;
+        &:hover, &:focus-visible { border-color: #61afef; }
+        &:disabled { opacity: .6; cursor: wait; }
+        .ad-now-gauges { width: 100%; }
+        .ad-now-gauge { gap: 7px; }
+        .ad-now-gauge-key { flex-basis: 40px; font-size: 13px; }
+        .ad-now-gauge-pct { min-width: 35px; font-size: 13px; }
+        .ad-now-bar { height: 9px; }
+        .ad-now-reset { font-size: 11px; }
     }
 }

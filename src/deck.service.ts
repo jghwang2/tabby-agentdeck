@@ -1,5 +1,8 @@
 import * as fs from 'fs'
-import { Injectable, NgZone } from '@angular/core'
+import { Injectable, NgZone, Optional } from '@angular/core'
+import { LocaleService } from 'tabby-core'
+import { Lang, pickLang } from './i18n'
+import { sidebarText, sidebarMarkup, sidebarReset, sidebarReason, RESET_COPY } from './sidebarI18n'
 import { newlineSequence, canRepairComposer } from './terminalInput'
 import { installCursorVisibilityFix } from './cursorVisibility'
 import { identifyScreenAgent, isLiveCodexScreen, TerminalAgentTracker } from './screenAgent'
@@ -12,7 +15,10 @@ import { applyOutput, applyTitle, releaseLimited, stripTitleMarker } from './det
 import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent, profileFor, unionProfile } from './agents'
 import { STATUS_STYLES, WorkStatus } from './api'
 import { extractPrompt } from './prompt'
-import { formatMeta } from './meta'
+import { formatMeta, MetaGauge, MetaInput } from './meta'
+import { readAccounts, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
+import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
+import { openAccountBrowser } from './accountBrowser'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
 import { CompositionHelperLike, flushComposition, planSend, readCompositionState } from './ime'
 import { DockController, DockSide, DOCK_SIDES, isDockSide, isHorizontalDock } from './dock'
@@ -368,6 +374,9 @@ export class AgentDeckService {
     private listEl: HTMLElement | null = null
     /** 사이드바 하단 "지금 이 탭" 줄 (모델·계정·한도). 목록과 버튼 줄 사이에 고정된다 */
     private nowEl: HTMLElement | null = null
+    private accountPopup: HTMLElement | null = null
+    private accountPopupTab: BaseTabComponent | null = null
+    private accountSwitchBusy = false
     /** 지난 세션 서랍 — 목록 **밖**, "지금 이 탭" 줄 바로 위. 펼치면 위로 자란다 */
     private resumeEl: HTMLElement | null = null
     private windowEl: HTMLElement | null = null
@@ -594,9 +603,44 @@ export class AgentDeckService {
         // 지난 세션 원장. deck 이 라벨·cwd 를 아는 유일한 자리라 적는 쪽도 여기다
         private ledger: SessionLedgerService,
         private zone: NgZone,
+        @Optional() private locale: LocaleService | null = null,
     ) { }
 
+    private get sidebarLang (): Lang {
+        return pickLang(this.locale?.getLocale() || this.config.store.language || navigator.language)
+    }
+
+    private ui (key: string, params?: Record<string, string | number>): string {
+        return sidebarText(key, this.sidebarLang, params)
+    }
+
+    private uiMarkup (html: string): string {
+        return sidebarMarkup(html, this.sidebarLang)
+    }
+
+    private refreshSidebarLanguage (): void {
+        const root = document.getElementById(SIDEBAR_ID)
+        if (!root) { return }
+        const input = root.querySelector<HTMLInputElement>('.ad-search-input')
+        if (input) { input.placeholder = this.ui('세션 검색 (제목 · 작업이름 · 폴더)') }
+        for (const [selector, title, text] of [
+            ['.ad-search-clear', '검색·필터 지우기 (Esc)', ''],
+            ['.ad-now-account', '계정 선택', ''],
+            ['.ad-new', '새 탭', '+ 새 탭'],
+            ['.ad-settings', '설정', '설정'],
+            ['.ad-repair', '화면 복구 (모든 탭 다시 그리기)', ''],
+            ['.ad-viewtoggle', '미리보기 패널 (md · 이미지 · 표)', ''],
+        ]) {
+            const el = root.querySelector<HTMLElement>(selector)
+            if (el) { el.title = this.ui(title); if (text) { el.textContent = this.ui(text) } }
+        }
+    }
+
     init (): void {
+        const maintain = () => { void maintainAccountSessions(this.app.tabs.map(tab => this.notify.metaOf(tab)).filter(Boolean)).catch(() => {}) }
+        maintain()
+        const accountTimer = setInterval(maintain, 60000)
+        window.addEventListener('beforeunload', () => clearInterval(accountTimer), { once: true })
         this.app.ready$.subscribe(() => this.zone.runOutsideAngular(() => {
             // 진단 로그는 setup 보다 먼저 연다 — `.window` 를 못 찾아 배치를 포기하는 경로도
             // 로그에 남아야 하고, 세션 스탬프(버전·환경)는 그 판정보다 앞에 찍혀야 한다
@@ -654,6 +698,7 @@ export class AgentDeckService {
         this.applyOpacity()
         this.disableBackgroundThrottling()
         this.ensurePasteHotkey()
+        this.ensureSplitHotkeys()
         this.ensureNewTabHotkey()
         this.ensureRepairHotkey()
         this.ensureClosePaneHotkey()
@@ -1929,7 +1974,7 @@ export class AgentDeckService {
     // 수동 복구(`repairPane`)는 여전히 흔든다 — 거기는 사용자가 명시로 요청한 경로다.
 
     /**
-     * `Ctrl+Shift+T`(⌘+T) 를 순정 `new-tab` 에서 **걷어내** 우리 `agentdeck-new-tab` 만 남긴다.
+     * 우리 새 탭 키와 겹치는 순정 `new-tab` 키만 걷어낸다. 기본은 Ctrl+T / ⌘+T다.
      *
      * 순정 처리자(`tabby-local` LocalTerminalModule → `terminal.openTab()`)는 같은 `hotkey$` 를
      * 구독하고 있어서, 두 id 에 같은 키가 매여 있으면 HotkeysService 가 하나만 고르긴 하지만
@@ -1953,6 +1998,24 @@ export class AgentDeckService {
             this.config.save()
             this.diag(`hotkeys new-tab claimed: theirs=${JSON.stringify(theirs)} -> ${JSON.stringify(kept)} ours=${JSON.stringify(ours)}`)
         }
+    }
+
+    private ensureSplitHotkeys (): void {
+        const hotkeys = this.config.store.hotkeys
+        if (!hotkeys) { return }
+        let changed = false
+        for (const [id, oldKey, key] of [
+            ['split-right', 'Ctrl-Shift-S', 'Ctrl-S'],
+            ['split-bottom', 'Ctrl-Shift-D', 'Ctrl-D'],
+        ]) {
+            const current = hotkeys[id]
+            // Preserve custom bindings and explicitly disabled shortcuts.
+            if (Array.isArray(current) && current.length === 1 && current[0] === oldKey) {
+                hotkeys[id] = [key]
+                changed = true
+            }
+        }
+        if (changed) { this.config.save() }
     }
 
     /**
@@ -1982,7 +2045,7 @@ export class AgentDeckService {
     }
 
     /**
-     * `Ctrl+Shift+R` 을 순정 `rename-tab` 에서 **걷어내** 우리 `agentdeck-repair` 만 남긴다.
+     * 우리 복구 키와 겹치는 순정 `rename-tab` 키만 걷어낸다. 기본은 Ctrl+R이다.
      *
      * 방식과 이유는 `ensureNewTabHotkey` 와 같다 — 같은 키가 두 id 에 매여 있으면 어느 쪽이
      * 발화할지 저장 순서에 달리므로 표에서 떼는 것만이 확실하다. 탭 이름 바꾸기는 사이드바
@@ -2003,7 +2066,7 @@ export class AgentDeckService {
         let changed = false
         const cur: string[] = Array.isArray(hotkeys['agentdeck-repair']) ? hotkeys['agentdeck-repair'] : []
         if (cur.length === 1 && cur[0] === 'Ctrl-Shift-U') {
-            hotkeys['agentdeck-repair'] = ['Ctrl-Shift-R']
+            hotkeys['agentdeck-repair'] = ['Ctrl-R']
             changed = true
         }
         const ours: string[] = Array.isArray(hotkeys['agentdeck-repair']) ? hotkeys['agentdeck-repair'] : []
@@ -2805,17 +2868,17 @@ export class AgentDeckService {
         card.innerHTML = [
             '<div class="ad-drop-ask-msg"></div>',
             '<div class="ad-drop-ask-row">',
-            '  <button class="ad-drop-ask-view">패널에 띄우기</button>',
-            '  <button class="ad-drop-ask-paste">경로 붙여넣기</button>',
-            '  <button class="ad-drop-ask-close" title="아무것도 하지 않는다">✕</button>',
+            this.uiMarkup('  <button class="ad-drop-ask-view">패널에 띄우기</button>'),
+            this.uiMarkup('  <button class="ad-drop-ask-paste">경로 붙여넣기</button>'),
+            this.uiMarkup('  <button class="ad-drop-ask-close" title="아무것도 하지 않는다">✕</button>'),
             '</div>',
             '<label class="ad-drop-ask-again">',
-            '  <input type="checkbox" class="ad-drop-ask-again-box"> 다시 묻지 않기',
+            this.uiMarkup('  <input type="checkbox" class="ad-drop-ask-again-box"> 다시 묻지 않기'),
             '</label>',
         ].join('')
         const msg = card.querySelector('.ad-drop-ask-msg') as HTMLElement
         // 파일명은 사용자 데이터다 — innerHTML 로 넣지 않는다
-        msg.textContent = `${name} 을 어떻게 할까요?`
+        msg.textContent = this.ui('{name} 을 어떻게 할까요?', { name })
         msg.title = file
 
         const again = () => (card.querySelector('.ad-drop-ask-again-box') as HTMLInputElement)?.checked === true
@@ -3958,8 +4021,8 @@ export class AgentDeckService {
             // 헤더 안에 넣으면 200px 사이드바에서 제목·집계 칩과 자리를 다툰다.
             '<div class="ad-search">',
             '  <input class="ad-search-input" type="text" spellcheck="false"',
-            '         placeholder="세션 검색 (제목 · 작업이름 · 폴더)">',
-            '  <button class="ad-search-clear" type="button" title="검색·필터 지우기 (Esc)">&times;</button>',
+            '         placeholder="' + this.ui('세션 검색 (제목 · 작업이름 · 폴더)') + '">',
+            this.uiMarkup('  <button class="ad-search-clear" type="button" title="검색·필터 지우기 (Esc)">&times;</button>'),
             '</div>',
             '<div class="ad-list"></div>',
             // 지난 세션 서랍. **목록 밖, "지금 이 탭" 줄 바로 위**에 고정한다
@@ -3974,16 +4037,16 @@ export class AgentDeckService {
             // 검색이 아무것도 못 찾은 화면(목록이 빈 상태)에서도 이 줄은 남아 있어야 한다
             '<div class="ad-now" hidden>',
             '  <div class="ad-now-title"></div>',
-            '  <div class="ad-now-account"></div>',
+            this.uiMarkup('  <button type="button" class="ad-now-account" title="계정 선택" aria-haspopup="dialog"></button>'),
             '  <div class="ad-now-gauges"></div>',
             '</div>',
             '<div class="ad-foot">',
-            '  <button class="ad-btn ad-new" title="새 탭">+ 새 탭</button>',
-            '  <button class="ad-btn ad-settings" title="설정">설정</button>',
+            this.uiMarkup('  <button class="ad-btn ad-new" title="새 탭">+ 새 탭</button>'),
+            this.uiMarkup('  <button class="ad-btn ad-settings" title="설정">설정</button>'),
             // 화면이 깨졌을 때 누르는 자리 — 창을 복원→최대화로 흔들던 것을 대신한다.
             // 자주 쓰는 두 버튼(새 탭·설정) 뒤에 둔다 (2026-09-01 유저 요청)
-            '  <button class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)">↻</button>',
-            '  <button class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)">▤</button>',
+            this.uiMarkup('  <button class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)">↻</button>'),
+            this.uiMarkup('  <button class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)">▤</button>'),
             '</div>',
         ].join('\n')
 
@@ -4181,7 +4244,7 @@ export class AgentDeckService {
             stripTitleMarker(tab.customTitle || tab.title || ''),
             this.status.get(tab).label,
             dir,
-            dir ? null : UNGROUPED_LABEL,
+            dir ? null : this.ui(UNGROUPED_LABEL),
         ], tokens)
     }
 
@@ -4575,6 +4638,7 @@ export class AgentDeckService {
     }
 
     private render (): void {
+        this.refreshSidebarLanguage()
         // 드래그가 진행 중이면 그리지 않는다. 목록을 다시 만들면 **끌고 있던 줄의 DOM 이 사라져**
         // 삽입선이 가리킬 대상도, 되돌아갈 자리도 없어진다 (라벨 편집 중에 안 그리는 것과 같은 이유).
         // 상태 갱신이 드래그가 끝날 때까지(수 초) 밀리는 것은 그 대가로 받아들인다 —
@@ -4635,36 +4699,169 @@ export class AgentDeckService {
      * 값이 없으면 **줄을 통째로 접는다**(`hidden`). "알 수 없음" 을 그려 두면 자리만 차지하면서
      * "statusLine 래퍼가 안 걸렸다" 와 "걸렸는데 아직 첫 보고가 안 왔다" 가 화면에서 같아진다.
      */
+    private async showAccountPicker (): Promise<void> {
+        if (this.accountPopup) { this.accountPopup.remove(); this.accountPopup = null; return }
+        const tab = this.app.activeTab
+        const meta = this.notify.metaOf(tab)
+        if (!tab || !meta || (meta.agent !== 'claude' && meta.agent !== 'codex')) { return }
+        const provider = meta.agent
+        const popup = document.createElement('div')
+        popup.className = 'ad-account-picker'
+        popup.setAttribute('role', 'dialog')
+        popup.setAttribute('aria-label', this.ui('{provider} 계정 선택', { provider: provider === 'claude' ? 'Claude' : 'Codex' }))
+        const heading = document.createElement('strong')
+        heading.textContent = this.ui('{provider} 계정', { provider: provider === 'claude' ? 'Claude' : 'Codex' })
+        const close = document.createElement('button')
+        close.type = 'button'; close.textContent = '×'; close.className = 'ad-account-close'
+        close.title = this.ui('닫기'); close.setAttribute('aria-label', this.ui('닫기'))
+        const polls: ReturnType<typeof setInterval>[] = []
+        const dismiss = () => { polls.forEach(clearInterval); popup.remove(); if (this.accountPopup === popup) { this.accountPopup = null } }
+        close.onclick = dismiss
+        popup.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); dismiss() } })
+        popup.append(heading, close)
+        const note = document.createElement('p')
+        note.textContent = resumeCommand(meta.sessionId, true, provider)
+            ? this.ui('선택한 계정으로 이 대화를 새 탭에서 이어갑니다.') : this.ui('선택한 계정으로 새 대화를 엽니다.')
+        popup.appendChild(note)
+        const message = document.createElement('p')
+        message.setAttribute('role', 'status')
+        popup.appendChild(message)
+        document.body.appendChild(popup)
+        this.accountPopup = popup
+        this.accountPopupTab = tab
+        close.focus()
+        let accounts: SavedAccount[]
+        try { accounts = readAccounts().filter(a => a.provider === provider) } catch (e: any) { message.textContent = e.message; return }
+        if (!accounts.length) { message.textContent = this.ui('등록된 계정이 없습니다. accounts.json을 채워주세요.'); return }
+        for (const account of accounts) {
+            const button = document.createElement('button')
+            button.type = 'button'; button.className = 'ad-account-option'
+            const name = document.createElement('strong')
+            const current = meta.account.toLowerCase() === account.id.toLowerCase()
+            name.textContent = account.name + (current ? this.ui(' · 현재 계정') : '')
+            const quota = document.createElement('span')
+            quota.className = 'ad-now-gauges'
+            quota.textContent = this.ui('잔량 조회 중…')
+            button.append(name, quota)
+            popup.appendChild(button)
+            try { prepareAccount(account, meta.configDir || undefined) } catch { quota.textContent = this.ui('계정 저장 폴더를 준비하지 못했습니다.'); button.disabled = true; continue }
+            registerAccountSource(account, meta.configDir)
+            const refresh = () => {
+                if (!popup.isConnected) { polls.forEach(clearInterval); return }
+                for (const live of this.app.tabs.map(t => this.notify.metaOf(t)).filter(Boolean)) { recordAccountUsage(account, live) }
+                void getAccountQuotas(account).then(snapshot => {
+                if (!popup.isConnected) { return }
+                const values = snapshot.values
+                const limits: NonNullable<MetaInput['limits']> = {}
+                for (const value of values) {
+                    if (value.remaining === undefined) { continue }
+                    const used = 100 - value.remaining
+                    if (value.label === '5시간') { limits.fiveHourPct = used; limits.fiveHourResetsAt = value.resetsAt }
+                    else if (value.label === '주간') { limits.sevenDayPct = used; limits.sevenDayResetsAt = value.resetsAt }
+                    else { limits.scopedName = value.label; limits.scopedPct = used; limits.scopedResetsAt = value.resetsAt }
+                }
+                const gauges = formatMeta({ model: 'account', limits }, Date.now())?.gauges || []
+                this.renderMetaGauges(quota, gauges)
+                for (const value of values.filter(v => v.remaining === undefined && v.status)) {
+                    const row = document.createElement('span')
+                    row.className = 'ad-now-reset'
+                    const available = RESET_COPY[this.sidebarLang] ?? RESET_COPY.en
+                    row.textContent = `${value.label.toLowerCase()} · ${available[value.status === '사용 가능' ? 3 : 4]}`
+                    quota.appendChild(row)
+                    quota.hidden = false
+                }
+                if (!values.length) { quota.hidden = false; quota.textContent = this.ui('사용량 정보 없음') }
+                if (snapshot.stale) {
+                    const age = document.createElement('span')
+                    age.className = 'ad-now-reset'
+                    age.textContent = '⏱ ' + new Date(snapshot.ts).toLocaleString(this.locale?.getLocale() || undefined)
+                    quota.appendChild(age)
+                }
+            }, (e: any) => { quota.textContent = this.sidebarLang === 'ko' ? e.message : this.ui('사용량 정보 없음') })
+            }
+            refresh()
+            polls.push(setInterval(refresh, 60000))
+            button.onclick = async () => {
+                if (this.accountSwitchBusy) { return }
+                if (!this.app.tabs.includes(tab)) { message.textContent = this.ui('원래 탭이 닫혔습니다. 계정 목록을 다시 여세요.'); return }
+                this.accountSwitchBusy = true
+                popup.querySelectorAll<HTMLButtonElement>('.ad-account-option').forEach(b => { b.disabled = true })
+                try {
+                    message.textContent = this.ui('{name} 인증 확인 중…', { name: account.name })
+                    try { await ensureAccountSession(account) } catch (error) {
+                        if (!(error instanceof AccountRequestError) || error.kind !== 'auth') { throw error }
+                        message.textContent = this.ui('{name}: 열린 브라우저에서 로그인하세요. 인증정보는 자동 저장됩니다.', { name: account.name })
+                        await loginAccount(account, openAccountBrowser)
+                    }
+                    await ensureAccountSession(account)
+                    if (!this.app.tabs.includes(tab)) {
+                        message.textContent = this.ui('인증을 저장했습니다. 원래 탭이 닫혀 새 대화에서 계정을 선택해야 합니다.'); return
+                    }
+                    let command = resumeCommand(meta.sessionId, true, provider)
+                    // Accounts can also be selected before a CLI has a resumable conversation.
+                    if (!command) { command = provider }
+                    if (provider === 'codex') { command = command.replace(/^codex(?: |$)/, 'codex -c \'cli_auth_credentials_store="file"\' ') }
+                    const row: ResumeRow = { agent: provider, sessionId: meta.sessionId, cwd: meta.cwd,
+                        label: this.status.get(tab).label, lastStatus: null, lastSeen: Date.now(), from: 'live', openTabId: null }
+                    await this.openResumeTab(row, command, account)
+                    dismiss()
+                } catch (e: any) { message.textContent = this.sidebarLang === 'ko' && e.message ? e.message : this.ui('계정 전환에 실패했습니다. 다시 선택하세요.') }
+                finally {
+                    this.accountSwitchBusy = false
+                    popup.querySelectorAll<HTMLButtonElement>('.ad-account-option').forEach(b => { b.disabled = false })
+                }
+            }
+        }
+    }
+
     private renderNow (): void {
+        if (this.accountPopup && this.accountPopupTab !== this.app.activeTab) {
+            this.accountPopup.remove(); this.accountPopup = null; this.accountPopupTab = null
+        }
         const el = this.nowEl
         if (!el) {
             return
         }
+        const meta = this.notify.metaOf(this.app.activeTab as BaseTabComponent)
         const view = this.config.store.agentDeck.metaLine === false
             ? null
-            : formatMeta(this.notify.metaOf(this.app.activeTab as BaseTabComponent), Date.now())
+            : formatMeta(meta, Date.now())
         if (!view) {
             el.hidden = true
             return
         }
         el.hidden = false
-        el.title = view.tooltip
+        el.title = [
+            view.title,
+            view.account ? this.ui('계정: {value}', { value: view.account + (meta?.org ? ` (${meta.org})` : '') }) : '',
+            meta?.version ? this.ui('버전: {value}', { value: meta.version }) : '',
+            meta?.cwd ? this.ui('폴더: {value}', { value: meta.cwd }) : '',
+            ...view.gauges.map(g => g.text + (g.resetText ? ' — ' + sidebarReset(g.resetText, this.sidebarLang) : '')),
+        ].filter(Boolean).join('\n')
         const titleEl = el.querySelector('.ad-now-title') as HTMLElement
         titleEl.textContent = view.title
         const accountEl = el.querySelector('.ad-now-account') as HTMLElement
-        accountEl.textContent = view.account
-        accountEl.hidden = !view.account
+        const provider = this.notify.metaOf(this.app.activeTab as BaseTabComponent)?.agent
+        const switchable = provider === 'claude' || provider === 'codex'
+        accountEl.textContent = view.account || this.ui('계정 선택')
+        accountEl.hidden = !view.account && !switchable
+        ;(accountEl as HTMLButtonElement).disabled = !switchable
+        accountEl.onclick = () => { void this.showAccountPicker() }
         const gaugeEl = el.querySelector('.ad-now-gauges') as HTMLElement
+        this.renderMetaGauges(gaugeEl, view.gauges)
+    }
+
+    private renderMetaGauges (gaugeEl: HTMLElement, gauges: MetaGauge[]): void {
         gaugeEl.innerHTML = ''
-        for (let i = 0; i < view.gauges.length; i++) {
-            const g = view.gauges[i]
+        for (let i = 0; i < gauges.length; i++) {
+            const g = gauges[i]
             // 칩(`ctx 0%`) 대신 **차오르는 막대**다 — 숫자만 있으면 "많이 썼나" 를 읽는 데
             // 머릿속에서 한 번 환산해야 하고, 11px 칩은 사이드바에서 잘 보이지도 않았다
             // (2026-09-14 유저: "이거 뭐 보이지도 않아"). 막대는 눈이 길이로 바로 읽는다.
             const row = document.createElement('div')
             row.className = `ad-now-gauge ad-now-${g.level}`
             // 리셋 시각은 줄에 따로 붙인다 — 줄 전체 tooltip 은 마우스가 이 줄 밖에 있을 때 나온다
-            row.title = g.resetText ? `${g.text} — ${g.resetText}` : g.text
+            row.title = g.resetText ? `${g.text} — ${sidebarReset(g.resetText, this.sidebarLang)}` : g.text
 
             const label = document.createElement('span')
             label.className = 'ad-now-gauge-key'
@@ -4691,15 +4888,15 @@ export class AgentDeckService {
             // 같은 시각에 풀리는 칸들은 **한 줄로 묶는다** — 7d 와 모델 주간 한도는 늘 같은 시각인데
             // 같은 문장을 두 번 적으면 줄만 늘고 읽을 것은 그대로다. 그래서 다음 칸의 리셋이
             // 달라지는 자리(또는 마지막 칸)에서만 한 번 찍는다.
-            const next = view.gauges[i + 1]
+            const next = gauges[i + 1]
             if (g.resetLine && (!next || next.resetLine !== g.resetLine)) {
                 const line = document.createElement('div')
                 line.className = 'ad-now-reset'
-                line.textContent = g.resetLine
+                line.textContent = sidebarReset(g.resetLine, this.sidebarLang)
                 gaugeEl.appendChild(line)
             }
         }
-        gaugeEl.hidden = !view.gauges.length
+        gaugeEl.hidden = !gauges.length
     }
 
     /**
@@ -4768,7 +4965,7 @@ export class AgentDeckService {
         if (!rows.length) {
             const empty = document.createElement('div')
             empty.className = 'ad-resume-empty'
-            empty.textContent = '검색어와 맞는 지난 세션이 없다'
+            empty.textContent = this.ui('검색어와 맞는 지난 세션이 없다')
             rowsEl.appendChild(empty)
         }
     }
@@ -4845,13 +5042,13 @@ export class AgentDeckService {
             })
         }
         head.classList.toggle('collapsed', !expanded)
-        head.querySelector('.ad-group-label').textContent = '지난 세션'
+        head.querySelector('.ad-group-label').textContent = this.ui('지난 세션')
         // 검색으로 좁혀졌으면 `보이는 수/전체` 를 같이 보인다 — 안 그러면 "기록이 줄었나" 로 읽힌다
         head.querySelector('.ad-group-count').textContent = shown === total
             ? String(total)
             : `${shown}/${total}`
         head.querySelector('.ad-group-caret').textContent = expanded ? '▾' : '▴'
-        head.title = '닫힌 Claude Code · Codex 세션 — 누르면 그 대화를 이어받는다'
+        head.title = this.ui('닫힌 Claude Code · Codex 세션 — 누르면 그 대화를 이어받는다')
     }
 
     private renderResumeRow (row: ResumeRow): HTMLElement {
@@ -4869,7 +5066,7 @@ export class AgentDeckService {
         ].join('\n')
 
         // 라벨이 비면 세션 id 앞자리로 대신한다 — 줄을 지우면 "이어받을 게 있는데 안 보인다" 가 된다
-        const title = row.label || `세션 ${row.sessionId.slice(0, 8)}`
+        const title = row.label || this.ui('세션 {id}', { id: row.sessionId.slice(0, 8) })
         const titleEl = el.querySelector('.ad-title') as HTMLElement
         titleEl.textContent = title
         // 지난 세션도 같은 표식을 단다 — 아래 `re-was` 가 이미 글자로 말하지만("Codex · 완료"),
@@ -4879,23 +5076,23 @@ export class AgentDeckService {
 
         const was = el.querySelector('.re-was') as HTMLElement
         if (row.openTabId) {
-            was.textContent = '● 열림'
+            was.textContent = this.ui('● 열림')
             was.className = 're-was live'
         } else {
             const style = STATUS_STYLES[row.lastStatus as WorkStatus]
             // 끝난 상태는 **흔적으로만** 남긴다 — 살아 있는 배지와 같은 세기로 칠하면
             // 죽은 줄이 도는 줄처럼 읽힌다. 색 대신 형태(점선 바 + 흐림)가 죽음을 말한다
-            was.textContent = style ? style.label : ''
+            was.textContent = style ? this.ui(style.label) : ''
             was.className = 're-was' + (row.lastStatus ? ' s-' + row.lastStatus : '')
         }
-        was.textContent = `${row.agent === 'codex' ? 'Codex' : 'Claude'} · ${was.textContent || '지난 세션'}`
-        el.querySelector('.re-when').textContent = formatWhen(row.lastSeen, Date.now())
+        was.textContent = `${row.agent === 'codex' ? 'Codex' : 'Claude'} · ${was.textContent || this.ui('지난 세션')}`
+        el.querySelector('.re-when').textContent = this.ui(formatWhen(row.lastSeen, Date.now()))
 
-        el.title = row.openTabId
-            ? `${title}\n이미 열려 있다 — 누르면 그 탭으로 이동`
-            : `${title}\n누르면 새 탭에서 이어받는다 (${row.sessionId})`
-            + '\n작업 폴더: ' + (row.cwd || '모름')
-            + '\n※ 대화만 돌아온다 — 그때 띄워 둔 서버·백그라운드 프로세스는 되살아나지 않는다'
+        el.title = title + '\n' + (row.openTabId
+            ? this.ui('이미 열려 있다 — 누르면 그 탭으로 이동')
+            : this.ui('누르면 새 탭에서 이어받는다 ({id})', { id: row.sessionId })
+            + '\n' + this.ui('작업 폴더: {cwd}', { cwd: row.cwd || this.ui('모름') })
+            + '\n' + this.ui('※ 대화만 돌아온다 — 그때 띄워 둔 서버·백그라운드 프로세스는 되살아나지 않는다'))
 
         el.addEventListener('click', e => {
             e.preventDefault()
@@ -4926,11 +5123,11 @@ export class AgentDeckService {
             parts.push('"' + q + '"')
         }
         if (this.statusFilter) {
-            parts.push(STATUS_STYLES[this.statusFilter].label)
+            parts.push(this.ui(STATUS_STYLES[this.statusFilter].label))
         }
         // 검색어는 사용자 입력이다 — textContent 로만 넣는다 (innerHTML 금지)
-        el.textContent = parts.join(' · ') + '에 걸리는 세션이 없다 (전체 ' + total + '개)'
-        el.title = 'Esc 또는 ✕ 로 전체 목록으로 돌아간다'
+        el.textContent = this.ui('{filter}에 걸리는 세션이 없다 (전체 {total}개)', { filter: parts.join(' · '), total })
+        el.title = this.ui('Esc 또는 ✕ 로 전체 목록으로 돌아간다')
         return el
     }
 
@@ -5017,16 +5214,16 @@ export class AgentDeckService {
         const count = head.querySelector('.ad-group-count') as HTMLElement
         caret.textContent = collapsed ? '▸' : '▾'
         // textContent 로만 넣는다 — 폴더 이름에 어떤 문자가 와도 마크업으로 해석되지 않게
-        label.textContent = group.label
+        label.textContent = group.key === null ? this.ui(UNGROUPED_LABEL) : group.label
         // 개수는 접었을 때 특히 필요하다 — 접힌 그룹에 세션이 몇 개 숨어 있는지 보여야 한다
         count.textContent = String(group.tabs.length)
         // 임시로 펴 둔 이유를 꼬리말로 — 이 한 줄이 없으면 "접어 뒀는데 왜 보이나" 가 된다
         const why = state.reason === 'filter-open'
-            ? ' · 검색에 걸린 세션이 있어 임시로 펴 둠 (검색을 지우면 다시 접힌다)'
+            ? this.ui(' · 검색에 걸린 세션이 있어 임시로 펴 둠 (검색을 지우면 다시 접힌다)')
             : ''
         head.title = (group.key
-            ? `${group.key} (탭 ${group.tabs.length}개) — 클릭하면 접기/펴기`
-            : `작업 폴더를 아직 모르는 탭 ${group.tabs.length}개 — 클릭하면 접기/펴기`) + why
+            ? this.ui('{folder} (탭 {count}개) — 클릭하면 접기/펴기', { folder: group.key, count: group.tabs.length })
+            : this.ui('작업 폴더를 아직 모르는 탭 {count}개 — 클릭하면 접기/펴기', { count: group.tabs.length })) + why
         // 헤더도 키보드로 짚을 수 있다 — 거기서 Enter 는 접기/펴기다 (`activateNav`)
         if (this.isNavFocused({ kind: 'head', key: group.key })) {
             head.classList.add('ad-nav-focus')
@@ -5051,7 +5248,7 @@ export class AgentDeckService {
             return
         }
         countEl.innerHTML = ''
-        countEl.title = `탭 ${tabs.length}개`
+        countEl.title = this.ui('탭 {count}개', { count: tabs.length })
         const active = this.statusFilter
         const counts = countByStatus(tabs, statusOf)
         // 걸어 둔 필터의 칩은 **개수가 0 이 되어도 남긴다.** `countByStatus` 는 0 인 상태를
@@ -5067,8 +5264,8 @@ export class AgentDeckService {
             chip.className = status === active ? 'ad-cnt active' : 'ad-cnt'
             chip.style.setProperty('--ad-color', style.color)
             chip.title = status === active
-                ? `${style.label} ${count} — 클릭하면 필터 해제`
-                : `${style.label} ${count} — 클릭하면 이 상태만`
+                ? this.ui('{status} {count} — 클릭하면 필터 해제', { status: this.ui(style.label), count })
+                : this.ui('{status} {count} — 클릭하면 이 상태만', { status: this.ui(style.label), count })
             chip.textContent = `${style.icon} ${count}`
             // `.ad-head` 는 도킹 방향을 바꾸는 드래그 핸들이다(dock.ts `installDockDrag`).
             // 거기서 pointerdown 이 시작되면 헤더가 포인터 캡처를 잡아 우리 click 이 헤더로
@@ -5138,7 +5335,7 @@ export class AgentDeckService {
         //  2) 프롬프트: 마지막으로 보낸 지시. 작업이 넘어갈 때마다 바뀐다
         //  3) 상태: 지금 돌고 있는지 / 얼마나 됐는지
         // 예전에는 1과 2를 한 줄에 겹쳐 놓느라 둘 중 하나를 못 봤다.
-        const title = tabTitle || '(제목 없음)'
+        const title = tabTitle || this.ui('(제목 없음)')
         const elapsed = this.config.store.agentDeck.showElapsed
             ? this.formatElapsed(Date.now() - st.since)
             : ''
@@ -5155,7 +5352,7 @@ export class AgentDeckService {
             '    <span class="ad-elapsed"></span>',
             '  </div>',
             '</div>',
-            '<button class="ad-close" title="탭 닫기">&times;</button>',
+            this.uiMarkup('<button class="ad-close" title="탭 닫기">&times;</button>'),
         ].join('\n')
 
         // textContent 로만 넣는다 — 탭 제목에 어떤 문자가 와도 마크업으로 해석되지 않게
@@ -5171,8 +5368,9 @@ export class AgentDeckService {
         const badge = row.querySelector('.ad-badge') as HTMLElement
         // 승인대기 이유가 있으면 뒤에 붙인다 — "⏸ 승인대기 · Bash 권한". 여러 세션을 띄워 둔 사람이
         // 사이드바만 보고 지금 가서 승인할지 정할 수 있게. 원문은 title 로 마우스를 올리면 보인다
-        badge.textContent = style.icon + ' ' + style.label + (st.reason ? ' · ' + st.reason : '')
-        badge.title = st.reason
+        const reason = sidebarReason(st.reason, this.sidebarLang)
+        badge.textContent = style.icon + ' ' + this.ui(style.label) + (reason ? ' · ' + reason : '')
+        badge.title = reason
         if (st.pinned) {
             badge.classList.add('pinned')
         }
@@ -5471,11 +5669,11 @@ export class AgentDeckService {
      *
      * ↑↓ 와 달리 훑어보기가 아니라 **바로 전환**이다. 사람이 번호를 누르는 것은 이미 어디로
      * 갈지 정했다는 뜻이고, 포커스만 옮기면 Enter 를 한 번 더 눌러야 해서 키 두 번짜리
-     * `Ctrl-Shift-L` + ↑↓ 와 다를 것이 없어진다.
+     * `Ctrl-L` + ↑↓ 와 다를 것이 없어진다.
      *
      * **키보드 내비게이션 모드에 들어가지 않는다.** 목록에 포커스를 주면 그 다음 타이핑이
      * 터미널로 안 가고(`navMode === 'list'`) 사람은 방금 연 세션에 곧바로 치려던 참이다.
-     * 그래서 `navFocus` 만 그 줄로 맞춰 둔다 — 이어서 `Ctrl-Shift-L` 을 누르면 방금 간 줄에서
+     * 그래서 `navFocus` 만 그 줄로 맞춰 둔다 — 이어서 `Ctrl-L` 을 누르면 방금 간 줄에서
      * 훑기가 시작된다.
      *
      * 사이드바를 껐거나(`enabled: false`) 키보드 조작을 끈 사람(`keyboardNav: false`)에게는
@@ -6151,7 +6349,7 @@ export class AgentDeckService {
         const el = document.createElement('div')
         el.className = 'ad-reorder-note'
         // 고정 문구여도 textContent 로 넣는다 (이 파일의 규약 — innerHTML 에 본문 금지)
-        el.textContent = '상태순 정렬이 켜져 있어 순서를 바꿀 수 없다 — 설정에서 끄면 끌어서 옮길 수 있다'
+        el.textContent = this.ui('상태순 정렬이 켜져 있어 순서를 바꿀 수 없다 — 설정에서 끄면 끌어서 옮길 수 있다')
         this.sidebar.appendChild(el)
         setTimeout(() => el.remove(), REORDER_NOTE_MS)
     }
@@ -6163,7 +6361,7 @@ export class AgentDeckService {
         const input = document.createElement('input')
         input.className = 'ad-label-input'
         input.value = this.status.get(tab).label
-        input.placeholder = '작업 이름'
+        input.placeholder = this.ui('작업 이름')
         holder.replaceWith(input)
         input.focus()
         input.select()
@@ -6225,7 +6423,7 @@ export class AgentDeckService {
      * **cwd 는 그 세션의 것으로 덮는다.** `--resume` 은 cwd 로 세션을 묶기 때문에(같은 세션도
      * 다른 폴더에서 띄우면 목록에 없다) 여기를 틀리면 이어받기 자체가 실패한다.
      */
-    private async openResumeTab (row: ResumeRow, command: string): Promise<void> {
+    private async openResumeTab (row: ResumeRow, command: string, account?: SavedAccount): Promise<void> {
         try {
             const wanted = this.config.store.terminal.profile
             const all = await this.profiles.getProfiles()
@@ -6240,11 +6438,20 @@ export class AgentDeckService {
                 ...base,
                 options: { ...(base as any).options, cwd: row.cwd || (base as any).options?.cwd },
             }
+            if (account) {
+                profile.options.env = { ...(base as any).options?.env,
+                    [account.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: accountHome(account) }
+                for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY']) {
+                    profile.options.env[key] = ''
+                }
+            }
             const tab = await this.profiles.openNewTabForProfile(profile)
             this.diag(`resume 탭 sid=${row.sessionId.slice(0, 8)} cwd=${profile.options?.cwd ?? '?'} tab=${tab ? 'yes' : 'null'}`)
             if (!tab) {
+                if (account) { throw new Error(this.ui('새 계정 탭을 열지 못했습니다.')) }
                 return
             }
+            if (account) { this.notify.setAccountHome(tab, account.provider, accountHome(account), account.id) }
             // 라벨을 미리 물려준다 — 셸이 뜨고 claude 가 붙기까지 몇 초 동안 줄이 `—` 로 비어
             // 있으면 방금 무엇을 눌렀는지 사라진다. 사람이 Enter 를 치면 그때 덮인다
             if (row.label) {
@@ -6252,6 +6459,7 @@ export class AgentDeckService {
             }
             this.sendResumeCommand(tab, command)
         } catch (e: any) {
+            if (account) { throw new Error(this.ui('새 계정 탭을 열지 못했습니다.')) }
             diagCatch('resume 탭 열기', e)
         }
     }
@@ -6329,20 +6537,20 @@ export class AgentDeckService {
 
         const items: Array<[string, () => void]> = []
         if (row.openTabId) {
-            items.push(['이 탭으로 이동', () => { void this.activateResume(row, false) }])
+            items.push([this.ui('이 탭으로 이동'), () => { void this.activateResume(row, false) }])
         } else {
-            items.push(['새 탭에서 이어받기', () => { void this.activateResume(row, false) }])
+            items.push([this.ui('새 탭에서 이어받기'), () => { void this.activateResume(row, false) }])
             // 분기는 기록을 복제한다 — 기본 동작으로 두면 목록이 비슷한 이름으로 불어난다
-            items.push(['분기해서 이어받기', () => { void this.activateResume(row, true) }])
+            items.push([this.ui('분기해서 이어받기'), () => { void this.activateResume(row, true) }])
         }
-        items.push(['세션 ID 복사', () => {
+        items.push([this.ui('세션 ID 복사'), () => {
             try {
                 this.platform.setClipboard?.({ text: row.sessionId })
             } catch (e: any) {
-                diagCatch('세션 ID 복사', e)
+                diagCatch(this.ui('세션 ID 복사'), e)
             }
         }])
-        items.push(['목록에서 숨기기', () => this.hideResumeRow(row.sessionId)])
+        items.push([this.ui('목록에서 숨기기'), () => this.hideResumeRow(row.sessionId)])
 
         for (const [label, action] of items) {
             const item = document.createElement('div')
@@ -6392,13 +6600,13 @@ export class AgentDeckService {
 
         const statuses: WorkStatus[] = ['running', 'waiting', 'limited', 'done', 'error', 'idle']
         const items: Array<[string, () => void]> = statuses.map(s => {
-            const label = STATUS_STYLES[s].icon + ' ' + STATUS_STYLES[s].label
+            const label = STATUS_STYLES[s].icon + ' ' + this.ui(STATUS_STYLES[s].label)
             const action = () => this.status.setManual(tab, s)
             return [label, action] as [string, () => void]
         })
-        items.push(['↺ 자동 감지로', () => this.status.unpin(tab)])
+        items.push([this.ui('↺ 자동 감지로'), () => this.status.unpin(tab)])
         // 이 탭만 다시 그리기 — 사이드바 아래 ↻ 는 모든 탭이 대상이라 무거울 때가 있다
-        items.push(['↻ 화면 복구', () => {
+        items.push([this.ui('↻ 화면 복구'), () => {
             this.app.selectTab(tab)
             this.repair('active')
         }])
@@ -6430,12 +6638,12 @@ export class AgentDeckService {
     private formatElapsed (ms: number): string {
         const s = Math.floor(ms / 1000)
         if (s < 60) {
-            return s + '초'
+            return this.ui('{n}초', { n: s })
         }
         const m = Math.floor(s / 60)
         if (m < 60) {
-            return m + '분'
+            return this.ui('{n}분', { n: m })
         }
-        return Math.floor(m / 60) + '시간 ' + (m % 60) + '분'
+        return this.ui('{h}시간 {m}분', { h: Math.floor(m / 60), m: m % 60 })
     }
 }

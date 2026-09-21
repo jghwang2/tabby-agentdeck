@@ -74,7 +74,8 @@
             title: (el.querySelector('.ad-now-title') || {}).textContent || '',
             account: (el.querySelector('.ad-now-account') || {}).textContent || '',
             gauges: Array.from(el.querySelectorAll('.ad-now-gauge')).map(g => ({
-                text: g.textContent, cls: g.className, title: g.title,
+                text: `${g.querySelector('.ad-now-gauge-key')?.textContent || ''} ${g.querySelector('.ad-now-gauge-pct')?.textContent || ''}`,
+                cls: g.className, title: g.title,
             })),
             tooltip: el.title,
         }

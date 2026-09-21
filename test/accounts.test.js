@@ -1,0 +1,92 @@
+const assert = require('assert/strict')
+const fs = require('fs'), os = require('os'), path = require('path')
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-accounts-'))
+process.env.AGENTDECK_ACCOUNTS_FILE = path.join(dir, 'accounts.json')
+const { readAccounts, parseQuotas, parseCodexUsage, accountHome, prepareAccount, accountEmail, saveAccountAuth, restoreAccountAuth, pendingMarketplaceSeed } = require('../.tmp/accounts')
+const { loginOriginAllowed } = require('../.tmp/accountBrowser')
+const fixture = { claude: [{ name: '한글 계정', id: 'a@example.test', password: 'SECRET' }, { id: '', password: '' }], codex: [{ id: 'b@example.test', password: 'OTHER' }] }
+const { isEmptyAccountConfig } = require('../tools/check-account-secrets')
+assert.equal(isEmptyAccountConfig({ claude: [{ name: '', id: '', password: '' }], codex: [] }), true)
+assert.equal(isEmptyAccountConfig({ claude: [{ auth: { data: 'encrypted-secret' } }] }), false)
+assert.equal(isEmptyAccountConfig(fixture), false)
+fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify(fixture))
+const accounts = readAccounts()
+assert.equal(accounts.length, 2)
+assert.equal(accounts[0].name, '한글 계정')
+assert.ok(!JSON.stringify(accounts).includes('SECRET'))
+assert.ok(!('password' in accounts[0]))
+fixture.claude.reverse()
+fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify(fixture))
+assert.deepEqual(readAccounts(), accounts)
+fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, '{ "password":"PRIVATE", INVALID')
+assert.throws(() => readAccounts(), e => !e.message.includes('PRIVATE') && /JSON/.test(e.message))
+assert.deepEqual(parseQuotas('claude', { five_hour: { utilization: 25 }, seven_day: { utilization: 100 }, limits: [{ kind: 'weekly_scoped', percent: 40, scope: { model: { display_name: 'Fable' } } }] }),
+    [{ label: '5시간', remaining: 75 }, { label: '주간', remaining: 0 }, { label: 'Fable', remaining: 60 }])
+assert.deepEqual(parseQuotas('claude', { five_hour: { utilization: null }, seven_day: { utilization: 0 } }), [{ label: '주간', remaining: 100 }])
+assert.deepEqual(parseQuotas('codex', { rateLimits: { primary: { usedPercent: 5, windowDurationMins: 300 }, secondary: { usedPercent: 20, windowDurationMins: 10080 } }, rateLimitsByLimitId: { astra: { limitName: 'Astra', secondary: { usedPercent: 42 } } } }),
+    [{ label: '5시간', remaining: 95 }, { label: '주간', remaining: 80 }, { label: 'Astra', remaining: 58 }])
+assert.deepEqual(parseQuotas('codex', { rateLimits: { primary: { usedPercent: 5, windowDurationMins: 60 } } }), [])
+assert.deepEqual(parseCodexUsage({ rate_limit: { primary_window: { used_percent: 29, limit_window_seconds: 604800 } },
+    model_usage: { 'gpt-6-astra': { available: true } } }), [{ label: '주간', remaining: 71 }, { label: 'Astra', status: '사용 가능' }])
+assert.ok(loginOriginAllowed('codex', 'https://auth.openai.com/log-in'))
+for (const url of ['https://auth.openai.com.evil.test', 'http://auth.openai.com', 'https://auth.openai.com:9999', 'https://evil.test/?https://auth.openai.com']) {
+    assert.ok(!loginOriginAllowed('codex', url))
+}
+const source = path.join(dir, 'source')
+fs.mkdirSync(source)
+fs.writeFileSync(path.join(source, 'settings.json'), '{}')
+fs.writeFileSync(path.join(source, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'someone@example.test' } }))
+prepareAccount(accounts[0], source)
+assert.equal(accountEmail('claude', accountHome(accounts[0])), '')
+assert.ok(fs.existsSync(path.join(accountHome(accounts[0]), 'settings.json')))
+prepareAccount(accounts[0], source)
+assert.ok(fs.readFileSync(path.join(source, '.claude.json'), 'utf8').includes('someone@example.test'))
+;(async () => {
+    // Codex account homes get the source home's marketplace clones, so Codex never re-clones them itself.
+    const codexSource = path.join(dir, 'codex-source')
+    const market = path.join(codexSource, '.tmp', 'marketplaces')
+    fs.mkdirSync(path.join(market, 'neo', '.git', 'objects'), { recursive: true })
+    fs.writeFileSync(path.join(market, 'neo', '.git', 'objects', 'pack'), 'PACK')
+    fs.chmodSync(path.join(market, 'neo', '.git', 'objects', 'pack'), 0o444)
+    fs.writeFileSync(path.join(market, 'neo', 'README.md'), '한글')
+    fs.mkdirSync(path.join(market, 'broken'))
+    fs.mkdirSync(path.join(market, '.staging', 'marketplace-upgrade-x'), { recursive: true })
+    prepareAccount(accounts[1], codexSource)
+    await pendingMarketplaceSeed(accountHome(accounts[1]))
+    const seeded = path.join(accountHome(accounts[1]), '.tmp', 'marketplaces')
+    assert.equal(fs.readFileSync(path.join(seeded, 'neo', 'README.md'), 'utf8'), '한글')
+    assert.equal(fs.readFileSync(path.join(seeded, 'neo', '.git', 'objects', 'pack'), 'utf8'), 'PACK')
+    assert.deepEqual(fs.readdirSync(seeded), ['neo'])  // no .staging, no clone without .git, no partial copy left
+    fs.writeFileSync(path.join(seeded, 'neo', 'README.md'), 'account-updated')
+    prepareAccount(accounts[1], codexSource)
+    await pendingMarketplaceSeed(accountHome(accounts[1]))
+    assert.equal(fs.readFileSync(path.join(seeded, 'neo', 'README.md'), 'utf8'), 'account-updated')  // existing clone kept
+    fs.chmodSync(path.join(seeded, 'neo', '.git', 'objects', 'pack'), 0o666)
+    fs.chmodSync(path.join(market, 'neo', '.git', 'objects', 'pack'), 0o666)
+    fs.rmSync(accountHome(accounts[1]), { recursive: true, force: true })
+
+    fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify(fixture))
+    const account = accounts[1]
+    const home = accountHome(account)
+    fs.mkdirSync(home, { recursive: true })
+    const native = path.join(home, 'auth.json')
+    const credentials = { tokens: { id_token: 'x.' + Buffer.from(JSON.stringify({ email: account.id })).toString('base64') + '.y',
+        access_token: 'TEST_ACCESS_SECRET', refresh_token: 'TEST_REFRESH_SECRET' } }
+    fs.writeFileSync(native, JSON.stringify(credentials))
+    await saveAccountAuth(account)
+    const saved = fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8')
+    assert.ok(!saved.includes('TEST_ACCESS_SECRET') && !saved.includes('TEST_REFRESH_SECRET'))
+    assert.equal(JSON.parse(saved).codex[0].auth.protection, 'windows-dpapi')
+    fs.unlinkSync(native)
+    await restoreAccountAuth(account)
+    assert.deepEqual(JSON.parse(fs.readFileSync(native, 'utf8')), credentials)
+    // A live CLI's refreshed token wins over the saved older snapshot.
+    credentials.tokens.refresh_token = 'NEWER_TOKEN'
+    fs.writeFileSync(native, JSON.stringify(credentials))
+    await restoreAccountAuth(account)
+    assert.equal(JSON.parse(fs.readFileSync(native, 'utf8')).tokens.refresh_token, 'NEWER_TOKEN')
+    console.log('accounts: PASS (redaction, UTF-8, stable identity, quotas, login origins, isolated settings, codex marketplace seed, encrypted save/restore, refreshed-token preservation)')
+})().catch(error => { console.error(error); process.exitCode = 1 }).finally(() => {
+    // Only the owned temporary directory is removed; no user account files enter this fixture.
+    fs.rmSync(dir, { recursive: true, force: true })
+})

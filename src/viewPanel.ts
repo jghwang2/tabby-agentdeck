@@ -20,7 +20,7 @@ import * as path from 'path'
 import { renderMarkdown, escapeHtml } from './markdown'
 import {
     classify, isKnownExt, extractPaths, pushRecent, parseDelimited, delimiterFor, formatBytes,
-    FollowMode, planFollow, isAutoFollowable,
+    FollowMode, planFollow, isAutoFollowable, isInstructionFile,
 } from './viewer'
 import {
     DiffFile, DiffLine, parseUnifiedDiff, parseUntracked, formatStat, statusLabel,
@@ -1027,6 +1027,12 @@ export class ViewPanel {
                 continue
             }
             const list = this.recent.get(tab) ?? []
+            // Passive instruction reads must not create chips. Explicit opens and recorded
+            // edits remain discoverable, including instructions that are the actual task.
+            if (isInstructionFile(abs) && !list.includes(abs)
+                && !(this.host.touchedFor?.(tab) ?? []).some(file => this.resolve(file, cwd) === abs)) {
+                continue
+            }
             if (list[0] === abs) {
                 continue
             }

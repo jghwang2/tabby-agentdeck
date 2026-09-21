@@ -42,7 +42,7 @@ If you run Tabby on macOS or Linux, an [issue](https://github.com/jghwang2/tabby
 | **Sidebar tab management** | Click to select, `×` to close, double-click to rename the task, right-click to set status by hand |
 | **Search · status filter** | The search box narrows by title, task name and working folder; status chips keep only one state. `Esc` clears |
 | **Reordering** | Drag a row to move it (Tabby's own tab order follows). Hold at the edge and the list **scrolls by itself**, so off-screen positions are one gesture away. Blocked with an explanation while status sorting is on |
-| **Keyboard control** | `Ctrl+Shift+L` enters the list; `↑↓` walks it and Enter picks. **The tab does not change while you walk** — focus and selection are separate so passing output does not flood the screen. `Ctrl+W` closes the current tab (the focused row when the list has the keyboard) |
+| **Keyboard control** | `Ctrl+L` enters the list; `↑↓` walks it and Enter picks. **The tab does not change while you walk** — focus and selection are separate so passing output does not flood the screen. `Ctrl+W` closes the current tab (the focused row when the list has the keyboard) |
 | **Output preview** | Markdown, images, tables (csv/tsv) and code the agent touched, in a panel beside the terminal. It picks up paths printed on screen, so Claude Code, Codex and Gemini all work |
 | **Drag and drop** | Drop a file on the panel and it opens. **Drop it on the terminal** and you are asked: open in panel / paste the path |
 | **Diff view** | The `Changes` tab of the same panel shows `git diff` for the working tree — file list, `+N -M`, unified diff with line numbers. It holds regardless of who made the change |
@@ -390,15 +390,15 @@ With nothing staged it does not commit — it never widens to `git commit -a`.
 | `Ctrl+Enter` / `Shift+Enter` | Newline (sends `0x0A`). `agentdeck-newline` |
 | `Ctrl+V` | Paste. If the clipboard holds **only an image**, the image-paste key is handed to the app instead of text — Claude Code and Codex read the clipboard themselves. `agentdeck-paste` |
 | Right-click | Copy with a selection, paste without one. Hold (250 ms default) for the context menu |
-| `Ctrl+Shift+T` (⌘+T) | New tab — same as the sidebar `+ New tab`. **Replaces Tabby's own new-tab**: the stock one opens the default profile so hooks cannot find the tab, so on startup the key is removed from stock `new-tab` and ours (work-root profile + `AGENTDECK_TAB`) takes it. Set `claimNewTabKey: false` to undo. `agentdeck-new-tab` |
+| `Ctrl+T` (⌘+T) | New tab — same as the sidebar `+ New tab`. Uses the work-root profile and sets `AGENTDECK_TAB`. Overlapping stock bindings are removed when `claimNewTabKey` is enabled. `agentdeck-new-tab` |
 | `Ctrl+1` … `Ctrl+9` | Jump straight to the Nth session **in sidebar order** (group headers are not counted; tabs inside a collapsed group have no number). Tabby's own `Alt+1…` (`tab-N`) counts the tab bar, which opens a different tab once sorting, grouping or search is on. `agentdeck-jump-1` … `-9` |
-| `Ctrl+Shift+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
+| `Ctrl+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
 | `Ctrl+W` | Close the current tab — the **active tab** from the terminal, the **focused row** when the list has the keyboard. Only while `keyboardNav` + `keyboardCloseTab` are on; off, it flows through as the shell's delete-previous-word (`0x17`) |
 | (unbound) | `agentdeck-toggle` — sidebar / 4:3 on-off |
-| `Ctrl+Shift+R` | Screen repair — same as the sidebar `↻`. **Replaces Tabby's own `rename-tab`**: on startup the key is removed from it (rename by double-clicking the sidebar row). A saved `Ctrl-Shift-U` (the old default) is migrated. Set `claimRepairKey: false` to undo. `agentdeck-repair` |
-| `Ctrl+Shift+O` | Open/close the preview panel — same as the sidebar `▤`. `agentdeck-view` |
-| `Ctrl+Shift+S` / `Ctrl+Shift+D` | Split the pane side by side / top-bottom — Tabby's own `split-right` / `split-bottom`, listed here (and in Settings → AgentDeck → Shortcuts) because they pair with the close key below |
-| `Ctrl+Shift+Q` | Close the focused split pane — Tabby's own `close-pane`, which ships **unbound**. On startup agentdeck fills it with `closePaneKey` only while it is empty; a key you set yourself is left alone, and `closePaneKey: ''` turns the fill off |
+| `Ctrl+R` | Screen repair — same as the sidebar `↻`. Removes overlapping stock bindings when `claimRepairKey` is enabled. A saved old `Ctrl-Shift-U` is migrated to `Ctrl-R`. `agentdeck-repair` |
+| `Ctrl+O` | Open/close the preview panel — same as the sidebar `▤`. `agentdeck-view` |
+| `Ctrl+S` / `Ctrl+D` | Split the pane side by side / top-bottom — Tabby's own `split-right` / `split-bottom`, listed here (and in Settings → AgentDeck → Shortcuts) because they pair with the close key below |
+| `Ctrl+Q` | Close the focused split pane — Tabby's own `close-pane`, which ships **unbound**. On startup agentdeck fills it with `closePaneKey` only while it is empty; a key you set yourself is left alone, and `closePaneKey: ''` turns the fill off |
 | (unbound) | `agentdeck-view-mode` — switch the panel between `Files` and `Changes` |
 
 Change keys under **Settings → AgentDeck → Shortcuts**: press *Change*, then the key. If Tabby or AgentDeck already uses it you are told what it clashes with and can pick again or take the key over (it is removed from the other binding). Tabby Settings → Hotkeys → `agentdeck-*` works too.
@@ -417,7 +417,7 @@ Paste with `Ctrl+Shift+V` / `Shift+Insert` (Tabby's own) or right-click instead.
 **tab rows visible in the sidebar**, so group headers are skipped and tabs inside a collapsed group have no number at all. There is
 nothing past nine: counting with your eyes gets slower than pressing a key, so use the list walk below.
 
-`Ctrl+Shift+L` enters the list. It exists for looking through tabs without the mouse, and the rules are these.
+`Ctrl+L` enters the list. It exists for looking through tabs without the mouse, and the rules are these.
 
 | Key | What it does |
 |---|---|
@@ -502,7 +502,7 @@ config file (`%APPDATA%\tabby\config.yaml`).
 | `viewerDock` | `right` | Which side the panel attaches to, `left` / `right`. On the same side as the sidebar, the sidebar takes the outer edge |
 | `viewerWidth` | `420` | Panel width in px. Changed by dragging the divider. In a narrow window, capped at `window width − 320 − 140` |
 | `searchBox` | `true` | Show the search row in the sidebar. Turning it off also clears any active filter (no hidden filters) |
-| `keyboardNav` | `true` | `Ctrl+Shift+L` into the list, then `↑↓`/Enter/Esc. Nothing is intercepted while focus is elsewhere, so leaving it on costs nothing |
+| `keyboardNav` | `true` | `Ctrl+L` into the list, then `↑↓`/Enter/Esc. Nothing is intercepted while focus is elsewhere, so leaving it on costs nothing |
 | `keyboardCloseTab` | `true` | `Ctrl+W` closes a tab — the active one from the terminal, the focused row when the list has the keyboard. Off (or with `keyboardNav` off) `Ctrl+W` goes to the terminal as delete-previous-word |
 | `keyboardNavWrap` | `false` | `↑↓` wrap around at the ends. Off, they stop — you can see you are at the bottom and the list does not jump wholesale. End-to-end is Home/End |
 | `viewerScrape` | `true` | Pick up file paths printed on screen into the recent list. Off, only drag-drop and typed paths |

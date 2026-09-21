@@ -16,15 +16,15 @@ A 4:3 terminal, a session deck with live status, and a preview panel for what th
 
 | Key | What it does |
 |---|---|
-| `Ctrl+Shift+T` (⌘+T) | New tab in the work root. Replaces Tabby's own new-tab |
+| `Ctrl+T` (⌘+T) | New tab in the work root |
 | `Ctrl+1` … `Ctrl+9` | Jump to the Nth session in sidebar order |
-| `Ctrl+Shift+L` | Focus the session list / same key returns to the terminal. Then `↑↓` walk, `Enter` picks, `Esc` leaves |
+| `Ctrl+L` | Focus the session list / same key returns to the terminal. Then `↑↓` walk, `Enter` picks, `Esc` leaves |
 | `Ctrl+W` | Close the current tab (the focused row when the list has the keyboard) |
-| `Ctrl+Shift+O` | Open / close the preview panel |
-| `Ctrl+Shift+R` | Screen repair (same as `↻`). Replaces Tabby's own rename-tab — rename by double-clicking the row |
-| `Ctrl+Shift+S` | Split side by side (Tabby's own) |
-| `Ctrl+Shift+D` | Split top / bottom (Tabby's own) |
-| `Ctrl+Shift+Q` | Close the focused split pane |
+| `Ctrl+O` | Open / close the preview panel |
+| `Ctrl+R` | Screen repair (same as `↻`). Rename tabs by double-clicking the row |
+| `Ctrl+S` | Split side by side (Tabby's own) |
+| `Ctrl+D` | Split top / bottom (Tabby's own) |
+| `Ctrl+Q` | Close the focused split pane |
 | `Ctrl+Enter` / `Shift+Enter` | Newline without sending |
 | `Ctrl+V` | Paste. An image-only clipboard is handed to the agent as an image |
 | Right-click | Copy with a selection, paste without one. Hold for the context menu |
@@ -32,6 +32,7 @@ A 4:3 terminal, a session deck with live status, and a preview panel for what th
 
 Two actions ship unbound: `agentdeck-toggle` (sidebar / 4:3 on-off) and `agentdeck-view-mode` (Files ↔ Changes).
 Change any of them under **Settings → AgentDeck → Shortcuts** — a key already used by Tabby or AgentDeck is flagged before it is applied. Tabby Settings → Hotkeys → `agentdeck-*` works too.
+These are the defaults for new installs. Existing AgentDeck shortcuts stay as saved; use **Default** beside an action to adopt its new binding. Stock split shortcuts `Ctrl+Shift+S` / `Ctrl+Shift+D` switch to `Ctrl+S` / `Ctrl+D`; custom split bindings are preserved.
 
 ## Install
 

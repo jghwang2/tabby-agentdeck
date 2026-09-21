@@ -158,6 +158,12 @@ export function extractPaths (data: string): string[] {
  */
 const AUTO_FOLLOW_SKIP_RE = /^(?:\.?claude\.json|settings(?:\.[\w-]+)?\.json)$/i
 
+/** Agent instructions are background context, not artifacts merely because a read prints their path. */
+export function isInstructionFile (file: string): boolean {
+    const base = String(file ?? '').split(/[\\/]/).pop() ?? ''
+    return /^(?:claude(?:\.local)?|agents(?:\.override)?|skill)\.md$/i.test(base)
+}
+
 /**
  * 이 파일을 **스스로 띄워도 되는가** (`false` = 칩에만 쌓고 화면은 그대로 둔다).
  */
