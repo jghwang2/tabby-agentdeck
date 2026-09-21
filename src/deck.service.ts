@@ -17,7 +17,7 @@ import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent,
 import { STATUS_STYLES, WorkStatus } from './api'
 import { extractPrompt } from './prompt'
 import { formatMeta, MetaGauge, MetaInput } from './meta'
-import { readAccounts, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
+import { readAccounts, addAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
@@ -4763,19 +4763,60 @@ export class AgentDeckService {
         popup.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); dismiss() } })
         popup.append(heading, close)
         const note = document.createElement('p')
-        note.textContent = resumeCommand(meta.sessionId, true, provider)
-            ? this.ui('선택한 계정으로 이 대화를 새 탭에서 이어갑니다.') : this.ui('선택한 계정으로 새 대화를 엽니다.')
+        note.textContent = this.ui('현재 탭에서 선택한 계정으로 전환합니다.')
         popup.appendChild(note)
         const message = document.createElement('p')
         message.setAttribute('role', 'status')
         popup.appendChild(message)
+        const add = document.createElement('button')
+        add.type = 'button'; add.className = 'ad-account-add'; add.textContent = '+'
+        add.title = this.ui('계정 추가'); add.setAttribute('aria-label', this.ui('계정 추가'))
+        popup.appendChild(add)
+        add.onclick = () => {
+            if (popup.querySelector('.ad-account-form')) { return }
+            const form = document.createElement('form')
+            form.className = 'ad-account-form'
+            const accountLabel = document.createElement('label')
+            accountLabel.textContent = this.ui('계정 (이메일)')
+            const id = document.createElement('input')
+            id.type = 'text'; id.name = 'account'; id.autocomplete = 'username'; id.required = true
+            accountLabel.appendChild(id)
+            const passwordLabel = document.createElement('label')
+            passwordLabel.textContent = this.ui('비밀번호')
+            const password = document.createElement('input')
+            password.type = 'password'; password.name = 'password'; password.autocomplete = 'new-password'; password.required = true
+            passwordLabel.appendChild(password)
+            const notice = document.createElement('p')
+            notice.className = 'ad-account-plaintext'
+            notice.textContent = this.ui('계정과 비밀번호가 이 PC에 평문으로 저장됩니다.')
+            const error = document.createElement('p')
+            error.setAttribute('role', 'alert')
+            const save = document.createElement('button')
+            save.type = 'submit'; save.textContent = this.ui('저장')
+            const cancel = document.createElement('button')
+            cancel.type = 'button'; cancel.textContent = this.ui('취소')
+            cancel.onclick = () => { password.value = ''; form.remove(); add.focus() }
+            form.append(accountLabel, passwordLabel, notice, error, save, cancel)
+            form.onsubmit = event => {
+                event.preventDefault()
+                if (this.accountSwitchBusy) { return }
+                try {
+                    addAccount(provider, id.value, password.value)
+                    password.value = ''
+                    dismiss()
+                    if (this.app.activeTab === tab) { void this.showAccountPicker() }
+                } catch (e: any) { error.textContent = this.ui(e.message) }
+            }
+            popup.insertBefore(form, message)
+            id.focus()
+        }
         document.body.appendChild(popup)
         this.accountPopup = popup
         this.accountPopupTab = tab
         close.focus()
         let accounts: SavedAccount[]
-        try { accounts = readAccounts().filter(a => a.provider === provider) } catch (e: any) { message.textContent = e.message; return }
-        if (!accounts.length) { message.textContent = this.ui('등록된 계정이 없습니다. accounts.json을 채워주세요.'); return }
+        try { accounts = readAccounts().filter(a => a.provider === provider) } catch (e: any) { message.textContent = this.ui(e.message); return }
+        if (!accounts.length) { message.textContent = this.ui('+ 버튼으로 계정을 추가하세요.'); return }
         for (const account of accounts) {
             const button = document.createElement('button')
             button.type = 'button'; button.className = 'ad-account-option'
@@ -4827,6 +4868,7 @@ export class AgentDeckService {
             button.onclick = async () => {
                 if (this.accountSwitchBusy) { return }
                 if (!this.app.tabs.includes(tab)) { message.textContent = this.ui('원래 탭이 닫혔습니다. 계정 목록을 다시 여세요.'); return }
+                if (current) { dismiss(); return }
                 this.accountSwitchBusy = true
                 popup.querySelectorAll<HTMLButtonElement>('.ad-account-option').forEach(b => { b.disabled = true })
                 try {
@@ -4840,13 +4882,12 @@ export class AgentDeckService {
                     if (!this.app.tabs.includes(tab)) {
                         message.textContent = this.ui('인증을 저장했습니다. 원래 탭이 닫혀 새 대화에서 계정을 선택해야 합니다.'); return
                     }
-                    let command = resumeCommand(meta.sessionId, true, provider)
+                    const latest = this.notify.metaOf(tab) || meta
+                    let command = resumeCommand(latest.sessionId, false, provider)
                     // Accounts can also be selected before a CLI has a resumable conversation.
                     if (!command) { command = provider }
                     if (provider === 'codex') { command = command.replace(/^codex(?: |$)/, 'codex -c \'cli_auth_credentials_store="file"\' ') }
-                    const row: ResumeRow = { agent: provider, sessionId: meta.sessionId, cwd: meta.cwd,
-                        label: this.status.get(tab).label, lastStatus: null, lastSeen: Date.now(), from: 'live', openTabId: null }
-                    await this.openResumeTab(row, command, account)
+                    await this.switchAccountInTab(tab, account, command, latest.cwd)
                     dismiss()
                 } catch (e: any) { message.textContent = this.sidebarLang === 'ko' && e.message ? e.message : this.ui('계정 전환에 실패했습니다. 다시 선택하세요.') }
                 finally {
@@ -4855,6 +4896,38 @@ export class AgentDeckService {
                 }
             }
         }
+    }
+
+    private async switchAccountInTab (tab: BaseTabComponent, account: SavedAccount, command: string, cwd?: string): Promise<void> {
+        const pane = this.firstPane(tab) as any
+        if (!pane || pane.profile?.type !== 'local' || typeof pane.initializeSession !== 'function' || !pane.session) {
+            throw new Error(this.ui('계정 전환에 실패했습니다. 다시 선택하세요.'))
+        }
+        const profiles = await this.profiles.getProfiles()
+        const base: any = profiles.find(p => p.id === this.config.store.terminal.profile) || pane.profile
+        if (!this.app.tabs.includes(tab) || base.type !== 'local') {
+            throw new Error(this.ui('계정 전환에 실패했습니다. 다시 선택하세요.'))
+        }
+        const options = { ...base.options, cwd: cwd || pane.profile.options?.cwd,
+            env: { ...base.options?.env, ...pane.profile.options?.env,
+                [account.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: accountHome(account) } }
+        delete options.restoreFromPTYID
+        for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'CLAUDECODE']) {
+            options.env[key] = ''
+        }
+        const previous = pane.session
+        // Detach first: a local session's close event would otherwise destroy its tab.
+        pane.setSession(null)
+        await previous.destroy()
+        if (!this.app.tabs.includes(tab)) { return }
+        pane.profile = { ...pane.profile, options }
+        pane.sessionOptions = options
+        pane.frontend?.xterm?.reset()
+        pane.initializeSession(pane.size.columns, pane.size.rows)
+        this.notify.setAccountHome(tab, account.provider, accountHome(account), account.id)
+        this.sendResumeCommand(tab, command, pane.session)
+        pane.session?.releaseInitialDataBuffer()
+        this.diag('account switched in existing tab')
     }
 
     private renderNow (): void {
@@ -6525,7 +6598,7 @@ export class AgentDeckService {
      * 그래서 출력이 한 번이라도 흐른 뒤에 보내고, 끝내 안 오면 정해진 시각에 한 번은 보낸다 —
      * 아무것도 안 보내고 조용히 끝나는 것이 제일 나쁜 결과다.
      */
-    private sendResumeCommand (tab: BaseTabComponent, command: string): void {
+    private sendResumeCommand (tab: BaseTabComponent, command: string, expectedSession?: any): void {
         /** 첫 출력(=셸이 프롬프트를 그렸다)을 보고 나서 더 기다리는 시간 */
         const RESUME_SETTLE_MS = 700
         /** 출력이 끝내 안 와도 여기서는 한 번 쏜다 — 아무것도 안 보내고 조용히 끝나는 게 제일 나쁘다 */
@@ -6540,6 +6613,11 @@ export class AgentDeckService {
                 return
             }
             const anyPane = this.firstPane(tab) as any
+            if (expectedSession && (!this.app.tabs.includes(tab) || anyPane?.session !== expectedSession)) {
+                sent = true
+                sub?.unsubscribe?.()
+                return
+            }
             if (!anyPane || typeof anyPane.sendInput !== 'function') {
                 return
             }

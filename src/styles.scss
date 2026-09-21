@@ -2029,6 +2029,48 @@ body.agentdeck-active {
     }
 }
 .ad-account-picker {
+    .ad-account-add {
+        position: absolute;
+        top: 16px;
+        right: 52px;
+        width: 28px;
+        height: 28px;
+        border: 1px solid #687586;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        &:hover, &:focus-visible { background: #ffffff18; }
+    }
+    .ad-account-form {
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px solid #687586;
+        border-radius: 5px;
+        label { display: block; margin-bottom: 10px; }
+        input {
+            display: block;
+            width: 100%;
+            margin-top: 5px;
+            padding: 7px;
+            color: inherit;
+            background: #181c23;
+            border: 1px solid #687586;
+            border-radius: 3px;
+        }
+        .ad-account-plaintext { color: inherit; }
+        button {
+            margin-right: 8px;
+            padding: 5px 12px;
+            color: inherit;
+            background: #303846;
+            border: 1px solid #687586;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    }
     position: fixed;
     z-index: 100000;
     left: 50%;

@@ -19,9 +19,36 @@ export function readAccounts (file = ACCOUNTS_FILE): SavedAccount[] {
     return readSecrets(file).map(({ password, ...account }) => account)
 }
 
+/** Add one local plaintext entry without replacing other accounts or their encrypted auth snapshots. */
+export function addAccount (provider: AccountProvider, id: string, password: string, file = ACCOUNTS_FILE): void {
+    id = id.trim()
+    if (!id || !password) { throw new Error('계정과 비밀번호를 입력하세요.') }
+    let data: any = {}
+    try {
+        if (fs.existsSync(file)) { data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) }
+        if (!data || typeof data !== 'object' || Array.isArray(data)
+            || (data[provider] !== undefined && !Array.isArray(data[provider]))) { throw new Error() }
+    } catch { throw new Error('계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.') }
+    const rows = data[provider] || []
+    if (rows.some((row: any) => typeof row?.id === 'string' && row.id.trim().toLowerCase() === id.toLowerCase())) {
+        throw new Error('이미 등록된 계정입니다.')
+    }
+    data[provider] = [...rows, { name: id, id, password }]
+    const temporary = file + '.' + process.pid + '.add.tmp'
+    try {
+        fs.mkdirSync(path.dirname(file), { recursive: true })
+        fs.writeFileSync(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 })
+        fs.renameSync(temporary, file)
+    } catch {
+        try { fs.unlinkSync(temporary) } catch { /* Nothing was written. */ }
+        throw new Error('계정을 저장하지 못했습니다. 다시 시도하세요.')
+    }
+}
+
 function readSecrets (file: string): SecretAccount[] {
     let data: any
-    try { data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) } catch {
+    try { data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) } catch (error: any) {
+        if (error.code === 'ENOENT') { return [] }
         throw new Error('계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.')
     }
     const result: SecretAccount[] = []

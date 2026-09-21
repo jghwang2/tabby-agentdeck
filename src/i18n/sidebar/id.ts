@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Tambah akun",
+    "계정 (이메일)": "Akun (email)",
+    "비밀번호": "Kata sandi",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Akun dan kata sandi disimpan sebagai teks biasa di PC ini.",
+    "저장": "Simpan",
+    "취소": "Batal",
+    "계정과 비밀번호를 입력하세요.": "Masukkan akun dan kata sandi.",
+    "이미 등록된 계정입니다.": "Akun ini sudah tersimpan.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Tidak dapat menyimpan akun. Coba lagi.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Tidak dapat membaca berkas akun. Periksa format JSON.",
+    "+ 버튼으로 계정을 추가하세요.": "Gunakan tombol + untuk menambah akun.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Beralih ke akun yang dipilih di tab ini.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Cari sesi (judul · tugas · folder)",
     "검색·필터 지우기 (Esc)": "Hapus pencarian dan filter (Esc)",
     "계정 선택": "Pilih akun",

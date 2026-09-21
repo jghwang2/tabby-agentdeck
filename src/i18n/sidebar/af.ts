@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Voeg rekening by",
+    "계정 (이메일)": "Rekening (e-pos)",
+    "비밀번호": "Wagwoord",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Die rekening en wagwoord word as gewone teks op hierdie rekenaar gestoor.",
+    "저장": "Stoor",
+    "취소": "Kanselleer",
+    "계정과 비밀번호를 입력하세요.": "Voer die rekening en wagwoord in.",
+    "이미 등록된 계정입니다.": "Hierdie rekening is reeds gestoor.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Kon nie die rekening stoor nie. Probeer weer.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Kon nie die rekeninglêer lees nie. Kontroleer die JSON-formaat.",
+    "+ 버튼으로 계정을 추가하세요.": "Gebruik die +-knoppie om ’n rekening by te voeg.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Skakel in hierdie oortjie na die gekose rekening.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Soek sessies (titel · taak · gids)",
     "검색·필터 지우기 (Esc)": "Vee soektog en filters uit (Esc)",
     "계정 선택": "Kies rekening",

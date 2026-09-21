@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Hesap ekle",
+    "계정 (이메일)": "Hesap (e-posta)",
+    "비밀번호": "Parola",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Hesap ve parola bu bilgisayarda düz metin olarak saklanır.",
+    "저장": "Kaydet",
+    "취소": "İptal",
+    "계정과 비밀번호를 입력하세요.": "Hesap ve parolayı girin.",
+    "이미 등록된 계정입니다.": "Bu hesap zaten kayıtlı.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Hesap kaydedilemedi. Tekrar deneyin.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Hesap dosyası okunamadı. JSON biçimini kontrol edin.",
+    "+ 버튼으로 계정을 추가하세요.": "Hesap eklemek için + düğmesini kullanın.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Bu sekmede seçilen hesaba geç.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Oturum ara (başlık · görev · klasör)",
     "검색·필터 지우기 (Esc)": "Aramayı ve filtreleri temizle (Esc)",
     "계정 선택": "Hesap seç",

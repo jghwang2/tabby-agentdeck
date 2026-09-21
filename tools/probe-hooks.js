@@ -525,14 +525,15 @@
         {
             const sid = sidFor('dedupe')
             const stdin = JSON.stringify({ session_id: sid, hook_event_name: 'PostToolUse' })
-            const first = await fire(sid, { args: ['-Status', 'running'], stdin })
+            // This case tests deduplication without a mailbox; a tab ID enables mailbox heartbeats.
+            const first = await fire(sid, { tabId: null, args: ['-Status', 'running'], stdin })
             const ts1 = first.got.json ? first.got.json.ts : null
             await sleep(1100)
-            const second = await fire(sid, { args: ['-Status', 'running'], stdin })
+            const second = await fire(sid, { tabId: null, args: ['-Status', 'running'], stdin })
             const ts2 = second.got.json ? second.got.json.ts : null
             await sleep(1100)
             const LABEL = 'HK 라벨 통과'
-            const third = await fire(sid, { args: ['-Status', 'running', '-Label', LABEL], stdin })
+            const third = await fire(sid, { tabId: null, args: ['-Status', 'running', '-Label', LABEL], stdin })
             const ts3 = third.got.json ? third.got.json.ts : null
             const skipped = ts1 !== null && ts2 === ts1
             const wrote3 = ts3 !== null && ts3 !== ts1 && third.got.json.label === LABEL

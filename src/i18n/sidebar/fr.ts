@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Ajouter un compte",
+    "계정 (이메일)": "Compte (e-mail)",
+    "비밀번호": "Mot de passe",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Le compte et le mot de passe sont enregistrés en clair sur ce PC.",
+    "저장": "Enregistrer",
+    "취소": "Annuler",
+    "계정과 비밀번호를 입력하세요.": "Saisissez un compte et un mot de passe.",
+    "이미 등록된 계정입니다.": "Ce compte est déjà enregistré.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Impossible d’enregistrer le compte. Réessayez.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Impossible de lire le fichier des comptes. Vérifiez le format JSON.",
+    "+ 버튼으로 계정을 추가하세요.": "Utilisez le bouton + pour ajouter un compte.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Passer au compte sélectionné dans cet onglet.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Rechercher des sessions (titre · tâche · dossier)",
     "검색·필터 지우기 (Esc)": "Effacer la recherche et les filtres (Échap)",
     "계정 선택": "Choisir un compte",

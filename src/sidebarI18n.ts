@@ -3,6 +3,18 @@ import { SIDEBAR_LOCALES } from './sidebarLocales'
 
 // UI copy only: never pass session titles, prompts, paths or account names here.
 const EN: Record<string, string> = {
+    "계정 추가": "Add account",
+    "계정 (이메일)": "Account (email)",
+    "비밀번호": "Password",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Your account and password are stored in plain text on this PC.",
+    "저장": "Save",
+    "취소": "Cancel",
+    "계정과 비밀번호를 입력하세요.": "Enter an account and password.",
+    "이미 등록된 계정입니다.": "This account is already saved.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Could not save the account. Try again.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Could not read the account file. Check its JSON format.",
+    "+ 버튼으로 계정을 추가하세요.": "Use the + button to add an account.",
+    '현재 탭에서 선택한 계정으로 전환합니다.': 'Switch to the selected account in this tab.',
     '세션 검색 (제목 · 작업이름 · 폴더)': 'Search sessions (title · task · folder)',
     '검색·필터 지우기 (Esc)': 'Clear search and filters (Esc)',
     '계정 선택': 'Select account', '새 탭': 'New tab', '+ 새 탭': '+ New tab', '설정': 'Settings',

@@ -13,7 +13,7 @@
 #
 # ud 폴더는 매번 새로 만든다 — 남아 있으면 recoverTabs 가 지난 실행의 탭을 되살려
 # 매번 다른 초기 상태로 뜬다 (docs/REGRESSION.md 실측).
-param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [string]$PluginRoot = '')
+param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [string]$PluginRoot = '', [string]$Language = 'ko-KR')
 
 $root = Split-Path -Parent $PSScriptRoot
 if ($PluginRoot) { $root = (Resolve-Path -LiteralPath $PluginRoot -ErrorAction Stop).Path }
@@ -65,6 +65,7 @@ terminal:
   font: Consolas
   fontSize: 14
 recoverTabs: false
+language: $Language
 enablePlugins: true
 agentDeck:
   enabled: true

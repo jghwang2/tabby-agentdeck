@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Tilføj konto",
+    "계정 (이메일)": "Konto (e-mail)",
+    "비밀번호": "Adgangskode",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Konto og adgangskode gemmes som klartekst på denne pc.",
+    "저장": "Gem",
+    "취소": "Annuller",
+    "계정과 비밀번호를 입력하세요.": "Indtast konto og adgangskode.",
+    "이미 등록된 계정입니다.": "Denne konto er allerede gemt.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Kunne ikke gemme kontoen. Prøv igen.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Kunne ikke læse kontofilen. Kontrollér JSON-formatet.",
+    "+ 버튼으로 계정을 추가하세요.": "Brug knappen + til at tilføje en konto.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Skift til den valgte konto i denne fane.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Søg i sessioner (titel · opgave · mappe)",
     "검색·필터 지우기 (Esc)": "Ryd søgning og filtre (Esc)",
     "계정 선택": "Vælg konto",

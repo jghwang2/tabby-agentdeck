@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Přidat účet",
+    "계정 (이메일)": "Účet (e-mail)",
+    "비밀번호": "Heslo",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Účet a heslo se v tomto počítači ukládají jako prostý text.",
+    "저장": "Uložit",
+    "취소": "Zrušit",
+    "계정과 비밀번호를 입력하세요.": "Zadejte účet a heslo.",
+    "이미 등록된 계정입니다.": "Tento účet je již uložen.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Účet nelze uložit. Zkuste to znovu.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Soubor účtů nelze přečíst. Zkontrolujte formát JSON.",
+    "+ 버튼으로 계정을 추가하세요.": "Účet přidáte tlačítkem +.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Přepnout na vybraný účet v aktuální kartě.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Hledat relace (název · úkol · složka)",
     "검색·필터 지우기 (Esc)": "Vymazat hledání a filtry (Esc)",
     "계정 선택": "Vybrat účet",

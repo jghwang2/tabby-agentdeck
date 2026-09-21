@@ -1,5 +1,17 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 추가": "Dodaj račun",
+    "계정 (이메일)": "Račun (e-pošta)",
+    "비밀번호": "Lozinka",
+    "계정과 비밀번호가 이 PC에 평문으로 저장됩니다.": "Račun i lozinka spremaju se kao običan tekst na ovom računalu.",
+    "저장": "Spremi",
+    "취소": "Odustani",
+    "계정과 비밀번호를 입력하세요.": "Unesite račun i lozinku.",
+    "이미 등록된 계정입니다.": "Ovaj je račun već spremljen.",
+    "계정을 저장하지 못했습니다. 다시 시도하세요.": "Račun nije moguće spremiti. Pokušajte ponovno.",
+    "계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.": "Datoteku računa nije moguće pročitati. Provjerite format JSON.",
+    "+ 버튼으로 계정을 추가하세요.": "Dodajte račun gumbom +.",
+    "현재 탭에서 선택한 계정으로 전환합니다.": "Prebacite se na odabrani račun u ovoj kartici.",
     "세션 검색 (제목 · 작업이름 · 폴더)": "Pretraži sesije (naslov · zadatak · mapa)",
     "검색·필터 지우기 (Esc)": "Očisti pretraživanje i filtre (Esc)",
     "계정 선택": "Odaberi račun",
