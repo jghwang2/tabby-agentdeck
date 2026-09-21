@@ -203,10 +203,12 @@
             } else {
                 // **기대값을 산술로 만들지 않는다** — 제품이 말한 화면 순서(`tabRows`)의 N 번째다
                 const wrong = []
-                for (let slot = 1; slot <= probe.tabRows.length; slot++) {
+                const targets = probe.slots ? probe.slots.filter(value => value.tabIndex >= 0) : probe.tabRows.map((tabIndex, i) => ({ number: i + 1, tabIndex }))
+                for (const target of targets) {
+                    const slot = target.number
                     const r = ad.jump(slot)
-                    if (r.activeTabIndex !== r.tabRows[slot - 1]) {
-                        wrong.push(`slot=${slot}: 활성 ${r.activeTabIndex} (보이는 순서로는 ${r.tabRows[slot - 1]})`)
+                    if (r.activeTabIndex !== target.tabIndex) {
+                        wrong.push(`slot=${slot}: 활성 ${r.activeTabIndex} (고정 슬롯 대상 ${target.tabIndex})`)
                     }
                     if (r.navMode === 'list') {
                         wrong.push(`slot=${slot}: 목록에 포커스가 갔다 — 이어지는 타이핑이 터미널로 안 간다`)
@@ -221,8 +223,8 @@
 
                 // 범위 밖 — 가장 가까운 탭으로 보내면 목록이 줄어든 줄 모르고 누른 사람이
                 // 엉뚱한 세션에 입력하게 된다. 아무 일도 안 해야 한다
-                const last = ad.jump(probe.tabRows.length)
-                const over = ad.jump(probe.tabRows.length + 1)
+                const last = ad.jump(targets[targets.length - 1].number)
+                const over = ad.jump(10)
                 const stayed = over.activeTabIndex === last.activeTabIndex
                 add('ST8', 'Ctrl+N 은 범위 밖에서 아무 일도 안 한다', stayed,
                     stayed ? '' : '없는 자리를 눌렀는데 활성 탭이 움직였다',

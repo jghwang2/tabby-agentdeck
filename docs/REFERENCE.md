@@ -41,7 +41,7 @@ If you run Tabby on macOS or Linux, an [issue](https://github.com/jghwang2/tabby
 | **4:3 width** | Derives terminal width from window height and fixes it. Leftover width goes to the sidebar; whatever is still left is absorbed by the terminal |
 | **Sidebar tab management** | Click to select, `×` to close, double-click to rename the task, right-click to set status by hand |
 | **Search · status filter** | The search box narrows by title, task name and working folder; status chips keep only one state. `Esc` clears |
-| **Reordering** | Drag a row to move it (Tabby's own tab order follows). Hold at the edge and the list **scrolls by itself**, so off-screen positions are one gesture away. Blocked with an explanation while status sorting is on |
+| **Fixed slots** | Reusable slots 1–9. Automatic sorting and drag reordering are disabled. |
 | **Keyboard control** | `Ctrl+L` enters the list; `↑↓` walks it and Enter picks. **The tab does not change while you walk** — focus and selection are separate so passing output does not flood the screen. `Ctrl+W` closes the current tab (the focused row when the list has the keyboard) |
 | **Output preview** | Markdown, images, tables (csv/tsv) and code the agent touched, in a panel beside the terminal. It picks up paths printed on screen, so Claude Code, Codex and Gemini all work |
 | **Drag and drop** | Drop a file on the panel and it opens. **Drop it on the terminal** and you are asked: open in panel / paste the path |
@@ -54,7 +54,7 @@ If you run Tabby on macOS or Linux, an [issue](https://github.com/jghwang2/tabby
 | **Agent profiles** | Works out which CLI is running in a tab (process → title) and applies that agent's rules. Supporting a new CLI is one profile block |
 | **Mouse docking** | Drag the header to any edge (left/right/top/bottom); drag the divider to resize |
 | **Status** | running / waiting / rate limited / done / error / idle, as colour, badge and elapsed time. It judges from screen text even with no hook, and a badge says **why** it stopped (what needs approval, which limit) |
-| **Per-status counts** | The header shows counts in urgency order — `⏸ 2 ● 3 ○ 1`. Turn on `sortByStatus` and tabs sort the same way |
+| **Per-status counts** | The header shows counts in urgency order — `⏸ 2 ● 3 ○ 1`. Session rows retain their fixed slots |
 | **Subagent count** | How many background agents that session is running, as `❖3`. Counted by **matching launches against completions** in the transcript, so it is right even when no hook reports |
 | **Task names** | The moment you press Enter, the text in the input box becomes the row's label |
 | **Claude Code hook** | Install once from the settings window and the agent reports status directly (optional) |
@@ -391,7 +391,7 @@ With nothing staged it does not commit — it never widens to `git commit -a`.
 | `Ctrl+V` | Paste. If the clipboard holds **only an image**, the image-paste key is handed to the app instead of text — Claude Code and Codex read the clipboard themselves. `agentdeck-paste` |
 | Right-click | Copy with a selection, paste without one. Hold (250 ms default) for the context menu |
 | `Ctrl+T` (⌘+T) | New tab — same as the sidebar `+ New tab`. Uses the work-root profile and sets `AGENTDECK_TAB`. Overlapping stock bindings are removed when `claimNewTabKey` is enabled. `agentdeck-new-tab` |
-| `Ctrl+1` … `Ctrl+9` | Jump straight to the Nth session **in sidebar order** (group headers are not counted; tabs inside a collapsed group have no number). Tabby's own `Alt+1…` (`tab-N`) counts the tab bar, which opens a different tab once sorting, grouping or search is on. `agentdeck-jump-1` … `-9` |
+| `Ctrl+1` … `Ctrl+9` | Select fixed slot 1–9, unchanged by filters or closing other sessions. |
 | `Ctrl+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
 | `Ctrl+W` | Close the current tab — the **active tab** from the terminal, the **focused row** when the list has the keyboard. Only while `keyboardNav` + `keyboardCloseTab` are on; off, it flows through as the shell's delete-previous-word (`0x17`) |
 | (unbound) | `agentdeck-toggle` — sidebar / 4:3 on-off |
@@ -413,9 +413,7 @@ Paste with `Ctrl+Shift+V` / `Shift+Insert` (Tabby's own) or right-click instead.
 
 ### Driving the sidebar from the keyboard
 
-`Ctrl+1`–`Ctrl+9` do **not** walk — they go. Someone pressing a number has already decided where to land. What is counted is the
-**tab rows visible in the sidebar**, so group headers are skipped and tabs inside a collapsed group have no number at all. There is
-nothing past nine: counting with your eyes gets slower than pressing a key, so use the list walk below.
+`Ctrl+1`–`Ctrl+9` select fixed reusable slots. Settings tabs are excluded. [Session communication](SESSION-COMMUNICATION.md) uses actual session IDs only.
 
 `Ctrl+L` enters the list. It exists for looking through tabs without the mouse, and the rules are these.
 
@@ -496,7 +494,7 @@ config file (`%APPDATA%\tabby\config.yaml`).
 | `sidebarWidth` | `0` | Width in px when docked left/right. 0 = derived from the aspect ratio |
 | `sidebarHeight` | `200` | Height in px when docked top/bottom |
 | `sidebarMin` / `sidebarMax` | `200` / `560` | Range for the derived width (px). For exactly 4:3 on a wide monitor, set `sidebarMax` to `window width − window height × 4/3` |
-| `sortByStatus` | `false` | Sort by urgency (waiting → error → rate limited → running → done → idle). Turning it on **blocks drag reordering** — a moved row would snap back on the next render |
+| `sortByStatus` | ignored | Retired: fixed slots never reorder by status. |
 | `collapsedGroups` | `[]` | Keys of collapsed groups. Clicking a header adds one here. `Expand all` in the settings window empties it |
 | `viewerOpen` | `false` | Whether the preview panel is open. Toggled by `▤` / `agentdeck-view`, or set when **it opens itself on a new file**, and restored on next start. Not a value you set by hand |
 | `viewerDock` | `right` | Which side the panel attaches to, `left` / `right`. On the same side as the sidebar, the sidebar takes the outer edge |

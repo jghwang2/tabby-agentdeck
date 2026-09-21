@@ -269,20 +269,10 @@ const DOCK_KEYS: Record<string, string> = {
     <toggle [(ngModel)]="config.store.agentDeck.subagentCount" (ngModelChange)="config.save()"></toggle>
 </div>
 
-<div class="form-line">
-    <div class="header">
-        <div class="title">끌 때 목록 끝에서 저절로 흐르기</div>
-        <div class="description">
-            줄을 끌어 순서를 바꿀 때 목록의 위·아래 끝에 커서를 대고 있으면
-            <b>커서를 더 움직이지 않아도</b> 목록이 그 방향으로 흘러간다.
-            그래서 탭이 많아 화면에 안 보이는 자리로도 한 손짓에 옮길 수 있다.
-            끄면 손을 뗀 뒤 스크롤하고 다시 끌어야 하지만, 그 대신
-            <b>맨 끝 줄 뒤에 놓는 조작이 미끄러지지 않는다</b>.
-        </div>
-    </div>
-    <toggle [(ngModel)]="config.store.agentDeck.dragAutoScroll" (ngModelChange)="config.save()"></toggle>
-</div>
+<div class="text-muted mb-3">세션은 1~9 고정 번호를 사용합니다. 닫힌 자리는 재사용하며 다른 번호는 바뀌지 않습니다.
+Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순서 바꾸기는 지원하지 않습니다.</div>
 
+<!-- Legacy grouping controls are retired: fixed slots never reorder by project.
 <h3 class="mt-4 mb-3">세션 그룹</h3>
 <div class="text-muted mb-3">
     사이드바의 세션을 <b>프로젝트 단위</b>로 묶고 헤더를 눌러 접는다. 끄고 켜는 값이 없다 —
@@ -308,6 +298,7 @@ const DOCK_KEYS: Record<string, string> = {
     </button>
 </div>
 
+-->
 <h3 class="mt-4 mb-3">미리보기 패널</h3>
 <div class="text-muted mb-3">
     터미널 옆에서 에이전트가 만든 md · 이미지 · 표 · 코드를 그대로 본다.

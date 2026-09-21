@@ -11,6 +11,7 @@ import { AppService, ConfigService, BaseTabComponent, HostWindowService, Hotkeys
 import { SettingsTabComponent } from 'tabby-settings'
 import { WorkStatusService } from './status.service'
 import { WorkNotifyService } from './notify.service'
+import { SessionSlots } from './sessionSlots'
 import { applyOutput, applyTitle, releaseLimited, stripTitleMarker } from './detect'
 import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent, profileFor, unionProfile } from './agents'
 import { STATUS_STYLES, WorkStatus } from './api'
@@ -27,6 +28,7 @@ import { collapseIdOf, foldGroupKey, GroupCollapseState, groupKeyOf, groupTabs, 
 import { projectRootCacheSnapshot, projectRootOf } from './project-root'
 import { JUMP_SLOTS, NavRow, navRowsOf, pickCloseTarget, pickJumpTarget, stepNavIndex } from './nav'
 import { SessionLedgerService } from './sessionLedger.service'
+import { SessionSearchPanel } from './sessionSearchPanel'
 import { ResumeRow, formatWhen, resumeCommand, resumeRowsFor } from './sessionLedger'
 import { ViewPanel, ViewSide, MIN_VIEW_W } from './viewPanel'
 import { followModeOf, migrateFollow } from './viewer'
@@ -227,6 +229,7 @@ const EMPTY_TAB_RETRY_MAX = 20
 
 /** 우리가 쓰는 부분만 추린 Electron clipboard — electron 패키지를 devDependency 로 끌어오지 않으려고 */
 interface ElectronClipboard {
+    writeText (text: string): void
     readImage (): { isEmpty (): boolean }
     readText (): string
 }
@@ -370,6 +373,38 @@ export type DropReject = 'outside-list' | 'other-group' | 'self' | 'gone' | 'no-
  */
 @Injectable({ providedIn: 'root' })
 export class AgentDeckService {
+    private readonly sessionSlots = new SessionSlots<BaseTabComponent>()
+    private pendingSessionOpens = 0
+
+    private syncSessionSlots (): void {
+        const tabs = this.app.tabs.filter(tab => !(tab instanceof SettingsTabComponent))
+        const panes = (tab: any): any[] => typeof tab.getAllTabs === 'function' ? tab.getAllTabs() : [tab]
+        this.sessionSlots.reconcile(tabs, tab => {
+            const value = panes(tab).map(pane => pane.profile?.options?.env?.AGENTDECK_SLOT).find(Boolean)
+            return value ? Number(value) : null
+        })
+        for (const tab of tabs) {
+            const number = this.sessionSlots.numberOf(tab)
+            if (number === null) { continue }
+            for (const pane of panes(tab)) {
+                if (pane.profile?.options && pane.profile.options.env?.AGENTDECK_SLOT !== String(number)) {
+                    pane.profile = { ...pane.profile, options: { ...pane.profile.options,
+                        env: { ...pane.profile.options.env, AGENTDECK_SLOT: String(number) } } }
+                }
+            }
+        }
+        this.notify.publishNavigationContext(tabs.map(tab => {
+            const slot = this.sessionSlots.numberOf(tab)
+            const sessionIds = this.notify.sessionIdsOf(tab)
+            return slot !== null && sessionIds.length ? `Human slot ${slot}: session IDs ${sessionIds.join(', ')}`
+                + (sessionIds.length > 1 ? ' (split panes: ask which session; never choose by last activity)' : '') : ''
+        }).filter(Boolean).join('\n'))
+        const newButton = this.sidebar?.querySelector('.ad-new') as HTMLButtonElement | null
+        if (newButton) {
+            newButton.disabled = this.sessionSlots.full
+            if (this.sessionSlots.full) { newButton.title = this.sidebarLang === 'ko' ? '세션 9개가 열려 있습니다. 하나를 닫아 주세요.' : 'All 9 session slots are occupied. Close a session first.' }
+        }
+    }
     private sidebar: HTMLElement | null = null
     private listEl: HTMLElement | null = null
     /** 사이드바 하단 "지금 이 탭" 줄 (모델·계정·한도). 목록과 버튼 줄 사이에 고정된다 */
@@ -379,6 +414,7 @@ export class AgentDeckService {
     private accountSwitchBusy = false
     /** 지난 세션 서랍 — 목록 **밖**, "지금 이 탭" 줄 바로 위. 펼치면 위로 자란다 */
     private resumeEl: HTMLElement | null = null
+    private historySearchPanel: SessionSearchPanel | null = null
     private windowEl: HTMLElement | null = null
     private mainEl: HTMLElement | null = null
     private observer: ResizeObserver | null = null
@@ -1014,6 +1050,10 @@ export class AgentDeckService {
                 const { rows } = this.navPlan()
                 return {
                     slot,
+                    slots: Array.from({ length: JUMP_SLOTS }, (_, i) => {
+                        const target = this.sessionSlots.get(i + 1)
+                        return { number: i + 1, tabIndex: target ? all.indexOf(target) : -1 }
+                    }),
                     activeTabIndex: this.app.activeTab ? all.indexOf(this.app.activeTab) : -1,
                     focusedTabIndex: this.navFocus && this.navFocus.kind === 'tab'
                         ? all.indexOf(this.navFocus.tab) : -1,
@@ -4407,12 +4447,15 @@ export class AgentDeckService {
 
     /** 설정에 지정된 기본 프로필(기본값 agentdeck:root)로 새 탭을 연다 */
     private async openNewTab (): Promise<void> {
-        const wanted = this.config.store.terminal.profile
-        const profiles = await this.profiles.getProfiles()
-        const profile = profiles.find(p => p.id === wanted) ?? profiles[0]
-        if (profile) {
-            await this.profiles.openNewTabForProfile(profile)
-        }
+        this.syncSessionSlots()
+        if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
+        this.pendingSessionOpens++
+        try {
+            const wanted = this.config.store.terminal.profile
+            const profiles = await this.profiles.getProfiles()
+            const profile = profiles.find(p => p.id === wanted) ?? profiles[0]
+            if (profile) { await this.profiles.openNewTabForProfile(profile) }
+        } finally { this.pendingSessionOpens-- }
     }
 
     private openSettings (): void {
@@ -4593,9 +4636,9 @@ export class AgentDeckService {
     } {
         const statusOf = (tab: BaseTabComponent): WorkStatus => this.status.get(tab).status
         // 정렬은 복사본에만 — app.tabs 의 순서(순정 탭바)는 그대로 둔다
-        const tabs = this.config.store.agentDeck.sortByStatus
-            ? sortTabsByStatus(this.app.tabs, statusOf)
-            : this.app.tabs
+        this.syncSessionSlots()
+        const tabs = [...this.app.tabs].sort((a, b) =>
+            (this.sessionSlots.numberOf(a) ?? 10) - (this.sessionSlots.numberOf(b) ?? 10))
         // **필터는 여기서 먹인다** — 그룹핑·헤더 생략·plan 이 전부 이 결과를 딛는다.
         // `render()` 안에서만 걸러내면 진단구(`__agentdeck.groups()`)가 화면과 어긋나고,
         // 그러면 회귀 프로브가 "제품이 배정한 탭 집합 != 화면의 줄 집합"(GR2)을 거짓 실패로 읽는다.
@@ -4615,7 +4658,7 @@ export class AgentDeckService {
         // `기타` 그룹으로 모이는데, 그것까지 세면 Welcome 탭 하나 때문에 항상 2그룹이 되어
         // 단일 프로젝트에서도 헤더가 뜬다 — 생략 규칙이 사실상 무력화된다
         // (2026-09-08 배리어 실측: 같은 cwd 인데 헤더가 2개였다).
-        const withHeads = groups.filter(g => g.key !== null).length > 1
+        const withHeads = false // Fixed human slots must not be regrouped or reordered.
         // **헤더를 안 그리기로 했으면 순서도 건드리지 않는다.**
         // `groupTabs` 는 그룹을 라벨순으로 정렬하고 `기타`(작업 폴더를 모르는 탭)를 맨 뒤로 붙인다
         // (group.ts:228-230). 헤더가 있으면 그게 보기 좋지만, 헤더가 없는 화면에서는 구분선이
@@ -4938,14 +4981,8 @@ export class AgentDeckService {
             hidden: new Set<string>(Array.isArray(cfg.resumeHidden) ? cfg.resumeHidden : []),
             now: Date.now(),
         })
-        const rows = this.searchQuery ? all.filter(r => this.resumeMatchesQuery(r)) : all
-        if (!all.length) {
-            // 기록이 하나도 없으면 줄 자체를 그리지 않는다 — 빈 서랍은 읽을 것 없는 줄만 하나 더 만든다.
-            // 판정은 **거르기 전(all)** 으로 한다. 검색어가 안 맞는다고 서랍이 사라지면
-            // "내가 뭘 눌러서 없앴나" 가 된다 — 그때는 빈 목록으로 남는 편이 낫다
-            el.hidden = true
-            return
-        }
+        const rows = all
+        // Search remains reachable even when the recent-list filters hide every row.
         el.hidden = false
         const expanded = this.isResumeExpanded(null)
         el.classList.toggle('expanded', expanded)
@@ -4954,9 +4991,25 @@ export class AgentDeckService {
         this.fillResumeHead(headEl, rows.length, all.length, expanded)
 
         const rowsEl = el.querySelector('.ad-resume-rows') as HTMLElement
+        if (!this.historySearchPanel) {
+            this.historySearchPanel = new SessionSearchPanel({
+                sources: () => this.ledger.historySources(),
+                korean: () => this.sidebarLang === 'ko',
+                searchLabel: () => this.ui('세션 검색 (제목 · 작업이름 · 폴더)'),
+                changed: () => this.renderResumeDrawer(),
+                resume: row => {
+                    row.openTabId = this.liveSessionIds().get(row.sessionId) || null
+                    this.zone.run(() => this.activateResume(row, false))
+                },
+            })
+        }
+        if (this.historySearchPanel.element.parentElement !== el) {
+            el.insertBefore(this.historySearchPanel.element, rowsEl)
+        }
+        this.historySearchPanel.update(expanded)
         rowsEl.innerHTML = ''
-        rowsEl.hidden = !expanded
-        if (!expanded) {
+        rowsEl.hidden = !expanded || this.historySearchPanel.active
+        if (rowsEl.hidden) {
             return
         }
         for (const row of rows) {
@@ -4968,14 +5021,6 @@ export class AgentDeckService {
             empty.textContent = this.ui('검색어와 맞는 지난 세션이 없다')
             rowsEl.appendChild(empty)
         }
-    }
-
-    /** 검색어가 지난 세션 줄에 걸리나 — 탭과 같은 자리(제목·작업 폴더)를 본다 */
-    private resumeMatchesQuery (row: ResumeRow): boolean {
-        const q = this.searchQuery.toLowerCase()
-        return (row.label || '').toLowerCase().includes(q)
-            || (row.cwd || '').toLowerCase().includes(q)
-            || row.sessionId.toLowerCase().includes(q)
     }
 
     /** 지금 탭이 들고 있는 세션 — `세션id -> 탭 식별용 문자열`. 되돌아올 탭은 `resumeTabs` 가 들고 있다 */
@@ -5320,6 +5365,8 @@ export class AgentDeckService {
         // 얼마든지 바뀔 수 있어서, "n 번째 줄 = n 번째 탭" 이라는 가정을 두면 안 되기 때문이다
         // (회귀 프로브가 그 가정으로 다른 탭의 배지를 읽은 적이 있다). 없는 탭이면 -1.
         row.dataset.adIndex = String(this.app.tabs.indexOf(tab))
+        const slot = this.sessionSlots.numberOf(tab)
+        if (slot !== null) { row.dataset.adSlot = String(slot) }
         // 키보드 포커스 링. **`data-ad-index` 에 얹지 않는다** — 그 속성의 뜻은 `app.tabs`
         // 인덱스 하나뿐이고 회귀 R41·R16·R19·GR2 가 그것으로 대상 줄을 찾는다. 포커스는
         // 클래스로만 말한다(`.ad-nav-focus`, styles.scss)
@@ -5402,7 +5449,7 @@ export class AgentDeckService {
         }
 
         // 순서 드래그의 시작점 — 임계치를 넘기기 전에는 아무 일도 하지 않으므로 클릭을 가리지 않는다
-        row.addEventListener('pointerdown', ev => this.armRowDrag(ev, tab, row))
+        // Fixed slots deliberately do not register drag-to-reorder handlers.
         row.addEventListener('click', ev => {
             if ((ev.target as HTMLElement).closest('.ad-close')) {
                 return
@@ -5684,15 +5731,15 @@ export class AgentDeckService {
         if (!this.navReady || !Number.isInteger(slot) || slot < 1 || slot > JUMP_SLOTS) {
             return
         }
-        const { rows } = this.navPlan()
-        const tab = pickJumpTarget(rows, slot)
+        this.syncSessionSlots()
+        const tab = this.sessionSlots.get(slot)
         // 범위 밖이면 아무 일도 하지 않는다 (`pickJumpTarget` 주석). 닫히는 중인 탭도 거른다
         if (!tab || !this.app.tabs.includes(tab)) {
             return
         }
         this.navFocus = { kind: 'tab', tab }
         this.zone.run(() => this.app.selectTab(tab))
-        this.diag(`jump slot=${slot} rows=${rows.length}`)
+        this.diag(`jump slot=${slot}`)
     }
 
     /**
@@ -6313,6 +6360,8 @@ export class AgentDeckService {
      * 포인터 이벤트는 Angular 밖이라 `zone.run` 안에서 바꿔 변경 감지를 태운다.
      */
     private applyReorder (tab: BaseTabComponent, to: BaseTabComponent, place: DropPlace): boolean {
+        return false
+        /* Legacy reorder retained for migration reference; fixed slots never reorder.
         const tabs = this.app.tabs
         const from = tabs.indexOf(tab)
         const at = tabs.indexOf(to)
@@ -6330,6 +6379,7 @@ export class AgentDeckService {
         })
         this.diag(`reorder ${from} -> ${at} ${place} order=${order.join(',')}`)
         return true
+        */
     }
 
     /**
@@ -6424,6 +6474,9 @@ export class AgentDeckService {
      * 다른 폴더에서 띄우면 목록에 없다) 여기를 틀리면 이어받기 자체가 실패한다.
      */
     private async openResumeTab (row: ResumeRow, command: string, account?: SavedAccount): Promise<void> {
+        this.syncSessionSlots()
+        if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
+        this.pendingSessionOpens++
         try {
             const wanted = this.config.store.terminal.profile
             const all = await this.profiles.getProfiles()
@@ -6461,7 +6514,7 @@ export class AgentDeckService {
         } catch (e: any) {
             if (account) { throw new Error(this.ui('새 계정 탭을 열지 못했습니다.')) }
             diagCatch('resume 탭 열기', e)
-        }
+        } finally { this.pendingSessionOpens-- }
     }
 
     /**
@@ -6605,6 +6658,12 @@ export class AgentDeckService {
             return [label, action] as [string, () => void]
         })
         items.push([this.ui('↺ 자동 감지로'), () => this.status.unpin(tab)])
+        for (const targetSessionId of this.notify.sessionIdsOf(tab)) {
+            items.push([(this.sidebarLang === 'ko' ? '통신 대상 복사: ' : 'Copy message target: ') + targetSessionId, () => {
+                getClipboard()?.writeText('AgentDeck target session ID: ' + targetSessionId
+                    + '\nUse this exact toSessionId with agentdeck_send; do not resolve a human slot again.')
+            }])
+        }
         // 이 탭만 다시 그리기 — 사이드바 아래 ↻ 는 모든 탭이 대상이라 무거울 때가 있다
         items.push([this.ui('↻ 화면 복구'), () => {
             this.app.selectTab(tab)

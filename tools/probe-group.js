@@ -42,6 +42,33 @@
  */
 (async () => {
     const ad = window.__agentdeck
+    // Fixed slots replace grouping; retain the legacy probe below for old releases.
+    if (ad.jump(1).slots) {
+        const cfg = ad.config.store.agentDeck, results = []
+        const wait = () => new Promise(resolve => setTimeout(resolve, 200))
+        const rows = () => [...document.querySelectorAll('#agentdeck-sidebar .ad-tab')]
+        const snapshot = () => rows().map(row => ({ slot: row.dataset.adSlot, index: row.dataset.adIndex }))
+        const add = (id, name, pass, evidence) => results.push({ id, name, pass, evidence })
+        const saved = { sortByStatus: cfg.sortByStatus, collapsedGroups: cfg.collapsedGroups }
+        try {
+            ad.setFilter('', null); ad.render(); await wait()
+            const before = snapshot()
+            add('GR1', 'Fixed slots render in numeric order', before.every((row, i) => !i || !row.slot || Number(row.slot) > Number(before[i - 1].slot)), before)
+            add('GR2', 'Rows identify actual Tabby tabs', before.every(row => !!ad.app.tabs[Number(row.index)]), before)
+            cfg.collapsedGroups = ['stale/project', 'STALE/PROJECT']; ad.render(); await wait()
+            add('GR3', 'Old group collapse cannot hide fixed slots', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
+            add('GR5', 'Rows retain labels, badges and close controls', rows().every(row => row.querySelector('.ad-label') && row.querySelector('.ad-badge') && row.querySelector('.ad-close')), {})
+            add('GR6', 'Project grouping cannot reorder fixed slots', document.querySelectorAll('#agentdeck-sidebar .ad-group-head').length === 0, {})
+            cfg.sortByStatus = true; ad.render(); await wait()
+            add('GR12', 'Status sort setting cannot renumber rows', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
+            ad.setFilter('___no_matching_session___', null); await wait()
+            const filtered = ad.jump(1)
+            add('GR16', 'Hidden session retains its shortcut', filtered.activeTabIndex === filtered.slots[0].tabIndex, filtered)
+            ad.setFilter('', null); await wait()
+            add('GR14', 'Clearing filter restores original numbers', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
+        } finally { Object.assign(cfg, saved); ad.setFilter('', null); ad.render() }
+        return JSON.stringify({ results, summary: { pass: results.filter(r => r.pass).length, fail: results.filter(r => !r.pass).length, skipped: 0 }, cleanup: {} })
+    }
     const sleep = ms => new Promise(r => setTimeout(r, ms))
     const sb = () => document.getElementById('agentdeck-sidebar')
     const heads = () => Array.from(sb().querySelectorAll('.ad-group-head'))

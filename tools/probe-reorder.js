@@ -52,6 +52,54 @@
  */
 (async () => {
     const ad = window.__agentdeck
+    // Fixed-slot invariants replace the retired reordering behavior.
+    if (ad.jump(1).slots) {
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+        const results = [], made = [], initial = [...ad.app.tabs]
+        const add = (id, name, pass, evidence) => results.push({ id, name, pass, evidence })
+        const slots = () => ad.jump(1).slots
+        const open = async () => {
+            const before = [...ad.app.tabs]
+            document.querySelector('#agentdeck-sidebar .ad-new').click()
+            for (let i = 0; i < 30 && ad.app.tabs.length === before.length; i++) await sleep(100)
+            const tab = ad.app.tabs.find(tab => !before.includes(tab))
+            if (tab) made.push(tab)
+            return tab
+        }
+        try {
+            ad.setFilter('', null)
+            while (slots().filter(slot => slot.tabIndex >= 0).length < 3) { if (!await open()) break }
+            if (!made.length && slots().some(slot => slot.tabIndex < 0)) await open()
+            const before = [...ad.app.tabs], reorder = ad.reorder(0, 1, 'after')
+            add('RO1', 'Reorder command is disabled', reorder.ok === false && ad.app.tabs.every((tab, i) => tab === before[i]), reorder)
+            const row = document.querySelector('#agentdeck-sidebar .ad-tab'), rect = row.getBoundingClientRect()
+            row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: rect.x + 10, clientY: rect.y + 10 }))
+            document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: rect.x + 60, clientY: rect.y + 120 }))
+            document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))
+            add('RO3', 'Drag creates no reorder state or insertion line', !ad.reorderDrag() && !document.querySelector('.ad-reorder-line'), {})
+            const removable = made.find(tab => ad.app.tabs.includes(tab))
+            if (!removable) throw new Error('Need a disposable test tab')
+            const removedSlot = slots().find(slot => ad.app.tabs[slot.tabIndex] === removable).number
+            const stable = slots().filter(slot => slot.tabIndex >= 0).map(slot => ({ number: slot.number, tab: ad.app.tabs[slot.tabIndex] }))
+            await ad.app.closeTab(removable, false); await sleep(300); ad.render()
+            add('RO4', 'Closing preserves survivor numbers', stable.filter(slot => slot.tab !== removable).every(slot => ad.app.tabs[ad.jump(slot.number).activeTabIndex] === slot.tab), {})
+            const replacement = await open(); await sleep(200)
+            add('RO5', 'New session reuses vacant slot', ad.app.tabs[ad.jump(removedSlot).activeTabIndex] === replacement, { removedSlot })
+            while (slots().some(slot => slot.tabIndex < 0)) { if (!await open()) break }
+            add('RO9', 'Nine slots can be occupied', slots().filter(slot => slot.tabIndex >= 0).length === 9, slots())
+            const count = ad.app.tabs.length
+            document.querySelector('#agentdeck-sidebar .ad-new').click(); await sleep(500)
+            add('RO10', 'Tenth new session is refused', ad.app.tabs.length === count, { before: count, after: ad.app.tabs.length })
+            const current = ad.app.activeTab; ad.jump(10)
+            add('RO11', 'Out of range shortcut does nothing', ad.app.activeTab === current, {})
+            add('RO2', 'Rows still identify actual Tabby tabs', [...document.querySelectorAll('#agentdeck-sidebar .ad-tab')].every(row => !!ad.app.tabs[Number(row.dataset.adIndex)]), {})
+        } catch (error) { add('RO-error', 'Slot probe completed', false, String(error)) }
+        finally {
+            for (const tab of made) if (ad.app.tabs.includes(tab)) await ad.app.closeTab(tab, false)
+            ad.setFilter('', null); ad.render()
+        }
+        return JSON.stringify({ results, summary: { pass: results.filter(r => r.pass).length, fail: results.filter(r => !r.pass).length, skipped: 0 }, cleanup: { originalsRetained: initial.every(tab => ad.app.tabs.includes(tab)) } })
+    }
     const sleep = ms => new Promise(r => setTimeout(r, ms))
     const sb = () => document.getElementById('agentdeck-sidebar')
     const listEl = () => (sb() ? sb().querySelector('.ad-list') : null)

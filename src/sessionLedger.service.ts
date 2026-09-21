@@ -5,6 +5,7 @@ import * as os from 'os'
 import * as path from 'path'
 
 import { diagCatch } from './diag'
+import { HistorySource } from './sessionSearch'
 import {
     HEAD_BYTE_LIMIT,
     HEAD_LINE_LIMIT,
@@ -33,7 +34,7 @@ export class SessionLedgerService {
     )
     private file = path.join(this.root, 'sessions.json')
     /** Claude Code 대화기록이 사는 곳 (`notify.service` 와 같은 자리) */
-    private projectsDir = path.join(os.homedir(), '.claude', 'projects')
+    private projectsDir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects')
 
     /** 세션 id -> 원장 한 줄. 사람이 친 라벨이 여기 남는다 */
     private ledger = new Map<string, SessionRecord>()
@@ -50,6 +51,7 @@ export class SessionLedgerService {
     private saveTimer: any = null
     private scanning: Promise<void> | null = null
     private lastScan = 0
+    private historyFiles: HistorySource[] = []
 
     /** 목록이 바뀌었을 때 호출부(사이드바)가 다시 그리도록 */
     onChange: (() => void) | null = null
@@ -201,9 +203,6 @@ export class SessionLedgerService {
                     try {
                         const st = await fs.promises.stat(full)
                         // 기간 밖은 **앞부분을 읽기 전에** 버린다 — 파싱이 아니라 stat 이 필터다
-                        if (cutoff && st.mtimeMs < cutoff) {
-                            continue
-                        }
                         found.push({ sessionId: sid, file: full, mtime: st.mtimeMs })
                     } catch {
                         // 방금 지워졌다 — 다음 스캔에서 사라진다
@@ -235,19 +234,18 @@ export class SessionLedgerService {
                 onDisk.add(match[1])
                 try {
                     const st = await fs.promises.stat(full)
-                    if (!cutoff || st.mtimeMs >= cutoff) {
-                        found.push({ sessionId: match[1], file: full, mtime: st.mtimeMs, agent: 'codex' })
-                    }
+                    found.push({ sessionId: match[1], file: full, mtime: st.mtimeMs, agent: 'codex' })
                 } catch { /* File removed during scan. */ }
             }
         }
         await scanCodex(path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions'), 0)
 
         found.sort((a, b) => b.mtime - a.mtime)
+        this.historyFiles = found.map(f => ({file: f.file, sessionId: f.sessionId, agent: f.agent || 'claude'}))
         // 앞부분 읽기에 상한을 둔다 — 기록이 수백 개인 사람에게도 펼치는 순간이 멈추지 않게.
         // 그룹당 몇 줄만 그리므로 최신 200개면 화면에 닿는 것은 다 들어온다
         const HEAD_SCAN_MAX = 200
-        const slice = found.slice(0, HEAD_SCAN_MAX)
+        const slice = found.filter(f => !cutoff || f.mtime >= cutoff).slice(0, HEAD_SCAN_MAX)
 
         const out: SessionRecord[] = []
         for (const f of slice) {
@@ -314,6 +312,11 @@ export class SessionLedgerService {
     records (): SessionRecord[] {
         this.load()
         return mergeSessions([...this.ledger.values()], this.scanned)
+    }
+
+    async historySources (): Promise<HistorySource[]> {
+        await this.refresh()
+        return [...this.historyFiles]
     }
 
     /** 진단용 — `__agentdeck.sessions()` 가 보여준다 */

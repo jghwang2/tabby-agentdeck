@@ -106,6 +106,15 @@ if ($hook -and $hook.session_id) {
     if ($recent) { $targetId = [System.IO.Path]::GetFileNameWithoutExtension($recent.Name) }
 }
 if (-not $targetId) { $targetId = 'default' }
+# Optional mailbox context is emitted only when this pane has an initialized MCP
+# client. No PTY input is injected; idle/approval sessions remain untouched.
+if ($hook -and $env:AGENTDECK_TAB -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name) {
+    $mailRoot = if ($env:AGENTDECK_MAILBOX_ROOT) { $env:AGENTDECK_MAILBOX_ROOT } else { Join-Path $env:LOCALAPPDATA 'tabby-agentdeck' }
+    $mailMarker = Join-Path $mailRoot ('mailbox-connections\' + $env:AGENTDECK_TAB + '.client')
+    if (Test-Path -LiteralPath $mailMarker) {
+        & node (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') --hook $targetId ([string]$hook.hook_event_name) 2>$null
+    }
+}
 # 파일명에 못 쓰는 문자 제거
 $safeId = ($targetId -replace '[^A-Za-z0-9._-]', '_')
 $file = Join-Path $dir "$safeId.json"
@@ -154,7 +163,7 @@ if ($hook -and $hook.tool_input -and $hook.tool_input.file_path) {
 # 세션은 이미 탭에 묶여 있어 sessionId 만으로 찾아간다(notify.service `resolveTab` 의 `alive`).
 # **서브에이전트 이벤트도 건너뛰지 않는다** — 하나 빠지면 개수가 영구히 어긋난다(start 를 놓치면
 # 적게, stop 을 놓치면 많게 굳는다). 이쪽도 계보 조회는 하지 않는다(아래 tabId 분기).
-if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent) { exit 0 }
+if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailMarker) { exit 0 }
 
 # --- 어느 탭인가: tabId (1순위) / 프로세스 계보 pids (폴백) ---
 # 사이드바가 이 보고를 어느 탭에 붙일지 정하는 근거. 예전 규칙 "처음 보고할 때의 활성 탭" 은

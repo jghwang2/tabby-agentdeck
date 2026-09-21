@@ -171,19 +171,9 @@
 </div>
 
 
-<h2 id="s6"><span class="n">06</span>Reordering</h2>
-
-<p>
-    Drag a sidebar row to move it, and <b>Tabby's own tab order moves with it</b>.
-    Hold the cursor at the top or bottom edge of the list while dragging and
-    <b>the list scrolls by itself</b>, so you can reach an off-screen position in one gesture.
-</p>
-
-<div class="note">
-    With status sorting (<code>sortByStatus</code>) on, you cannot reorder &mdash; status decides the order there,
-    so a moved row would snap back on the next render. Dragging is <b>blocked with an explanation</b> instead.
-</div>
-
+<h2 id="s6"><span class="n">06</span>Fixed session slots</h2>
+<p>Sessions use slots 1–9. Vacant slots are reused; filtering and closing other sessions never renumber them. Automatic sorting and drag reordering are disabled.</p>
+<p><a href="../SESSION-COMMUNICATION.md">Session communication MCP</a> uses actual session IDs only.</p>
 
 <h2 id="s7"><span class="n">07</span>Output preview</h2>
 
@@ -300,7 +290,7 @@
 <table>
     <tr><th>Key</th><th>What it does</th></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>new tab in the work root (replaces Tabby's own new-tab)</td></tr>
-    <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>9</kbd></td><td>jump to the Nth session in sidebar order</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>9</kbd></td><td>select fixed session slot 1–9</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>focus the session list / same key returns to the terminal &mdash; then <kbd>↑</kbd><kbd>↓</kbd> walk, <kbd>Enter</kbd> picks, <kbd>Esc</kbd> leaves</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>close the current tab (the focused row when the list has the keyboard)</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>open / close the preview panel</td></tr>

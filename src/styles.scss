@@ -2087,3 +2087,54 @@ body.agentdeck-active {
         .ad-now-reset { font-size: 11px; }
     }
 }
+// Navigation numbers belong only to the UI, never to the message transport.
+.ad-tab[data-ad-slot]::before {
+    content: attr(data-ad-slot);
+    float: left;
+    font-weight: 700;
+    opacity: .65;
+    margin-right: 8px;
+}
+// Native conversation history search; independent of the active-tab filter.
+.ad-history-search {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    padding: 6px;
+    max-height: 45vh;
+    &[hidden] { display: none; }
+    input, select, button {
+        color: #e3e7ef; background: #242833; border: 1px solid #475164;
+        border-radius: 4px; font: inherit; min-width: 0; padding: 5px;
+    }
+    input:focus, select:focus, button:focus-visible { outline: 2px solid #69b7ff; }
+    .ad-history-status { font-size: 11px; color: #aab6c8; }
+    .ad-history-results { overflow-y: auto; min-height: 0; }
+    .ad-history-hit {
+        display: flex; flex-direction: column; gap: 4px; text-align: left;
+        width: 100%; margin-bottom: 5px; cursor: pointer;
+        strong, small, span { overflow-wrap: anywhere; }
+        small { color: #acb9ca; }
+        &:hover { background: #303c4d; }
+    }
+}
+.ad-history-overlay {
+    position: fixed; inset: 0; z-index: 10000; background: #0009;
+    display: flex; align-items: center; justify-content: center; -webkit-app-region: no-drag;
+    .ad-history-dialog {
+        display: flex; flex-direction: column; width: min(900px, 90vw); max-height: 85vh;
+        color: #e3e7ef; background: #202630; border: 1px solid #526277; border-radius: 8px;
+        box-shadow: 0 12px 50px #0008;
+    }
+    header, footer { display: flex; align-items: center; gap: 10px; padding: 12px; }
+    header strong { flex: 1; overflow-wrap: anywhere; }
+    footer { flex-wrap: wrap; }
+    button { background: #35455b; color: #fff; border: 1px solid #687b95; border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+    button:focus-visible { outline: 2px solid #69b7ff; }
+    .ad-history-conversation { overflow: auto; min-height: 0; padding: 0 16px; }
+    article { border-bottom: 1px solid #435064; padding: 14px 8px; }
+    article.ad-history-match { border-left: 3px solid #69b7ff; }
+    pre { color: inherit; font: 13px/1.6 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+}
+.ad-history-search mark, .ad-history-overlay mark { background: #dec566; color: #171b22; border-radius: 2px; }

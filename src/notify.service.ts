@@ -15,6 +15,7 @@ import { claudeSettingsPath, hooksInstalled, hooksSupported, installHooks } from
 import { pickTabByPids } from './bind'
 import { shortenReason } from './reason'
 import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
+import { SessionMailbox } from './sessionMailbox'
 import { diag, diagCatch } from './diag'
 import { accountEmail } from './accounts'
 import {
@@ -289,6 +290,50 @@ export class WorkNotifyService {
         'tabby-agentdeck',
     )
     private dir = path.join(this.root, 'status')
+    // Test/multiple Tabby profiles must never share a mailbox writer or endpoint.
+    private mailboxRoot = process.env.TABBY_CONFIG_DIRECTORY
+        ? path.join(process.env.TABBY_CONFIG_DIRECTORY, 'agentdeck-mailbox') : this.root
+    private mailbox: SessionMailbox | null = null
+    private mailboxOwners = new Map<string, { sessionId: string; tab: BaseTabComponent; clientPid: number }>()
+    private navigationContext = ''
+
+    publishNavigationContext (context: string): void {
+        if (context === this.navigationContext) { return }
+        try {
+            fs.mkdirSync(this.mailboxRoot, { recursive: true })
+            fs.writeFileSync(path.join(this.mailboxRoot, 'navigation-context.txt'), context, 'utf8')
+            this.navigationContext = context
+        } catch (error) { diagCatch('navigation context', error) }
+    }
+
+    sessionIdOf (tab: BaseTabComponent): string | null {
+        const sessions = this.sessionIdsOf(tab)
+        return sessions.length === 1 ? sessions[0] : null
+    }
+
+    sessionIdsOf (tab: BaseTabComponent): string[] {
+        return [...new Set([...this.mailboxOwners.values()].filter(owner => owner.tab === tab).map(owner => owner.sessionId))]
+    }
+
+    private registerMailbox (sessionId: string, tab: BaseTabComponent, paneId: string | undefined): void {
+        if (!paneId || !(this.tabIds.get(tab) ?? []).includes(paneId)) { return }
+        const previous = this.mailboxOwners.get(paneId)
+        let clientPid = 0
+        try { clientPid = Number(fs.readFileSync(path.join(this.mailboxRoot, 'mailbox-connections', paneId + '.client'), 'utf8')) } catch {}
+        if (previous?.sessionId === sessionId && previous.clientPid === clientPid) { return }
+        try {
+            this.mailbox ??= new SessionMailbox(path.join(this.mailboxRoot, 'mailbox.json'))
+            if (previous && previous.sessionId !== sessionId) { this.mailbox.close(previous.sessionId) }
+            const credentials = this.mailbox.register(sessionId, tab.customTitle || tab.title || '', this.cwdOf(tab) || '')
+            const dir = path.join(this.mailboxRoot, 'mailbox-connections')
+            fs.mkdirSync(dir, { recursive: true })
+            for (const id of [paneId]) {
+                if (!/^[a-zA-Z0-9_-]+$/.test(id)) { continue }
+                fs.writeFileSync(path.join(dir, id + '.json'), JSON.stringify({ ...credentials, clientPid }), { mode: 0o600 })
+            }
+            this.mailboxOwners.set(paneId, { sessionId, tab, clientPid })
+        } catch (error) { diagCatch('mailbox register', error) }
+    }
     /** statusLine 래퍼(`hooks/agentdeck-statusline.mjs`)가 모델·계정·한도를 남기는 곳 */
     private metaDir = path.join(this.root, 'meta')
     /** 훅이 접속할 포트를 알려주는 파일 */
@@ -577,6 +622,9 @@ export class WorkNotifyService {
         })
         // 탭이 닫히면 점유를 풀어야 그 자리를 다음 세션이 쓸 수 있다
         this.app.tabClosed$.subscribe(tab => {
+            for (const [paneId, owner] of this.mailboxOwners) {
+                if (owner.tab === tab) { this.mailbox?.close(owner.sessionId); this.mailboxOwners.delete(paneId) }
+            }
             this.tabPids.delete(tab)
             this.tabIds.delete(tab)
             const sid = this.tabSession.get(tab)
@@ -708,7 +756,8 @@ export class WorkNotifyService {
             return
         }
         const id = newTabId()
-        pane.profile = { ...pane.profile, options: { ...pane.profile.options, env: { ...env, [TAB_ENV]: id } } }
+        pane.profile = { ...pane.profile, options: { ...pane.profile.options,
+            env: { ...env, [TAB_ENV]: id, AGENTDECK_MAILBOX_ROOT: this.mailboxRoot } } }
         if (pane.sessionOptions !== undefined) {
             pane.sessionOptions = pane.profile.options
         }
@@ -736,7 +785,8 @@ export class WorkNotifyService {
             return
         }
         const id = newTabId()
-        state.profile = { ...profile, options: { ...profile.options, env: { ...(profile.options.env ?? {}), [TAB_ENV]: id } } }
+        state.profile = { ...profile, options: { ...profile.options,
+            env: { ...(profile.options.env ?? {}), [TAB_ENV]: id, AGENTDECK_MAILBOX_ROOT: this.mailboxRoot } } }
         this.diag(`tabid stamp tab=${this.tabName(root)} id=${id} (recovery token)`)
     }
 
@@ -795,6 +845,15 @@ export class WorkNotifyService {
         }
     }
 
+    private retireMissingMailboxPanes (): void {
+        for (const [paneId, owner] of this.mailboxOwners) {
+            if (!(this.tabIds.get(owner.tab) ?? []).includes(paneId)) {
+                this.mailbox?.close(owner.sessionId)
+                this.mailboxOwners.delete(paneId)
+            }
+        }
+    }
+
     /** 진단용 */
     get debugDir (): string { return this.dir }
     /** 진단용 — 듣고 있는 포트 (0 = TCP 채널이 안 떴다) */
@@ -820,12 +879,13 @@ export class WorkNotifyService {
             socket.setEncoding('utf8')
             socket.on('data', chunk => {
                 buf += chunk
+                if (buf.length > 262144) { socket.destroy(); return }
                 // 훅이 여러 건을 몰아 보낼 수도 있으니 줄 단위로 끊어 처리한다
                 let nl: number
                 while ((nl = buf.indexOf('\n')) >= 0) {
                     const line = buf.slice(0, nl)
                     buf = buf.slice(nl + 1)
-                    this.accept(line)
+                    if (!this.acceptMailbox(line, socket)) { this.accept(line) }
                 }
             })
             // 개행 없이 끊는 훅도 받아 준다
@@ -857,6 +917,8 @@ export class WorkNotifyService {
             try {
                 fs.mkdirSync(this.root, { recursive: true })
                 fs.writeFileSync(this.portFile, String(this.debugPort), 'utf8')
+                fs.mkdirSync(this.mailboxRoot, { recursive: true })
+                fs.writeFileSync(path.join(this.mailboxRoot, 'port'), String(this.debugPort), 'utf8')
             } catch (e: any) {
                 // 포트를 못 알리면 훅은 파일 경로로 떨어진다 (느려지지만 동작은 한다)
                 diagCatch('notify port 파일 쓰기', e)
@@ -866,7 +928,23 @@ export class WorkNotifyService {
     }
 
     /** TCP 로 들어온 JSON 한 줄 */
+    private acceptMailbox (line: string, socket: net.Socket): boolean {
+        let request: any
+        try { request = JSON.parse(line) } catch { return false }
+        if (request?.channel !== 'agentdeck-mailbox') { return false }
+        try {
+            this.retireMissingMailboxPanes()
+            if (!this.mailbox) { throw new Error('No connected sessions') }
+            const result = this.mailbox.call(request.sessionId, request.token, request.method, request.arguments)
+            socket.write(JSON.stringify({ result }) + '\n')
+        } catch (error) {
+            socket.write(JSON.stringify({ error: String((error as Error).message) }) + '\n')
+        }
+        return true
+    }
+
     private accept (line: string): void {
+        // Hook reports are independent of authenticated mailbox commands.
         const text = line.trim()
         if (!text) {
             return
@@ -970,6 +1048,7 @@ export class WorkNotifyService {
             return
         }
         this.applied.set(data.sessionId, data.ts)
+        this.registerMailbox(data.sessionId, tab, data.tabId)
 
         // 누가 보냈나 — 온 보고마다 갱신한다. 같은 탭에서 CLI 를 바꿔 띄우면 그쪽 첫 보고가 덮는다
         const agent = String(data.agent ?? '').trim().toLowerCase()

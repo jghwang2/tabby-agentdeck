@@ -67,6 +67,7 @@ assert.equal(readHead([JSON.stringify({ type: 'session_meta', payload: { source:
             const base = { id: 'base', options: { cwd: 'original', env: { KEEP: 'yes', OPENAI_API_KEY: 'must-not-inherit' } } }
             let opened, sent, bound
             const host = {
+                syncSessionSlots: () => {}, sessionSlots: { full: false, occupied: 0 }, pendingSessionOpens: 0,
                 config: { store: { terminal: { profile: 'base' } } },
                 profiles: { getProfiles: async () => [base], openNewTabForProfile: async p => { opened = p; return tab } },
                 status: { setLabel: () => {} }, diag: () => {},

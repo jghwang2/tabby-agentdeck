@@ -76,8 +76,8 @@ check('deck.service 가 JUMP_SLOTS 를 nav 에서 가져온다 (순환 없는 �
 check('상한을 JUMP_SLOTS 로 건다 (선언에 없는 번호로 안 들어간다)',
     /slot > JUMP_SLOTS/.test(deckSrc), true)
 // 번호 이동은 순수 함수가 정한다 — 여기서 산술을 다시 적으면 그 사본이 낡는다(nav.ts 의 원칙)
-check('고를 탭은 pickJumpTarget 이 정한다',
-    /pickJumpTarget\(rows, slot\)/.test(deckSrc), true)
+check('고를 탭은 필터에 독립적인 고정 슬롯이 정한다',
+    /this\.sessionSlots\.get\(slot\)/.test(deckSrc), true)
 // 전환은 하되 키보드 내비게이션 모드로는 안 들어간다 — 들어가면 이어지는 타이핑이 터미널로 안 간다
 check('전환만 하고 목록에 포커스를 주지 않는다',
     /private jumpToRow[\s\S]{0,900}?selectTab\(tab\)/.test(deckSrc)

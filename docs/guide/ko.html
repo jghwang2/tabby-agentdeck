@@ -167,19 +167,9 @@
 </div>
 
 
-<h2 id="s6"><span class="n">06</span>순서 바꾸기</h2>
-
-<p>
-    사이드바 줄을 끌어 옮기면 <b>Tabby 순정 탭 순서도 함께</b> 바뀐다.
-    끌고 목록 위·아래 끝에 커서를 대고 있으면 <b>커서를 더 움직이지 않아도 목록이 흘러가서</b>,
-    탭이 많아 화면에 안 보이는 자리로도 한 손짓에 옮길 수 있다.
-</p>
-
-<div class="note">
-    상태순 정렬(<code>sortByStatus</code>)을 켜 두면 순서를 바꿀 수 없다 — 그때는 상태가 순서를
-    정하므로 옮겨도 다음 갱신에 제자리로 돌아간다. 끌면 <b>막고 이유를 알려준다</b>.
-</div>
-
+<h2 id="s6"><span class="n">06</span>고정 세션 번호</h2>
+<p>세션은 1~9 고정 번호를 사용합니다. 빈 번호만 재사용하며 필터·다른 세션 종료에도 번호를 유지합니다. 자동 정렬·드래그 이동은 하지 않습니다.</p>
+<p><a href="../SESSION-COMMUNICATION.md">세션 통신 MCP</a>는 실제 세션 ID로만 송수신합니다.</p>
 
 <h2 id="s7"><span class="n">07</span>결과물 미리보기</h2>
 
@@ -279,7 +269,7 @@
     <tr><td>서브에이전트 개수 보이기</td><td>켜짐</td><td>줄에 <code>❖3</code></td></tr>
     <tr><td>끌 때 목록 끝에서 저절로 흐르기</td><td>켜짐</td><td>드래그 자동 스크롤</td></tr>
     <tr><td>프로젝트로 묶기</td><td>켜짐</td><td>세션 그룹</td></tr>
-    <tr><td>상태순 정렬</td><td>꺼짐</td><td>급한 순서로 자동 정렬(켜면 순서 못 바꿈)</td></tr>
+    <tr><td>고정 번호</td><td>1~9</td><td>빈 번호만 재사용</td></tr>
     <tr><td>경과 시간 표시</td><td>켜짐</td><td>줄 오른쪽 <code>2분</code></td></tr>
 </table>
 
@@ -295,7 +285,7 @@
 <table>
     <tr><th>키</th><th>하는 일</th></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>작업 루트에 새 탭 (작업 루트 프로필 사용)</td></tr>
-    <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>9</kbd></td><td>사이드바 순서로 N 번째 세션으로 바로 이동</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> … <kbd>9</kbd></td><td>고정 번호 1~9로 이동</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>세션 목록에 포커스 / 같은 키로 터미널 복귀 — 이어서 <kbd>↑</kbd><kbd>↓</kbd> 이동, <kbd>Enter</kbd> 선택, <kbd>Esc</kbd> 나가기</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>지금 탭 닫기 (목록이 키보드를 가졌으면 포커스 줄)</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>미리보기 패널 여닫기</td></tr>

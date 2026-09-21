@@ -17,7 +17,7 @@ A 4:3 terminal, a session deck with live status, and a preview panel for what th
 | Key | What it does |
 |---|---|
 | `Ctrl+T` (⌘+T) | New tab in the work root |
-| `Ctrl+1` … `Ctrl+9` | Jump to the Nth session in sidebar order |
+| `Ctrl+1` … `Ctrl+9` | Select fixed session slot 1–9 (unchanged by filtering or closing another session) |
 | `Ctrl+L` | Focus the session list / same key returns to the terminal. Then `↑↓` walk, `Enter` picks, `Esc` leaves |
 | `Ctrl+W` | Close the current tab (the focused row when the list has the keyboard) |
 | `Ctrl+O` | Open / close the preview panel |
@@ -34,10 +34,19 @@ Two actions ship unbound: `agentdeck-toggle` (sidebar / 4:3 on-off) and `agentde
 Change any of them under **Settings → AgentDeck → Shortcuts** — a key already used by Tabby or AgentDeck is flagged before it is applied. Tabby Settings → Hotkeys → `agentdeck-*` works too.
 These are the defaults for new installs. Existing AgentDeck shortcuts stay as saved; use **Default** beside an action to adopt its new binding. Stock split shortcuts `Ctrl+Shift+S` / `Ctrl+Shift+D` switch to `Ctrl+S` / `Ctrl+D`; custom split bindings are preserved.
 
+## Search past conversations
+
+Expand **Past sessions** and use its search box to find a function name, error code, file name, or session ID. Search matches literal text without case sensitivity in saved Claude/Codex questions and answers. Select a result to preview the matching conversation; **Resume conversation** continues it. The active-tab filter remains separate.
+
+Search runs locally in a background Node.js process, with a disk cache refreshed when transcripts change. Node.js must be available on PATH. It requires no MCP connection or AI request. Tool output and system instructions are excluded. See [history search](docs/HISTORY-SEARCH.md) for scope and storage.
+
 ## Install
 
 Inside Tabby: Settings → Plugins → search `agentdeck` → Install → restart Tabby.
-Everything else — status, groups, preview panel, diff and commit, resuming sessions, settings — is in the
+Sessions use reusable fixed slots 1–9; automatic sorting and drag reordering are disabled.
+The optional [session communication MCP](docs/SESSION-COMMUNICATION.md) sends and receives by actual session ID only. Human numbers never address the MCP server.
+
+Everything else — status, preview panel, diff and commit, resuming sessions, settings — is in the
 [user guide](https://jghwang2.github.io/tabby-agentdeck/guide/) and the [full reference](docs/REFERENCE.md).
 
 Built and verified on Windows. MIT.
