@@ -1,5 +1,8 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 이름 (선택)": "Nome da conta (opcional)",
+    "목록에서 삭제": "Remover da lista",
+    "이메일 주소 전체를 입력하세요.": "Introduza o endereço de e-mail completo.",
     "계정 추가": "Adicionar conta",
     "계정 (이메일)": "Conta (e-mail)",
     "비밀번호": "Senha",

@@ -1,5 +1,8 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 이름 (선택)": "Kontonavn (valgfrit)",
+    "목록에서 삭제": "Fjern fra listen",
+    "이메일 주소 전체를 입력하세요.": "Indtast hele e-mailadressen.",
     "계정 추가": "Tilføj konto",
     "계정 (이메일)": "Konto (e-mail)",
     "비밀번호": "Adgangskode",

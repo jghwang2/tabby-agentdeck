@@ -1,5 +1,8 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 이름 (선택)": "Název účtu (volitelné)",
+    "목록에서 삭제": "Odebrat ze seznamu",
+    "이메일 주소 전체를 입력하세요.": "Zadejte celou e-mailovou adresu.",
     "계정 추가": "Přidat účet",
     "계정 (이메일)": "Účet (e-mail)",
     "비밀번호": "Heslo",

@@ -3,6 +3,9 @@ import { SIDEBAR_LOCALES } from './sidebarLocales'
 
 // UI copy only: never pass session titles, prompts, paths or account names here.
 const EN: Record<string, string> = {
+    "계정 이름 (선택)": "Account name (optional)",
+    "목록에서 삭제": "Remove from list",
+    "이메일 주소 전체를 입력하세요.": "Enter the full email address.",
     "계정 추가": "Add account",
     "계정 (이메일)": "Account (email)",
     "비밀번호": "Password",

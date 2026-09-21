@@ -17,7 +17,7 @@ import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent,
 import { STATUS_STYLES, WorkStatus } from './api'
 import { extractPrompt } from './prompt'
 import { formatMeta, MetaGauge, MetaInput } from './meta'
-import { readAccounts, addAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
+import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
@@ -4776,10 +4776,15 @@ export class AgentDeckService {
             if (popup.querySelector('.ad-account-form')) { return }
             const form = document.createElement('form')
             form.className = 'ad-account-form'
+            const nameLabel = document.createElement('label')
+            nameLabel.textContent = this.ui('계정 이름 (선택)')
+            const displayName = document.createElement('input')
+            displayName.type = 'text'; displayName.name = 'name'; displayName.autocomplete = 'off'
+            nameLabel.appendChild(displayName)
             const accountLabel = document.createElement('label')
             accountLabel.textContent = this.ui('계정 (이메일)')
             const id = document.createElement('input')
-            id.type = 'text'; id.name = 'account'; id.autocomplete = 'username'; id.required = true
+            id.type = 'email'; id.name = 'account'; id.autocomplete = 'username'; id.required = true
             accountLabel.appendChild(id)
             const passwordLabel = document.createElement('label')
             passwordLabel.textContent = this.ui('비밀번호')
@@ -4796,19 +4801,19 @@ export class AgentDeckService {
             const cancel = document.createElement('button')
             cancel.type = 'button'; cancel.textContent = this.ui('취소')
             cancel.onclick = () => { password.value = ''; form.remove(); add.focus() }
-            form.append(accountLabel, passwordLabel, notice, error, save, cancel)
+            form.append(nameLabel, accountLabel, passwordLabel, notice, error, save, cancel)
             form.onsubmit = event => {
                 event.preventDefault()
                 if (this.accountSwitchBusy) { return }
                 try {
-                    addAccount(provider, id.value, password.value)
+                    addAccount(provider, id.value, password.value, undefined, displayName.value)
                     password.value = ''
                     dismiss()
                     if (this.app.activeTab === tab) { void this.showAccountPicker() }
                 } catch (e: any) { error.textContent = this.ui(e.message) }
             }
             popup.insertBefore(form, message)
-            id.focus()
+            displayName.focus()
         }
         document.body.appendChild(popup)
         this.accountPopup = popup
@@ -4826,8 +4831,27 @@ export class AgentDeckService {
             const quota = document.createElement('span')
             quota.className = 'ad-now-gauges'
             quota.textContent = this.ui('잔량 조회 중…')
-            button.append(name, quota)
-            popup.appendChild(button)
+            const identity = document.createElement('span')
+            identity.className = 'ad-account-email'; identity.textContent = account.id
+            button.append(name, identity, quota)
+            const row = document.createElement('div')
+            row.className = 'ad-account-row'
+            const remove = document.createElement('button')
+            remove.type = 'button'; remove.className = 'ad-account-remove'
+            remove.textContent = this.ui('목록에서 삭제')
+            remove.setAttribute('aria-label', this.ui('목록에서 삭제') + ': ' + account.name)
+            remove.onclick = () => {
+                if (this.accountSwitchBusy) { return }
+                try {
+                    removeAccount(account)
+                    dismiss()
+                    if (this.app.activeTab === tab) { void this.showAccountPicker() }
+                } catch (e: any) { message.textContent = this.ui(e.message) }
+            }
+            row.append(button, remove); popup.appendChild(row)
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.id)) {
+                quota.textContent = this.ui('이메일 주소 전체를 입력하세요.'); button.disabled = true; continue
+            }
             try { prepareAccount(account, meta.configDir || undefined) } catch { quota.textContent = this.ui('계정 저장 폴더를 준비하지 못했습니다.'); button.disabled = true; continue }
             registerAccountSource(account, meta.configDir)
             const refresh = () => {

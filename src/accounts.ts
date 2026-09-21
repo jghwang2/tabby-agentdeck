@@ -20,9 +20,10 @@ export function readAccounts (file = ACCOUNTS_FILE): SavedAccount[] {
 }
 
 /** Add one local plaintext entry without replacing other accounts or their encrypted auth snapshots. */
-export function addAccount (provider: AccountProvider, id: string, password: string, file = ACCOUNTS_FILE): void {
+export function addAccount (provider: AccountProvider, id: string, password: string, file = ACCOUNTS_FILE, name = ''): void {
     id = id.trim()
     if (!id || !password) { throw new Error('계정과 비밀번호를 입력하세요.') }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) { throw new Error('이메일 주소 전체를 입력하세요.') }
     let data: any = {}
     try {
         if (fs.existsSync(file)) { data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) }
@@ -33,10 +34,29 @@ export function addAccount (provider: AccountProvider, id: string, password: str
     if (rows.some((row: any) => typeof row?.id === 'string' && row.id.trim().toLowerCase() === id.toLowerCase())) {
         throw new Error('이미 등록된 계정입니다.')
     }
-    data[provider] = [...rows, { name: id, id, password }]
+    data[provider] = [...rows, { name: name.trim() || id, id, password }]
     const temporary = file + '.' + process.pid + '.add.tmp'
     try {
         fs.mkdirSync(path.dirname(file), { recursive: true })
+        fs.writeFileSync(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 })
+        fs.renameSync(temporary, file)
+    } catch {
+        try { fs.unlinkSync(temporary) } catch { /* Nothing was written. */ }
+        throw new Error('계정을 저장하지 못했습니다. 다시 시도하세요.')
+    }
+}
+
+/** Remove the saved entry only. Running sessions may still use its native credential directory. */
+export function removeAccount (account: SavedAccount, file = ACCOUNTS_FILE): void {
+    let data: any
+    try {
+        data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''))
+        if (!Array.isArray(data?.[account.provider])) { throw new Error() }
+    } catch { throw new Error('계정 파일을 읽지 못했습니다. JSON 형식을 확인하세요.') }
+    data[account.provider] = data[account.provider].filter((row: any) =>
+        typeof row?.id !== 'string' || row.id.trim().toLowerCase() !== account.id.toLowerCase())
+    const temporary = file + '.' + process.pid + '.remove.tmp'
+    try {
         fs.writeFileSync(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 })
         fs.renameSync(temporary, file)
     } catch {
@@ -422,7 +442,8 @@ export async function authenticateAccount (account: SavedAccount): Promise<void>
         const client = new CodexAccountClient(account)
         try {
             await client.init()
-            const identity = await client.request('account/read', { refreshToken: true })
+            // Checking identity must not rotate refresh tokens behind a running CLI.
+            const identity = await client.request('account/read', { refreshToken: false })
             if (identity.account?.email?.toLowerCase() !== account.id.toLowerCase()) { throw new AccountRequestError('auth', '계정 확인이 필요합니다.') }
         } finally { client.close() }
     }

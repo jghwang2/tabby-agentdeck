@@ -40,11 +40,13 @@
             check(provider + ' empty submission rejected', !!form.querySelector('[role=alert]').textContent
                 && (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null) === before)
             const id = provider + '-fixture-' + Date.now() + '@example.test', password = 'fixture-only-password'
+            form.querySelector('[name=name]').value = 'Fixture display name'
             form.querySelector('[name=account]').value = id
             form.querySelector('[name=password]').value = password
             form.querySelector('[type=submit]').click(); await sleep(600)
             const saved = data()
             check(provider + ' actual plaintext disk write', saved[provider]?.some(row => row.id === id && row.password === password))
+            check(provider + ' display name saved and rendered', saved[provider]?.some(row => row.id === id && row.name === 'Fixture display name') && popup().textContent.includes('Fixture display name'))
             check(provider + ' saved account appears without exposing password', popup().textContent.includes(id) && !popup().textContent.includes(password))
             const snapshot = fs.readFileSync(file, 'utf8')
             popup().querySelector('.ad-account-add').click(); form = popup().querySelector('form')
@@ -52,9 +54,13 @@
             form.querySelector('[name=password]').value = 'must-not-overwrite'
             form.querySelector('[type=submit]').click(); await sleep(100)
             check(provider + ' duplicate keeps original file', !!form.querySelector('[role=alert]').textContent && fs.readFileSync(file, 'utf8') === snapshot)
+            form.querySelector('[type=button]').click()
+            const row = [...popup().querySelectorAll('.ad-account-row')].find(r => r.querySelector('.ad-account-email')?.textContent === id)
+            row.querySelector('.ad-account-remove').click(); await sleep(300)
+            check(provider + ' remove deletes saved entry and row', !data()[provider]?.some(r => r.id === id) && !popup().textContent.includes(id))
             popup().querySelector('.ad-account-close').click()
         }
-        check('both provider lists preserved', data().claude?.length > 0 && data().codex?.length > 0)
+        check('both provider lists preserved', Array.isArray(data().claude) && Array.isArray(data().codex))
     } finally {
         document.querySelector('.ad-account-picker .ad-account-close')?.click()
         for (const target of created) { try { fs.unlinkSync(target) } catch {} }

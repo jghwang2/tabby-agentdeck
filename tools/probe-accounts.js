@@ -13,7 +13,7 @@
     const panes = () => ad.app.tabs.flatMap(t => t.getAllTabs ? t.getAllTabs() : [t]).filter(t => t.frontend?.xterm)
     const originalTabs = new Set(ad.app.tabs)
     try {
-        for (const provider of ['claude', 'codex']) {
+        for (const [provider, accountIndex] of [['claude', 0], ['codex', 0], ['codex', 1]]) {
             document.querySelector('.ad-new').click(); await sleep(2000)
             const tab = panes()[panes().length - 1]
             const owner = ad.app.tabs.find(t => t === tab || t.getAllTabs?.().includes(tab))
@@ -51,7 +51,7 @@
                 ad.status.setManual(owner, 'running')
                 const before = new Set(ad.app.tabs)
                 const previousSession = tab.session
-                popup.querySelector('.ad-account-option').click()
+                popup.querySelectorAll('.ad-account-option')[accountIndex].click()
                 for (let i = 0; i < 60 && (!tab.session || tab.session === previousSession); i++) { await sleep(500) }
                 const switched = tab.session && tab.session !== previousSession
                 results.push({ test: provider + ' switches in the same active tab', pass: !!switched
@@ -77,7 +77,7 @@
                         provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'] })
                     document.querySelector('.ad-now-account').click()
                     await sleep(1000)
-                    const same = document.querySelector('.ad-account-option')
+                    const same = document.querySelectorAll('.ad-account-option')[accountIndex]
                     const session = tab.session
                     same?.click()
                     await sleep(1000)

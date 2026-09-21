@@ -2105,6 +2105,14 @@ body.agentdeck-active {
         &:hover, &:focus-visible { opacity: 1; background: #ffffff18; }
     }
     p { font-size: 13px; color: #bbc4d0; clear: both; }
+    .ad-account-row { margin-top: 10px; }
+    .ad-account-email { font-size: 12px; opacity: .8; overflow-wrap: anywhere; }
+    .ad-account-remove {
+        float: none; display: block; margin: 4px 0 0 auto; padding: 3px 7px;
+        color: inherit; background: transparent; border: 1px solid #59677b;
+        border-radius: 3px; font: inherit; font-size: 12px; cursor: pointer;
+        &:hover, &:focus-visible { border-color: #e06c75; }
+    }
     .ad-account-option {
         float: none;
         display: flex;

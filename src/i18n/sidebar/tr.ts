@@ -1,5 +1,8 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "계정 이름 (선택)": "Hesap adı (isteğe bağlı)",
+    "목록에서 삭제": "Listeden kaldır",
+    "이메일 주소 전체를 입력하세요.": "Tam e-posta adresini girin.",
     "계정 추가": "Hesap ekle",
     "계정 (이메일)": "Hesap (e-posta)",
     "비밀번호": "Parola",
