@@ -8,7 +8,7 @@ function isEmptyAccountConfig (value) {
     if (value && typeof value === 'object') return Object.values(value).every(isEmptyAccountConfig)
     return false
 }
-function collectLocalAccountSecrets (files, nativeFiles = []) {
+function collectLocalAccountSecrets (files, nativeFiles = [], includeAccountHomes = true) {
     const secrets = new Set(), accounts = new Set()
     const add = value => { if (typeof value === 'string' && value.length) secrets.add(value) }
     const read = file => {
@@ -35,7 +35,7 @@ function collectLocalAccountSecrets (files, nativeFiles = []) {
                 add(row.id.trim()); add(row.id.trim().toLowerCase()); add(row.password); add(row.auth?.data)
                 const key = createHash('sha256').update(identity).digest('hex').slice(0, 24)
                 const home = path.join(path.dirname(file), 'accounts', key)
-                tokens(read(path.join(home, provider === 'claude' ? '.credentials.json' : 'auth.json')))
+                if (includeAccountHomes) tokens(read(path.join(home, provider === 'claude' ? '.credentials.json' : 'auth.json')))
             }
         }
     }
@@ -54,13 +54,14 @@ if (require.main === module) {
     try {
         const args = process.argv.includes('--all') ? ['ls-files', '-z'] : ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z']
         const files = execFileSync('git', args, { encoding: 'utf8' }).split('\0').filter(Boolean)
+        const accountListOnly = process.argv.includes('--account-list-only')
         const { secrets, accountCount } = collectLocalAccountSecrets([
             path.join(os.homedir(), '.agentdeck', 'accounts.json'), process.env.AGENTDECK_ACCOUNTS_FILE,
-        ], [
+        ], accountListOnly ? [] : [
             path.join(os.homedir(), '.claude', '.credentials.json'), path.join(os.homedir(), '.codex', 'auth.json'),
             process.env.CLAUDE_CONFIG_DIR && path.join(process.env.CLAUDE_CONFIG_DIR, '.credentials.json'),
             process.env.CODEX_HOME && path.join(process.env.CODEX_HOME, 'auth.json'),
-        ])
+        ], !accountListOnly)
         let rejected = false
         for (const file of files) {
             const content = execFileSync('git', ['show', ':' + file], { maxBuffer: 64 * 1024 * 1024 })

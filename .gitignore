@@ -9,3 +9,8 @@ account.json
 accounts.json
 account.json.*.tmp
 accounts.json.*.tmp
+# Local authentication stores must never be published.
+.agentdeck/
+accounts/
+auth.json
+.credentials.json

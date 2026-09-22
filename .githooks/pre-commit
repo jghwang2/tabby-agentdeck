@@ -1,0 +1,4 @@
+#!/bin/sh
+node tools/check-account-files.js || exit 1
+# Check registered IDs/passwords without opening other sessions' native token stores.
+node tools/check-account-secrets.js --account-list-only
