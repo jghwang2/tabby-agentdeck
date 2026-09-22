@@ -135,6 +135,7 @@
     const runHook = (opt) => new Promise(resolve => {
         const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', hookPath].concat(opt.args || [])
         const env = Object.assign({}, process.env, { LOCALAPPDATA: opt.lad || isoLad })
+        env.AGENTDECK_MAILBOX_ROOT = nodePath.join(opt.lad || isoLad, 'tabby-agentdeck')
         if (opt.tabId) { env.AGENTDECK_TAB = opt.tabId } else { delete env.AGENTDECK_TAB }
         let p = null
         try {
@@ -341,9 +342,16 @@
             installed.error = String((e && e.message) || e)
         }
 
+        // Probe the loaded build's hooks, not the user's globally installed older copy.
+        let loadedRoot = null
+        try {
+            if (process.env.TABBY_CONFIG_DIRECTORY?.includes('tabby-agentdeck-test')) {
+                loadedRoot = nodeFs.realpathSync(nodePath.join(nodePath.dirname(process.env.TABBY_CONFIG_DIRECTORY), 'ud/plugins/node_modules/tabby-agentdeck'))
+            }
+        } catch {}
         hookPath = (params && params.hookPath) || (params && params.root
             ? nodePath.join(params.root, 'hooks', 'agentdeck-notify.ps1')
-            : installed.script)
+            : loadedRoot ? nodePath.join(loadedRoot, 'hooks', 'agentdeck-notify.ps1') : installed.script)
         hooksDir = (params && params.hooksDir) || (params && params.root
             ? nodePath.join(params.root, 'hooks')
             : (hookPath ? nodePath.dirname(hookPath) : null))
@@ -438,14 +446,18 @@
             const stOk = !!j && j.status === 'running'
             const tabOk = !!j && j.tabId === (chosenId || 'hk-no-tab')
             const noPids = !!j && j.pids === undefined
-            const quiet = r1.run.ok && String(r1.run.out || '').trim() === '' && String(r1.run.err || '').trim() === ''
+            let promptContext = null
+            try { promptContext = JSON.parse(r1.run.out).hookSpecificOutput } catch {}
+            const quiet = r1.run.ok && promptContext?.hookEventName === 'UserPromptSubmit'
+                && /AgentDeck live UI snapshot/.test(promptContext.additionalContext)
+                && String(r1.run.err || '').trim() === ''
             const exitOk = r1.run.ok && r1.run.code === 0
             const pass = !!j && idOk && stOk && tabOk && tsOk && bomFree && noPids && quiet && exitOk
             add('HK1', nameOf('HK1'), pass,
                 pass
                     ? `훅을 격리 LOCALAPPDATA 로 실제 실행하니 ${g.file} 이 생기고`
                         + ` {sessionId,status,ts,tabId} 가 규격대로다 (BOM 없음 · tabId 가 있어 pids 미포함`
-                        + ' · stdout/stderr 침묵 · exit 0)'
+                        + ' · 프롬프트 탭 목록 전달 · stderr 침묵 · exit 0)'
                     : `상태 파일이 규격과 다르다 (있나=${!!j} sessionId=${idOk} status=${j ? j.status : 'n/a'}`
                         + ` tabId=${j ? j.tabId : 'n/a'} ts타당=${tsOk} BOM없음=${bomFree} pids미포함=${noPids}`
                         + ` 조용함=${quiet} exit=${r1.run.code} 오류=${r1.run.spawnError || g.error || ''})`,

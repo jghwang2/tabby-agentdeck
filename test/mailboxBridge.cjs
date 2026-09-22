@@ -19,6 +19,10 @@ const server = net.createServer(socket => {
         buffer += data
         if (!buffer.includes('\n')) return
         const request = JSON.parse(buffer.slice(0, buffer.indexOf('\n')))
+        if (request.channel === 'agentdeck-navigation') {
+            socket.write(JSON.stringify({result:{capturedAt:new Date().toISOString(), context:'Human slot 1: session IDs actual-a\nHuman slot 2: tab open; session not registered'}})+'\n')
+            return
+        }
         try {
             assert.equal(request.channel, 'agentdeck-mailbox')
             assert.equal(typeof request.sessionId, 'string')
@@ -58,6 +62,26 @@ function client (pane, sid) {
 async function run () {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
     fs.writeFileSync(path.join(root, 'port'), String(server.address().port))
+    async function invoke (args, env) {
+        const child = spawn(process.execPath, [bridge, ...args], {env, windowsHide:true})
+        children.push(child)
+        let stdout = ''; child.stdout.on('data', data => { stdout += data })
+        const code = await timeout(new Promise(resolve => child.on('exit', resolve)))
+        return {code, stdout}
+    }
+    const plainEnv = {...process.env, AGENTDECK_MAILBOX_ROOT:root, AGENTDECK_TAB:'plain-pane'}
+    const withoutMcp = await invoke(['--hook','actual-plain','UserPromptSubmit'], plainEnv)
+    assert.equal(withoutMcp.code,0)
+    assert.match(JSON.parse(withoutMcp.stdout).hookSpecificOutput.additionalContext,/Human slot 2: tab open/)
+    assert.match(withoutMcp.stdout,/Mailbox not registered/)
+    fs.mkdirSync(path.join(root,'mailbox-connections'),{recursive:true})
+    fs.writeFileSync(path.join(root,'mailbox-connections','plain-pane.json'),JSON.stringify({...mailbox.register('actual-plain','Plain','/project'),clientPid:0}))
+    const registered = await invoke(['--hook','actual-plain','UserPromptSubmit'],plainEnv)
+    assert.match(registered.stdout,/Mailbox registered/)
+    assert.match(registered.stdout,/--cli actual-plain receive/)
+    const cliRead = await invoke(['--cli','actual-plain','receive'],plainEnv)
+    assert.deepEqual(JSON.parse(cliRead.stdout),{result:[]})
+    assert.equal((await invoke(['--cli','wrong-session','receive'],plainEnv)).code,1)
     const a = client('pane-a', 'actual-a'), b = client('pane-b', 'actual-b')
     for (const c of [a, b]) {
         const init = await c.call('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
@@ -71,6 +95,13 @@ async function run () {
     const sent = JSON.parse((await tool(a, 'send', { toSessionId: 'actual-b', body: '리뷰 부탁', requestKey: 'one' })).content[0].text)
     assert.equal(sent.fromSessionId, 'actual-a')
     assert.equal(JSON.parse((await tool(b, 'receive')).content[0].text)[0].id, sent.id)
+    const cliMessage = path.join(root,'send.json')
+    fs.writeFileSync(cliMessage,JSON.stringify({toSessionId:'actual-a',body:'CLI 수신 확인',requestKey:'plain-one'}))
+    const cliSent = await invoke(['--cli','actual-plain','send',cliMessage],plainEnv)
+    assert.equal(JSON.parse(cliSent.stdout).result.fromSessionId,'actual-plain')
+    const receivedPlain = JSON.parse((await tool(a,'receive')).content[0].text).find(x=>x.fromSessionId==='actual-plain')
+    assert.ok(receivedPlain)
+    await tool(a,'acknowledge',{messageId:receivedPlain.id,completed:true})
     const hook = spawn(process.execPath, [bridge, '--hook', 'actual-b', 'PostToolUse'], { env: b.env, windowsHide: true })
     let hookOutput = ''; hook.stdout.on('data', data => { hookOutput += data })
     await timeout(new Promise(resolve => hook.on('exit', resolve)))
@@ -85,6 +116,11 @@ async function run () {
     mailbox.close('actual-b')
     assert.equal((await tool(a, 'send', { toSessionId: 'actual-b', body: 'late', requestKey: 'two' })).isError, true)
     assert.equal((await tool(a, 'send', { slot: 2 })).isError, true)
+    fs.writeFileSync(path.join(root, 'port'), '1')
+    fs.writeFileSync(path.join(root, 'navigation-context.txt'), 'STALE SLOT MUST NOT BE USED')
+    const offline = await invoke(['--hook', 'actual-plain', 'UserPromptSubmit'], plainEnv)
+    assert.match(offline.stdout, /live UI snapshot unavailable/)
+    assert.ok(!offline.stdout.includes('STALE SLOT MUST NOT BE USED'))
     console.log('PASS: two real MCP stdio processes, TCP send/receive/reply, hook additionalContext, disk restart, closed-session error and no slot addressing')
 }
 run().catch(error => { console.error(error); process.exitCode = 1 }).finally(() => {

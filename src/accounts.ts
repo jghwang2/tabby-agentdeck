@@ -211,7 +211,7 @@ export function prepareAccount (account: SavedAccount, sourceHome?: string): voi
         fs.writeFileSync(path.join(dest, '.claude.json'), JSON.stringify({ ...defaults, ...current }), { mode: 0o600 })
     }
     const files = account.provider === 'claude'
-        ? ['settings.json', 'settings.local.json', 'CLAUDE.md'] : ['config.toml', 'AGENTS.md']
+        ? ['settings.json', 'settings.local.json', 'CLAUDE.md'] : ['config.toml', 'hooks.json', 'AGENTS.md']
     for (const name of files) {
         const target = path.join(dest, name)
         if (fs.existsSync(path.join(source, name)) && !fs.existsSync(target)) {

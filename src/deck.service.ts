@@ -377,6 +377,7 @@ export class AgentDeckService {
     private pendingSessionOpens = 0
 
     private syncSessionSlots (): void {
+        this.notify.setNavigationRefresh(() => this.syncSessionSlots())
         const tabs = this.app.tabs.filter(tab => !(tab instanceof SettingsTabComponent))
         const panes = (tab: any): any[] => typeof tab.getAllTabs === 'function' ? tab.getAllTabs() : [tab]
         this.sessionSlots.reconcile(tabs, tab => {
@@ -396,8 +397,11 @@ export class AgentDeckService {
         this.notify.publishNavigationContext(tabs.map(tab => {
             const slot = this.sessionSlots.numberOf(tab)
             const sessionIds = this.notify.sessionIdsOf(tab)
-            return slot !== null && sessionIds.length ? `Human slot ${slot}: session IDs ${sessionIds.join(', ')}`
-                + (sessionIds.length > 1 ? ' (split panes: ask which session; never choose by last activity)' : '') : ''
+            return `Human slot ${slot ?? 'unassigned'}: `
+                + (sessionIds.length ? `session IDs ${sessionIds.join(', ')}` : 'tab open; session not registered (not addressable yet)')
+                + `; title=${JSON.stringify(String(tab.customTitle || tab.title || '').slice(0, 160))}`
+                + `; ${this.notify.mailboxConnectionState(tab)}`
+                + (sessionIds.length > 1 ? ' (split panes: ask which session; never choose by last activity)' : '')
         }).filter(Boolean).join('\n'))
         const newButton = this.sidebar?.querySelector('.ad-new') as HTMLButtonElement | null
         if (newButton) {

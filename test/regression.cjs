@@ -180,13 +180,18 @@ try {
     fs.writeFileSync(config, '{broken')
     assert.throws(() => setCodexHooks(true))
     assert.equal(fs.readFileSync(config, 'utf8'), '{broken')
-    const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_TAB: 'test-tab' }
+    const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
     const report = event => {
         const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
             input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,
         })
         assert.equal(result.status, 0, result.error?.message || result.stderr)
-        assert.equal(result.stdout.trim(), '')
+        if (event === 'UserPromptSubmit') {
+            const context = JSON.parse(result.stdout).hookSpecificOutput
+            assert.equal(context.hookEventName, event)
+            assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
+            assert.match(context.additionalContext, /test-session/)
+        } else { assert.equal(result.stdout.trim(), '') }
         return JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/test-session.json'), 'utf8'))
     }
     for (const [event, status] of [['UserPromptSubmit', 'running'], ['Stop', 'done'], ['PermissionRequest', 'waiting'], ['PostToolUse', 'running'], ['Interrupt', 'idle']]) {
@@ -203,7 +208,12 @@ try {
             encoding: 'utf8', env, timeout: 10000,
         })
         assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout.trim(), '')
+        if (event === 'UserPromptSubmit') {
+            const context = JSON.parse(result.stdout).hookSpecificOutput
+            assert.equal(context.hookEventName, event)
+            assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
+            assert.match(context.additionalContext, /claude-test/)
+        } else { assert.equal(result.stdout.trim(), '') }
         const data = JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/claude-test.json'), 'utf8'))
         assert.equal(data.tabId, 'test-tab')
         return data.status
@@ -215,7 +225,7 @@ try {
     assert.equal(claudeReport('Notification', 'waiting', { message: 'waiting for your input' }), 'done')
     assert.equal(claudeReport('StopFailure', 'error', { error: 'rate_limit' }), 'limited')
     assert.equal(claudeReport('StopFailure', 'error', { error: 'server_error' }), 'error')
-    console.log('PASS: Claude lifecycle transport, approval, idle filtering, rate limit, error; stdout remains empty')
+    console.log('PASS: Claude lifecycle transport, approval, idle filtering, rate limit, error; prompt context without MCP')
     console.log('PASS: routing/IME order, Codex repair guard, hook merge preservation/idempotence, malformed config, PowerShell lifecycle transport')
 } finally {
     if (oldHome === undefined) delete process.env.CODEX_HOME

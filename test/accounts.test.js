@@ -79,14 +79,21 @@ assert.ok(fs.readFileSync(path.join(source, '.claude.json'), 'utf8').includes('s
     fs.writeFileSync(path.join(market, 'neo', 'README.md'), '한글')
     fs.mkdirSync(path.join(market, 'broken'))
     fs.mkdirSync(path.join(market, '.staging', 'marketplace-upgrade-x'), { recursive: true })
+    const hookFixture = '{"hooks":{"UserPromptSubmit":[]}}'
+    fs.writeFileSync(path.join(codexSource, 'hooks.json'), hookFixture)
     prepareAccount(accounts[1], codexSource)
+    const accountHooks = path.join(accountHome(accounts[1]), 'hooks.json')
+    assert.equal(fs.readFileSync(accountHooks, 'utf8'), hookFixture)
     await pendingMarketplaceSeed(accountHome(accounts[1]))
     const seeded = path.join(accountHome(accounts[1]), '.tmp', 'marketplaces')
     assert.equal(fs.readFileSync(path.join(seeded, 'neo', 'README.md'), 'utf8'), '한글')
     assert.equal(fs.readFileSync(path.join(seeded, 'neo', '.git', 'objects', 'pack'), 'utf8'), 'PACK')
     assert.deepEqual(fs.readdirSync(seeded), ['neo'])  // no .staging, no clone without .git, no partial copy left
     fs.writeFileSync(path.join(seeded, 'neo', 'README.md'), 'account-updated')
+    fs.writeFileSync(accountHooks, '{"hooks":{},"local":true}')
     prepareAccount(accounts[1], codexSource)
+    assert.equal(fs.readFileSync(accountHooks, 'utf8'), '{"hooks":{},"local":true}')
+    assert.equal(fs.readFileSync(path.join(codexSource, 'hooks.json'), 'utf8'), hookFixture)
     await pendingMarketplaceSeed(accountHome(accounts[1]))
     assert.equal(fs.readFileSync(path.join(seeded, 'neo', 'README.md'), 'utf8'), 'account-updated')  // existing clone kept
     fs.chmodSync(path.join(seeded, 'neo', '.git', 'objects', 'pack'), 0o666)

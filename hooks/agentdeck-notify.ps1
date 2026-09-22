@@ -14,8 +14,8 @@
   입력창을 직접 읽어 무조건 갱신하므로(enterAsLabel) 여기서 건드리면 되돌리기만 한다.
   예외는 사람이 셸에서 `-Label` 로 직접 지정할 때뿐.
 
-  stdout 으로 아무것도 내보내지 않는다 — UserPromptSubmit 훅의 stdout 은
-  프롬프트 컨텍스트로 주입되기 때문이다.
+  UserPromptSubmit에서는 현재 탭 목록을 구조화된 additionalContext로 반환한다.
+  PostToolUse에서는 대기 메시지가 있을 때만 같은 방식으로 알린다.
 
 .PARAMETER Status
   running(진행중) / waiting(승인대기) / limited(한도 도달) / done(완료) / error(오류) / idle(대기)
@@ -106,15 +106,8 @@ if ($hook -and $hook.session_id) {
     if ($recent) { $targetId = [System.IO.Path]::GetFileNameWithoutExtension($recent.Name) }
 }
 if (-not $targetId) { $targetId = 'default' }
-# Optional mailbox context is emitted only when this pane has an initialized MCP
-# client. No PTY input is injected; idle/approval sessions remain untouched.
-if ($hook -and $env:AGENTDECK_TAB -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name) {
-    $mailRoot = if ($env:AGENTDECK_MAILBOX_ROOT) { $env:AGENTDECK_MAILBOX_ROOT } else { Join-Path $env:LOCALAPPDATA 'tabby-agentdeck' }
-    $mailMarker = Join-Path $mailRoot ('mailbox-connections\' + $env:AGENTDECK_TAB + '.client')
-    if (Test-Path -LiteralPath $mailMarker) {
-        & node (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') --hook $targetId ([string]$hook.hook_event_name) 2>$null
-    }
-}
+# Register this prompt/tool boundary before asking for its live navigation context.
+$mailContext = $hook -and $env:AGENTDECK_TAB -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name
 # 파일명에 못 쓰는 문자 제거
 $safeId = ($targetId -replace '[^A-Za-z0-9._-]', '_')
 $file = Join-Path $dir "$safeId.json"
@@ -163,7 +156,7 @@ if ($hook -and $hook.tool_input -and $hook.tool_input.file_path) {
 # 세션은 이미 탭에 묶여 있어 sessionId 만으로 찾아간다(notify.service `resolveTab` 의 `alive`).
 # **서브에이전트 이벤트도 건너뛰지 않는다** — 하나 빠지면 개수가 영구히 어긋난다(start 를 놓치면
 # 적게, stop 을 놓치면 많게 굳는다). 이쪽도 계보 조회는 하지 않는다(아래 tabId 분기).
-if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailMarker) { exit 0 }
+if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailContext) { exit 0 }
 
 # --- 어느 탭인가: tabId (1순위) / 프로세스 계보 pids (폴백) ---
 # 사이드바가 이 보고를 어느 탭에 붙일지 정하는 근거. 예전 규칙 "처음 보고할 때의 활성 탭" 은
@@ -366,7 +359,7 @@ Remove-Item $tmp -Force
 # Tabby 의 WorkNotifyService 가 127.0.0.1 임의 포트로 듣고 그 번호를 port 파일에 적어 둔다.
 # 여기로 JSON 한 줄을 보내면 폴링을 기다리지 않고 사이드바가 바로 바뀐다.
 # 실패는 전부 무시한다 — Tabby 가 안 떠 있거나 포트가 바뀐 것뿐이고, 위에 쓴 파일을 폴링이 주워 간다.
-$portFile = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck\port'
+$portFile = if ($env:AGENTDECK_MAILBOX_ROOT) { Join-Path $env:AGENTDECK_MAILBOX_ROOT 'port' } else { Join-Path $env:LOCALAPPDATA 'tabby-agentdeck\port' }
 if (Test-Path $portFile) {
     try {
         $port = [int]((Get-Content -Raw $portFile).Trim())
@@ -383,5 +376,8 @@ if (Test-Path $portFile) {
             $client.Close()
         }
     } catch { }
+}
+if ($mailContext) {
+    & node (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') --hook $targetId ([string]$hook.hook_event_name) 2>$null
 }
 exit 0

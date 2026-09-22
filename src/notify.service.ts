@@ -296,6 +296,22 @@ export class WorkNotifyService {
     private mailbox: SessionMailbox | null = null
     private mailboxOwners = new Map<string, { sessionId: string; tab: BaseTabComponent; clientPid: number }>()
     private navigationContext = ''
+    private navigationRefresh: (() => void) | null = null
+
+    setNavigationRefresh (refresh: () => void): void { this.navigationRefresh = refresh }
+
+    mailboxConnectionState (tab: BaseTabComponent): string {
+        const owners = [...this.mailboxOwners.entries()].filter(([, owner]) => owner.tab === tab)
+        if (!owners.length) { return 'mailbox=not registered; MCP=not connected' }
+        return owners.map(([pane, owner]) => {
+            let connected = false
+            try {
+                const pid = Number(fs.readFileSync(path.join(this.mailboxRoot, 'mailbox-connections', pane + '.client'), 'utf8'))
+                if (pid > 0 && pid === owner.clientPid) { process.kill(pid, 0); connected = true }
+            } catch {}
+            return `session ${owner.sessionId}: mailbox=registered; MCP=${connected ? 'connected' : 'not connected (CLI transport available)'}`
+        }).join('; ')
+    }
 
     publishNavigationContext (context: string): void {
         if (context === this.navigationContext) { return }
@@ -931,6 +947,14 @@ export class WorkNotifyService {
     private acceptMailbox (line: string, socket: net.Socket): boolean {
         let request: any
         try { request = JSON.parse(line) } catch { return false }
+        if (request?.channel === 'agentdeck-navigation') {
+            try {
+                this.retireMissingMailboxPanes()
+                this.navigationRefresh?.()
+                socket.write(JSON.stringify({ result: { capturedAt: new Date().toISOString(), context: this.navigationContext } }) + '\n')
+            } catch { socket.write(JSON.stringify({ error: 'Navigation snapshot unavailable' }) + '\n') }
+            return true
+        }
         if (request?.channel !== 'agentdeck-mailbox') { return false }
         try {
             this.retireMissingMailboxPanes()
