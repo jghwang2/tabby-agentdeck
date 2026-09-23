@@ -1,5 +1,5 @@
 import * as fs from 'fs'
-import * as os from 'os'
+import { agentHome } from './storagePaths'
 import * as path from 'path'
 
 const MARK = 'agentdeck-codex-notify.ps1'
@@ -7,12 +7,12 @@ const MARK = 'agentdeck-codex-notify.ps1'
 export const CODEX_EVENTS = ['UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'Interrupt', 'SessionEnd']
 
 export function codexHooksPath (): string {
-    return path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'hooks.json')
+    return path.join(agentHome('codex'), 'hooks.json')
 }
 
 /** Codex 가 훅 신뢰 상태를 적어 두는 곳 — `hooks.json` 과 **다른 파일**이다 */
 export function codexConfigPath (): string {
-    return path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml')
+    return path.join(agentHome('codex'), 'config.toml')
 }
 
 /**

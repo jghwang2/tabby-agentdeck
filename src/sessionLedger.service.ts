@@ -3,6 +3,7 @@ import { ConfigService } from 'tabby-core'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { agentHome } from './storagePaths'
 
 import { diagCatch } from './diag'
 import { HistorySource } from './sessionSearch'
@@ -34,7 +35,7 @@ export class SessionLedgerService {
     )
     private file = path.join(this.root, 'sessions.json')
     /** Claude Code 대화기록이 사는 곳 (`notify.service` 와 같은 자리) */
-    private projectsDir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects')
+    private get projectsDir (): string { return path.join(agentHome('claude'), 'projects') }
 
     /** 세션 id -> 원장 한 줄. 사람이 친 라벨이 여기 남는다 */
     private ledger = new Map<string, SessionRecord>()
@@ -238,7 +239,7 @@ export class SessionLedgerService {
                 } catch { /* File removed during scan. */ }
             }
         }
-        await scanCodex(path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions'), 0)
+        await scanCodex(path.join(agentHome('codex'), 'sessions'), 0)
 
         found.sort((a, b) => b.mtime - a.mtime)
         this.historyFiles = found.map(f => ({file: f.file, sessionId: f.sessionId, agent: f.agent || 'claude'}))

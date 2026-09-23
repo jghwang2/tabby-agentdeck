@@ -6,6 +6,7 @@ import { createHash } from 'crypto'
 import { SavedAccount, AccountQuota, AccountRequestError, accountHome, accountEmail, readAccounts,
     restoreAccountAuth, saveAccountAuth, authenticateAccount, fetchAccountQuotas } from './accounts'
 import { MetaInput } from './meta'
+import { agentHome } from './storagePaths'
 
 function read (file: string): any {
     try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) } catch { return null }
@@ -40,7 +41,7 @@ export function synchronizeClaudeAuth (account: SavedAccount): string {
     const dest = accountHome(account)
     if (account.provider !== 'claude') { return dest }
     const candidates = [...new Set([dest, ...(sources.get(account.key) || []),
-        ...(process.env.CLAUDE_CONFIG_DIR ? [process.env.CLAUDE_CONFIG_DIR] : []), path.join(os.homedir(), '.claude')])]
+        agentHome('claude'), ...(process.env.CLAUDE_CONFIG_DIR ? [process.env.CLAUDE_CONFIG_DIR] : []), path.join(os.homedir(), '.claude')])]
     const matching = candidates.map(home => ({ home, profile: profileAt(home), credentials: read(path.join(home, '.credentials.json')) }))
         .filter(x => String(x.profile?.emailAddress || '').toLowerCase() === account.id.toLowerCase() && x.credentials?.claudeAiOauth?.accessToken)
         .sort((a, b) => Number(b.credentials.claudeAiOauth.expiresAt || 0) - Number(a.credentials.claudeAiOauth.expiresAt || 0))

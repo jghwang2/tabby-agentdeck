@@ -1,7 +1,8 @@
 import { NgModule } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
-import TabbyCoreModule, { ConfigProvider, HotkeyProvider } from 'tabby-core'
+import TabbyCoreModule, { AppService, ConfigProvider, ConfigService, HotkeyProvider } from 'tabby-core'
+import { configureStoragePaths } from './storagePaths'
 import { SettingsTabProvider } from 'tabby-settings'
 import { TerminalDecorator } from 'tabby-terminal'
 
@@ -50,7 +51,13 @@ export default class AgentDeckModule {
         update: AgentDeckUpdateService,
         reload: AgentDeckReloadService,
         devReload: AgentDeckDevReloadService,
+        config: ConfigService,
+        app: AppService,
     ) {
+        app.ready$.subscribe(() => {
+            configureStoragePaths(config.store.agentDeck)
+            notify.configureStorageRoots()
+        })
         // 서비스 모두 app.ready$ 를 기다렸다가 스스로 붙는다.
         // alert 는 deck 이 만드는 `__agentdeck` 에 붙으므로 deck 뒤에 둔다
         deck.init()

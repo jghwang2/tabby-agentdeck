@@ -19,6 +19,7 @@ import { STATUS_STYLES, WorkStatus } from './api'
 import { extractPrompt } from './prompt'
 import { formatMeta, MetaGauge, MetaInput } from './meta'
 import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
+import { storageEnvironment } from './storagePaths'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
@@ -4462,7 +4463,11 @@ export class AgentDeckService {
             const wanted = this.config.store.terminal.profile
             const profiles = await this.profiles.getProfiles()
             const profile = profiles.find(p => p.id === wanted) ?? profiles[0]
-            if (profile) { await this.profiles.openNewTabForProfile(profile) }
+            if (profile) {
+                const options = (profile as any).options || {}
+                await this.profiles.openNewTabForProfile({ ...profile,
+                    options: { ...options, env: storageEnvironment(options.env) } } as any)
+            }
         } finally { this.pendingSessionOpens-- }
     }
 
@@ -6594,7 +6599,8 @@ export class AgentDeckService {
             // 새 탭이 전부 그 폴더에서 열린다
             const profile: any = {
                 ...base,
-                options: { ...(base as any).options, cwd: row.cwd || (base as any).options?.cwd },
+                options: { ...(base as any).options, cwd: row.cwd || (base as any).options?.cwd,
+                    env: storageEnvironment((base as any).options?.env) },
             }
             if (account) {
                 profile.options.env = { ...(base as any).options?.env,

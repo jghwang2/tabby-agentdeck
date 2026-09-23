@@ -1,5 +1,5 @@
 import * as fs from 'fs'
-import * as os from 'os'
+import { agentHome } from './storagePaths'
 import * as path from 'path'
 
 /**
@@ -51,7 +51,7 @@ const PLAN: { event: string, args: string }[] = [
 ]
 
 export function claudeSettingsPath (): string {
-    return path.join(os.homedir(), '.claude', 'settings.json')
+    return path.join(agentHome('claude'), 'settings.json')
 }
 
 /** 훅 스크립트의 실제 경로. dist/index.js 기준으로 한 단계 위가 패키지 뿌리다 */

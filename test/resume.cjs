@@ -40,14 +40,15 @@ assert.equal(readHead([JSON.stringify({ type: 'session_meta', payload: { source:
 ;(async () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-resume-'))
     const oldHome = process.env.CODEX_HOME
+    const oldClaudeHome = process.env.CLAUDE_CONFIG_DIR
     try {
         process.env.CODEX_HOME = temp
+        process.env.CLAUDE_CONFIG_DIR = path.join(temp, 'missing-claude')
         const dir = path.join(temp, 'sessions', '2026', '09', '13')
         fs.mkdirSync(dir, { recursive: true })
         fs.writeFileSync(path.join(dir, `rollout-2026-09-13T18-41-53-${sid}.jsonl`), lines.join('\n'))
         const service = new SessionLedgerService({ store: { agentDeck: { resumeListDays: 7 } } })
         service.file = path.join(temp, 'ledger.json')
-        service.projectsDir = path.join(temp, 'missing-claude')
         await service.refresh(true)
         const rows = service.records()
         assert.equal(rows.length, 1)
@@ -91,6 +92,8 @@ assert.equal(readHead([JSON.stringify({ type: 'session_meta', payload: { source:
     } finally {
         if (oldHome === undefined) delete process.env.CODEX_HOME
         else process.env.CODEX_HOME = oldHome
+        if (oldClaudeHome === undefined) delete process.env.CLAUDE_CONFIG_DIR
+        else process.env.CLAUDE_CONFIG_DIR = oldClaudeHome
         fs.rmSync(temp, { recursive: true, force: true })
     }
 })().catch(e => { console.error(e); process.exitCode = 1 })

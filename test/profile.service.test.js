@@ -226,6 +226,20 @@ check('프로필 id 는 고정 (바뀌면 기존 사용자에게 두 번째 프�
     check('profiles 가 없으면 만들어 넣는다', cfg.store.profiles.length, 1)
 }
 
+{
+    const cfg = fakeConfig({ rootProfile: true, rootProfileCwd: 'D:/Old', rootProfileName: 'Work' })
+    run(cfg)
+    const profile = cfg.store.profiles[0]
+    profile.options.env = { KEEP: 'yes' }
+    profile.options.args = ['-NoLogo']
+    cfg.store.agentDeck.rootProfileCwd = 'E:/New'
+    new AgentDeckProfileService({}, cfg).applySettings()
+    check('Explicit settings edit updates an existing working folder', profile.options.cwd, 'E:/New')
+    check('Explicit folder edit preserves shell arguments', profile.options.args[0], '-NoLogo')
+    check('Explicit folder edit preserves environment', profile.options.env.KEEP, 'yes')
+    check('Explicit folder edit does not duplicate profiles', cfg.store.profiles.length, 1)
+}
+
 console.log(`\nprofile.service: ${pass} passed, ${fail} failed`)
 if (fail) {
     process.exit(1)

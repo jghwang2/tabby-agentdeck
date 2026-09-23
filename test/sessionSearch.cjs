@@ -66,6 +66,7 @@ async function main () {
         try { assert.equal((await subprocess.search([claude],'a.b[0]')).hits.length,1) }
         finally {subprocess.cancel()}
         const oldHome=process.env.CODEX_HOME
+        const oldClaudeHome=process.env.CLAUDE_CONFIG_DIR
         const projects=path.join(root,'projects'), project=path.join(projects,'example')
         fs.mkdirSync(project,{recursive:true})
         for(let i=0;i<205;i++){
@@ -74,9 +75,10 @@ async function main () {
             if(i===0){const old=new Date(Date.now()-90*86400000);fs.utimesSync(file,old,old)}
         }
         process.env.CODEX_HOME=path.join(root,'empty-codex')
+        process.env.CLAUDE_CONFIG_DIR=root
         try {
             const ledger=new SessionLedgerService({store:{agentDeck:{resumeListDays:7}}})
-            ledger.root=root;ledger.file=path.join(root,'ledger.json');ledger.projectsDir=projects
+            ledger.root=root;ledger.file=path.join(root,'ledger.json')
             await ledger.refresh(true)
             assert.equal(ledger.records().length,200)
             const all=await ledger.historySources()
@@ -84,6 +86,7 @@ async function main () {
             assert.equal((await engine.search(all,'VERY_OLD_IDENTIFIER')).hits.length,1)
         } finally {
             if(oldHome===undefined)delete process.env.CODEX_HOME;else process.env.CODEX_HOME=oldHome
+            if(oldClaudeHome===undefined)delete process.env.CLAUDE_CONFIG_DIR;else process.env.CLAUDE_CONFIG_DIR=oldClaudeHome
         }
         console.log('PASS history: full transcript, both providers, literal identifiers, excluded noise, preview, cache refresh, partial records, missing files, cancellation')
     } finally {engine.cancel();fs.rmSync(root,{recursive:true,force:true})}

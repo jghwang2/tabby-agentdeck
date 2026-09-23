@@ -18,6 +18,7 @@ import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
 import { SessionMailbox } from './sessionMailbox'
 import { diag, diagCatch } from './diag'
 import { accountEmail } from './accounts'
+import { agentHome } from './storagePaths'
 import {
     createSubagentState, feedChunk, formatSubagentTooltip, matchesSessionTranscript, summarizeSubagents,
     summarizeLiveAgents, formatLiveAgentTooltip, LiveAgent,
@@ -523,6 +524,11 @@ export class WorkNotifyService {
             cfg.hookPromptDismissed = true
             this.config.save()
         }
+    }
+
+    configureStorageRoots (): void {
+        this.codexHome = agentHome('codex')
+        this.projectsDir = path.join(agentHome('claude'), 'projects')
     }
 
     init (): void {

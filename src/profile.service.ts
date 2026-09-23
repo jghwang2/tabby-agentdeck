@@ -21,6 +21,19 @@ export class AgentDeckProfileService {
         this.app.ready$.subscribe(() => this.ensureProfile())
     }
 
+    /** Settings UI explicitly changed our profile; preserve unrelated shell options. */
+    applySettings (): void {
+        const cfg = this.config.store.agentDeck
+        const existing = (this.config.store.profiles || []).find((p: any) => p.id === ROOT_PROFILE_ID)
+        if (existing && cfg.rootProfile && cfg.rootProfileCwd) {
+            existing.name = cfg.rootProfileName || 'Agent Root'
+            existing.options = { ...existing.options, cwd: cfg.rootProfileCwd,
+                command: cfg.rootProfileCommand || 'powershell.exe' }
+        }
+        this.ensureProfile()
+        this.config.save()
+    }
+
     private ensureProfile (): void {
         const cfg = this.config.store.agentDeck
         // 경로를 안 정했으면 만들지 않는다 — 남의 홈 디렉토리에 엉뚱한 프로필을 심지 않기 위해

@@ -16,6 +16,10 @@ import { AgentDeckUpdateService } from './update.service'
 import { AgentDeckDevReloadService } from './devReload.service'
 import { UpdateOutcome } from './update'
 import { collectDiagBundle, configStamp, DIAG_PATH, pluginVersion } from './diag'
+import { StoragePaths, STORAGE_KEYS, storageDefaults } from './storagePaths'
+import { StorageSettings, storageSettingsFor } from './storageSettings'
+import { storageText } from './storageI18n'
+import { AgentDeckProfileService } from './profile.service'
 
 /** 확인 결과를 사람 말로 — 설정 창의 한 줄 안내 */
 const UPDATE_OUTCOME_TEXT: Record<UpdateOutcome, string> = {
@@ -424,15 +428,37 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
     </button>
 </div>
 
+<section class="ad-storage-settings">
+<h3 class="mt-4 mb-3">{{storageLabel('head')}}</h3>
+<div class="text-muted mb-3">{{storageLabel('intro')}}</div>
+<div class="form-line" *ngFor="let key of storageKeys">
+    <div class="header">
+        <div class="title">{{storageLabel(key)}}</div>
+        <div class="description">{{storageLabel(key === 'accountStorageDir' ? 'accounts' : 'agents')}}</div>
+    </div>
+    <div class="w-50">
+        <div class="input-group">
+            <input class="form-control" type="text" [attr.data-storage-key]="key"
+                [attr.aria-label]="storageLabel(key)" [placeholder]="storageLabel('default') + ': ' + storageDefault[key]"
+                [ngModel]="storageModel.draft[key]" (ngModelChange)="storageModel.change(key, $event)" (change)="saveStorage()">
+            <button class="btn btn-secondary" type="button" (click)="pickStorage(key)">{{t('root.browse')}}</button>
+        </div>
+        <small class="text-muted" style="overflow-wrap:anywhere">{{storageLabel('default')}}: {{storageDefault[key]}}</small>
+    </div>
+</div>
+<button class="btn btn-primary ad-storage-save" type="button" [disabled]="storageModel.busy" (click)="saveStorage()">{{storageLabel('save')}}</button>
+<button class="btn btn-secondary ms-2" type="button" [disabled]="storageModel.busy" (click)="resetStorage()">{{storageLabel('reset')}}</button>
+<div class="mt-2 ad-storage-message" role="status" [class.text-danger]="storageModel.error">{{storageModel.message ? storageLabel(storageModel.message) : ''}}</div>
+</section>
 <h3 class="mt-4 mb-3">{{t('root.head')}}</h3>
-<div class="text-muted mb-3">{{t('root.intro')}}</div>
+<div class="text-muted mb-3">{{storageLabel('working')}}</div>
 
 <div class="form-line">
     <div class="header">
         <div class="title">{{t('root.use.title')}}</div>
         <div class="description">{{t('root.use.desc')}}</div>
     </div>
-    <toggle [(ngModel)]="config.store.agentDeck.rootProfile" (ngModelChange)="config.save()"></toggle>
+    <toggle [(ngModel)]="config.store.agentDeck.rootProfile" (ngModelChange)="saveRootProfile()"></toggle>
 </div>
 
 <ng-container *ngIf="config.store.agentDeck.rootProfile">
@@ -441,7 +467,7 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
             <div class="title">{{t('root.name.title')}}</div>
         </div>
         <input class="form-control w-50" type="text"
-               [(ngModel)]="config.store.agentDeck.rootProfileName" (change)="config.save()">
+               [(ngModel)]="config.store.agentDeck.rootProfileName" (change)="saveRootProfile()">
     </div>
 
     <div class="form-line">
@@ -451,7 +477,7 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
         </div>
         <div class="input-group w-50">
             <input class="form-control" type="text" placeholder="D:/Project"
-                   [(ngModel)]="config.store.agentDeck.rootProfileCwd" (change)="config.save()">
+                   [(ngModel)]="config.store.agentDeck.rootProfileCwd" (change)="saveRootProfile()">
             <button class="btn btn-secondary" type="button" (click)="pickCwd()">
                 <i class="fas fa-folder-open me-2"></i>{{t('root.browse')}}
             </button>
@@ -463,7 +489,7 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
             <div class="title">{{t('root.command.title')}}</div>
         </div>
         <input class="form-control w-50" type="text"
-               [(ngModel)]="config.store.agentDeck.rootProfileCommand" (change)="config.save()">
+               [(ngModel)]="config.store.agentDeck.rootProfileCommand" (change)="saveRootProfile()">
     </div>
 
 </ng-container>
@@ -517,6 +543,9 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
 `,
 })
 export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
+    storageKeys = STORAGE_KEYS
+    storageDefault = storageDefaults()
+    storageModel: StorageSettings
     /** 이 환경에서 훅을 걸 수 있나 (통보 스크립트가 PowerShell 이라 Windows 전용) */
     hooksSupported = hooksSupported()
     /** 지금 걸려 있나 — 파일을 매번 읽지 않도록 화면용으로 들고 있는다 */
@@ -615,7 +644,9 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         // 없어도 설정 탭은 떠야 하므로 @Optional (그때는 id 를 그대로 보여 준다)
         @Optional() private hotkeys: HotkeysService | null,
         private zone: NgZone,
+        private rootProfiles: AgentDeckProfileService,
     ) {
+        this.storageModel = storageSettingsFor(this.config)
         this.refreshHooks()
         void this.loadHotkeyNames()
         // 첫 값은 물어봐서 잡는다 — `localeChanged$` 는 **바뀔 때만** 흘리므로
@@ -666,6 +697,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     }
 
     ngOnDestroy (): void {
+        this.storageModel.flush()
         if (this.hooksRefreshTimer) {
             clearInterval(this.hooksRefreshTimer)
             this.hooksRefreshTimer = null
@@ -992,6 +1024,29 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
             return
         }
         this.config.store.agentDeck.rootProfileCwd = String(picked).replace(/\\/g, '/')
-        this.config.save()
+        this.saveRootProfile()
+    }
+
+    saveRootProfile (): void { this.rootProfiles.applySettings() }
+
+    storageLabel (key: string): string { return storageText(key, this.lang) }
+
+    async pickStorage (key: keyof StoragePaths): Promise<void> {
+        try {
+            const picked = await (this.platform as any).pickDirectory(this.storageLabel(key))
+            if (picked) {
+                this.storageModel.change(key, String(picked))
+                await this.storageModel.save()
+            }
+        } catch { this.storageModel.error = true; this.storageModel.message = 'failed' }
+    }
+
+    resetStorage (): void {
+        for (const key of STORAGE_KEYS) { this.storageModel.change(key, '') }
+        void this.storageModel.save()
+    }
+
+    async saveStorage (): Promise<void> {
+        await this.storageModel.save()
     }
 }

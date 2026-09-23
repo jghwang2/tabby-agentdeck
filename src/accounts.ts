@@ -4,6 +4,7 @@ import * as path from 'path'
 import * as https from 'https'
 import { createHash } from 'crypto'
 import { spawn, execFileSync, ChildProcessWithoutNullStreams } from 'child_process'
+import { accountsFile, agentHome, hasConfiguredAgentHome } from './storagePaths'
 
 export type AccountProvider = 'claude' | 'codex'
 export interface SavedAccount { provider: AccountProvider, key: string, name: string, id: string }
@@ -15,12 +16,12 @@ export class AccountRequestError extends Error {
 export const ACCOUNTS_FILE = process.env.AGENTDECK_ACCOUNTS_FILE || path.join(os.homedir(), '.agentdeck', 'accounts.json')
 
 /** Do not let JSON parser errors (which can contain passwords) escape this boundary. */
-export function readAccounts (file = ACCOUNTS_FILE): SavedAccount[] {
+export function readAccounts (file = accountsFile()): SavedAccount[] {
     return readSecrets(file).map(({ password, ...account }) => account)
 }
 
 /** Add one local plaintext entry without replacing other accounts or their encrypted auth snapshots. */
-export function addAccount (provider: AccountProvider, id: string, password: string, file = ACCOUNTS_FILE, name = ''): void {
+export function addAccount (provider: AccountProvider, id: string, password: string, file = accountsFile(), name = ''): void {
     id = id.trim()
     if (!id || !password) { throw new Error('계정과 비밀번호를 입력하세요.') }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) { throw new Error('이메일 주소 전체를 입력하세요.') }
@@ -47,7 +48,7 @@ export function addAccount (provider: AccountProvider, id: string, password: str
 }
 
 /** Remove the saved entry only. Running sessions may still use its native credential directory. */
-export function removeAccount (account: SavedAccount, file = ACCOUNTS_FILE): void {
+export function removeAccount (account: SavedAccount, file = accountsFile()): void {
     let data: any
     try {
         data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''))
@@ -87,7 +88,7 @@ function readSecrets (file: string): SecretAccount[] {
 }
 
 export function accountHome (account: SavedAccount): string {
-    return path.join(path.dirname(ACCOUNTS_FILE), 'accounts', account.key)
+    return path.join(path.dirname(accountsFile()), 'accounts', account.key)
 }
 
 export function accountEnv (account: SavedAccount): NodeJS.ProcessEnv {
@@ -151,14 +152,15 @@ export function saveAccountAuth (account: SavedAccount): Promise<void> {
             profile: account.provider === 'claude' ? readJson(path.join(home, '.claude.json'))?.oauthAccount : undefined }
         const data = await protectAccountAuth(JSON.stringify(snapshot))
         // Re-read after encryption so edits made by the user or another account save are retained.
-        const file = readJson(ACCOUNTS_FILE)
+        const accountFile = accountsFile()
+        const file = readJson(accountFile)
         const row = file?.[account.provider]?.find((r: any) => typeof r.id === 'string' && r.id.trim().toLowerCase() === account.id.toLowerCase())
         if (!row) { throw new Error('계정 파일이 변경되어 인증정보를 저장하지 못했습니다.') }
         row.auth = { version: 1, protection: 'windows-dpapi', data, updatedAt: new Date().toISOString() }
-        const temporary = ACCOUNTS_FILE + '.' + process.pid + '.tmp'
+        const temporary = accountFile + '.' + process.pid + '.tmp'
         try {
             fs.writeFileSync(temporary, JSON.stringify(file, null, 2) + '\n', { mode: 0o600 })
-            fs.renameSync(temporary, ACCOUNTS_FILE)
+            fs.renameSync(temporary, accountFile)
         } catch { throw new Error('계정 파일에 인증정보를 저장하지 못했습니다.') }
     }
     const next = savingAuth.catch(() => {}).then(save)
@@ -171,7 +173,7 @@ export async function restoreAccountAuth (account: SavedAccount): Promise<void> 
     const nativeFile = path.join(home, account.provider === 'claude' ? '.credentials.json' : 'auth.json')
     // Native CLIs refresh credentials themselves. Never replace a live token with an older backup.
     if (fs.existsSync(nativeFile) && accountEmail(account.provider, home).toLowerCase() === account.id.toLowerCase()) { return }
-    const file = readJson(ACCOUNTS_FILE)
+    const file = readJson(accountsFile())
     const auth = file?.[account.provider]?.find((r: any) => typeof r.id === 'string' && r.id.trim().toLowerCase() === account.id.toLowerCase())?.auth
     if (!auth) { return }
     if (auth.protection !== 'windows-dpapi' || auth.version !== 1 || typeof auth.data !== 'string') {
@@ -197,9 +199,7 @@ export async function restoreAccountAuth (account: SavedAccount): Promise<void> 
 /** Clone settings, share only conversation/instruction directories, keep auth private per account. */
 export function prepareAccount (account: SavedAccount, sourceHome?: string): void {
     const dest = accountHome(account)
-    const source = sourceHome || (account.provider === 'claude'
-        ? process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-        : process.env.CODEX_HOME || path.join(os.homedir(), '.codex'))
+    const source = hasConfiguredAgentHome(account.provider) ? agentHome(account.provider) : sourceHome || agentHome(account.provider)
     fs.mkdirSync(dest, { recursive: true, mode: 0o700 })
     if (path.resolve(source) === path.resolve(dest)) { return }
     if (account.provider === 'claude' && fs.existsSync(path.join(dest, '.claude.json'))) {
@@ -223,6 +223,17 @@ export function prepareAccount (account: SavedAccount, sourceHome?: string): voi
         : ['sessions', 'archived_sessions', 'skills', 'plugins', 'rules', 'claude-compat']
     for (const name of dirs) {
         const target = path.join(dest, name)
+        if (hasConfiguredAgentHome(account.provider) && ['projects', 'sessions', 'archived_sessions'].includes(name)) {
+            fs.mkdirSync(path.join(source, name), { recursive: true })
+            // Only replace a directory link. A real history directory must be relocated by its owner.
+            let existing: fs.Stats | undefined
+            try { existing = fs.lstatSync(target) } catch (error: any) { if (error.code !== 'ENOENT') { throw error } }
+            if (existing?.isSymbolicLink() && path.resolve(fs.readlinkSync(target)) !== path.resolve(source, name)) {
+                fs.unlinkSync(target)
+            } else if (existing && !existing.isSymbolicLink()) {
+                throw new Error('계정 폴더에 별도 대화 기록이 있습니다. 기록을 옮긴 뒤 다시 시도하세요.')
+            }
+        }
         if (fs.existsSync(path.join(source, name)) && !fs.existsSync(target)) {
             fs.symlinkSync(path.resolve(source, name), target, process.platform === 'win32' ? 'junction' : 'dir')
         }

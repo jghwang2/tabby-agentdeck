@@ -31,6 +31,10 @@ export const LAYOUT_DEFAULTS = {
 export class AgentDeckConfigProvider extends ConfigProvider {
     defaults = {
         agentDeck: {
+            /** Empty uses the CLI/environment default. Applied at app startup. */
+            accountStorageDir: '',
+            claudeStorageDir: '',
+            codexStorageDir: '',
             /** 레이아웃/사이드바 전체 on-off */
             enabled: true,
             /** 터미널 뷰포트 가로:세로 비율 */
