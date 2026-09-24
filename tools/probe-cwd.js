@@ -73,7 +73,7 @@
         return null
     }
 
-    const STATUS_DIR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'tabby-agentdeck', 'status')
+    const STATUS_DIR = ad.runtimePaths().status
     const SESSION_ID = 'adprobe-cwd'
     const STATUS_FILE = path.join(STATUS_DIR, SESSION_ID + '.json')
     /** 훅이 쓰는 것과 **같은 모양**의 보고를 남긴다 (hooks/agentdeck-notify.ps1 payload) */

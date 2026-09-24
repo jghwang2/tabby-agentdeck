@@ -1,7 +1,7 @@
 import { BaseTabComponent } from 'tabby-core'
 import { WorkStatusService } from './status.service'
 import { WorkStatus } from './api'
-import { AgentProfile, unionProfile } from './agents'
+import { AgentProfile, unionProfile, CODEX_APPROVAL_PATTERNS, CODEX_WAITING_TITLE, CODEX_BUSY_TITLE } from './agents'
 import { reasonFromScreen } from './reason'
 
 /** 훅이 상태를 직접 통보하는 커스텀 OSC — ESC ] 1337 ; AgentDeck=<status>;<label> BEL */
@@ -16,6 +16,23 @@ const VALID: WorkStatus[] = ['idle', 'running', 'waiting', 'limited', 'done', 'e
 
 /** OSC 가 청크 경계에 걸리는 것을 막기 위한 잔여 버퍼 */
 const tails = new WeakMap<object, string>()
+const approvalTails = new WeakMap<object, string>()
+// The decorator also observes the same stream without an agent profile. Keep
+// the approval identity across both subscribers so its footer cannot resume it.
+const codexApprovalTabs = new WeakSet<object>()
+
+/** A native Codex approval can arrive without PermissionRequest (MCP trust UI).
+ * Let it interrupt a hook-pinned running state, while keeping other pinned states intact.
+ */
+function codexWaiting (status: WorkStatusService, root: BaseTabComponent, reason = 'MCP 승인'): void {
+    codexApprovalTabs.add(root)
+    const s = status.get(root)
+    if (s.pinned && s.status === 'running') {
+        status.setManual(root, 'waiting', undefined, reason)
+    } else if (s.status !== 'waiting') {
+        setAutoWithReason(status, root, 'waiting', reason)
+    }
+}
 
 /**
  * 조각 안에서 그 패턴에 걸린 **줄 하나**를 찾아 배지에 붙일 이유로 줄인다.
@@ -134,6 +151,19 @@ export function applyOutput (
     // (2026-09-01, detect 테스트에서 드러남).
     tails.set(owner, buf.slice(Math.max(consumed, buf.length - 256)))
     if (matched || !autoDetect) {
+        approvalTails.delete(owner)
+        return
+    }
+
+    // Preserve only the unfinished line, not old dialogs in scrollback. Strip ANSI
+    // after joining chunks so a split CSI sequence cannot hide the approval text.
+    const approvalRaw = (approvalTails.get(owner) ?? '') + data
+    const approvalText = approvalRaw.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+    const codexApproval = (profile.id === 'codex' || profile.id === 'unknown')
+        && CODEX_APPROVAL_PATTERNS.some(re => re.test(approvalText))
+    approvalTails.set(owner, codexApproval ? '' : approvalRaw.slice(approvalRaw.lastIndexOf('\n') + 1).slice(-1024))
+    if (codexApproval) {
+        codexWaiting(status, root)
         return
     }
 
@@ -164,15 +194,20 @@ export function applyOutput (
     // 승인하면 그동안 사이드바가 승인대기에 박혀 있다 (2026-09-07 실측 — "승인했는데 진행중으로 안 돌아온다").
     // 훅이 고정(pinned)한 탭에도 적용해야 하므로 setAuto 가 아니라 resume 을 쓴다.
     // 제목 스피너(busyTitleMarks)는 근거로 삼지 않는다 — 승인 대화상자가 떠 있는 동안에도 제목에 남을 수 있다
-    if (status.get(root).status === 'waiting' && profile.busyPatterns.some(re => re.test(data))) {
+    // The fallback union includes Gemini's "esc to cancel", but Codex prints
+    // that in its approval footer. Exclude this borrowed signal for Codex.
+    const busyPatterns = profile.id === 'codex' || codexApprovalTabs.has(root)
+        ? profile.busyPatterns.filter(re => !re.test('esc to cancel')) : profile.busyPatterns
+    if (status.get(root).status === 'waiting' && busyPatterns.some(re => re.test(data))) {
         status.markBusy(root)
         status.resume(root)
+        codexApprovalTabs.delete(root)
         return
     }
 
     // 에이전트가 "지금 일하는 중" 이라고 스스로 밝히는 표시를 찾는다
-    if (profile.busyTitleMarks.some(mark => data.includes(mark))
-        || profile.busyPatterns.some(re => re.test(data))) {
+    if ((status.get(root).status !== 'waiting' && profile.busyTitleMarks.some(mark => data.includes(mark)))
+        || busyPatterns.some(re => re.test(data))) {
         status.markBusy(root)
         status.setAuto(root, 'running')
         return
@@ -196,7 +231,7 @@ export function applyOutput (
     //   ② 사용자가 새 프롬프트를 Enter 로 보내면 `releaseLimited` (deck.service 의 claimEnterLabel 배선)
     //   ③ 훅이 있는 CLI 는 다음 훅(`UserPromptSubmit` → running)이 덮는다
     //   ④ 사이드바에서 상태를 직접 고르거나 고정을 푸는 것(setManual/unpin)
-    if (status.get(root).status === 'limited') {
+    if (status.get(root).status === 'limited' || status.get(root).status === 'waiting') {
         return
     }
     // 신호를 낼 줄 모르는 보통 셸 — 예전처럼 "출력이 있다 = 진행중" 으로 본다
@@ -205,6 +240,7 @@ export function applyOutput (
 
 export function forgetOutputBuffer (owner: object): void {
     tails.delete(owner)
+    approvalTails.delete(owner)
 }
 
 /**
@@ -242,8 +278,21 @@ export function applyTitle (
             return
         }
     }
+    if (autoDetect && (profile.id === 'codex' || profile.id === 'unknown')) {
+        if (CODEX_WAITING_TITLE.test(title)) {
+            codexWaiting(status, root, '입력 대기')
+            return
+        }
+        if ((profile.id === 'codex' || codexApprovalTabs.has(root)) && CODEX_BUSY_TITLE.test(title)) {
+            status.markBusy(root)
+            status.resume(root)
+            codexApprovalTabs.delete(root)
+            status.setAuto(root, 'running')
+            return
+        }
+    }
     // 명시 표식이 없으면 에이전트가 제목에 넣는 작업중 표식(스피너)이라도 읽는다
-    if (autoDetect && profile.busyTitleMarks.some(mark => title.includes(mark))) {
+    if (autoDetect && status.get(root).status !== 'waiting' && profile.busyTitleMarks.some(mark => title.includes(mark))) {
         status.setAuto(root, 'running')
     }
 }

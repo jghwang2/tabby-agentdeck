@@ -36,7 +36,7 @@
     const add = (id, name, pass, detail, evidence) => results.push({ id, name, pass, detail, evidence })
     const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-    const ROOT = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'tabby-agentdeck')
+    const ROOT = ad.runtimePaths().root
     const STATUS_DIR = path.join(ROOT, 'status')
     const META_DIR = path.join(ROOT, 'meta')
     const PREFIX = 'adprobe-meta-'

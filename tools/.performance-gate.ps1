@@ -31,7 +31,7 @@
 
 .PARAMETER ContinueAfterAppGone
   앱이 사라진 뒤에도 남은 단계를 계속 돌린다. 기본은 **멈춘다** — 앱이 없는데 계속 돌리면
-  프로브마다 실패가 쌓여 원인 지점이 묻히고, 다음 단계의 `test-instance.ps1` 이 `ud` 를
+  프로브마다 실패가 쌓여 원인 지점이 묻히고, 다음 단계의 `.performance-gate-instance.ps1` 이 `ud` 를
   지워 Crashpad 리포트까지 사라진다.
 
 .PARAMETER SkipUnit
@@ -63,7 +63,7 @@ $env:NODE_PATH = ''
 $env:TABBY_PLUGINS = ''
 
 $root = Split-Path -Parent $PSScriptRoot
-$outDir = Join-Path $env:TEMP 'agentdeck-regression'
+$outDir = Join-Path $env:TEMP 'agentdeck-perf-regression'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $report = @()
 
@@ -88,12 +88,12 @@ $script:nNoPlugin = 0
 $script:nParse = 0
 $script:nDerived = 0
 
-# 격리 폴더는 `test-instance.ps1` 이 정한다 — 아래는 그것이 말해주기 전까지의 **폴백**이고,
+# 격리 폴더는 `.performance-gate-instance.ps1` 이 정한다 — 아래는 그것이 말해주기 전까지의 **폴백**이고,
 # `Start-TestInstance` 가 그 스크립트의 출력(`started cfg=… ud=…`)을 파싱해 덮는다.
 # 증거 수집이 엉뚱한 폴더를 보면 그대로 거짓 판단이 되므로, 러너가 경로를 스스로 만드는 것은
 # 여기까지로 제한한다 (`tools/README.md` "로그 경로를 프로브가 만들지 말 것")
-$script:cfgDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test\cfg'
-$script:udDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test\ud'
+$script:cfgDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test-perf-gate\cfg'
+$script:udDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test-perf-gate\ud'
 
 function Note([string]$id, [string]$name, $pass, [string]$detail) {
     $script:report += [ordered]@{ id = $id; name = $name; pass = $pass; detail = $detail }
@@ -106,12 +106,12 @@ function Note([string]$id, [string]$name, $pass, [string]$detail) {
   격리 인스턴스를 띄우고(또는 내리고), **그 스크립트가 말한 폴더 경로를 받아 둔다**.
 
 .DESCRIPTION
-  경로를 러너가 만들지 않는 이유 — `test-instance.ps1` 이 폴더를 옮기면 증거를 엉뚱한 데서
+  경로를 러너가 만들지 않는 이유 — `.performance-gate-instance.ps1` 이 폴더를 옮기면 증거를 엉뚱한 데서
   찾게 된다. 그 스크립트는 마지막에 `started cfg=<..> ud=<..> port=<..>` 를 찍으므로 그것을 읽는다.
   (앱이 사라진 뒤에는 `__agentdeck.diagPaths()` 로 제품에게 물을 수 없다 — 그래서 env/출력이다)
 #>
 function Start-TestInstance([switch]$Kill) {
-    $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'test-instance.ps1'))
+    $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot '.performance-gate-instance.ps1'))
     if ($PluginRoot) { $psArgs += @('-PluginRoot', $PluginRoot) }
     $psArgs += @('-Port', $Port)
     if ($Kill) { $psArgs += '-Kill' }
@@ -129,13 +129,13 @@ function Start-TestInstance([switch]$Kill) {
 
 .DESCRIPTION
   격리분만 골라야 실사용 Tabby 를 "앱이 살아 있다" 로 오독하지 않는다. 커맨드라인으로 가른다
-  (`test-instance.ps1` 과 같은 기준). 실측 2026-09-09: `Win32_Process` 는 `Tabby.exe`,
+  (`.performance-gate-instance.ps1` 과 같은 기준). 실측 2026-09-09: `Win32_Process` 는 `Tabby.exe`,
   `Get-Process` 는 확장자 없는 `Tabby` 다 — 이름을 헷갈리면 늘 0개로 보인다.
 #>
 function Get-TabbyCounts {
     $test = 0
     foreach ($p in (Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' })) {
+            Where-Object { $_.CommandLine -like '*tabby-agentdeck-test-perf-gate*' })) {
         if ($p) { $test++ }
     }
     $any = 0
@@ -184,7 +184,7 @@ function Get-FailureKind([string]$raw, $obj) {
   격리 인스턴스의 진단 로그 폴더 — **만들지 않고 묻는다**.
 
 .DESCRIPTION
-  1순위 `AGENTDECK_DIAG_DIR`(= `test-instance.ps1` 이 심는 격리 cfg 폴더, `src/diag.ts` 의 `logDir`),
+  1순위 `AGENTDECK_DIAG_DIR`(= `.performance-gate-instance.ps1` 이 심는 격리 cfg 폴더, `src/diag.ts` 의 `logDir`),
   2순위 그 스크립트가 출력한 cfg 폴더. **홈으로 폴백하지 않는다** — 홈은 실사용 Tabby 의 파일이라
   읽어도 남의 줄이고, 그렇게 읽은 판이 실제로 IN9·PR4·PR5 를 뒤집었다(`tools/README.md`).
   앱이 살아 있으면 `__agentdeck.diagPaths()` 로 제품에게 물을 수 있지만, 소실 판에서는 못 쓴다.
@@ -204,7 +204,7 @@ function Get-DiagDir {
   앱이 사라진 판의 증거를 **그 자리에서** 리포트 폴더로 복사한다.
 
 .DESCRIPTION
-  왜 그 자리인가 — `test-instance.ps1` 은 기동할 때 `ud` 를 지운다. 다음 단계로 넘어가
+  왜 그 자리인가 — `.performance-gate-instance.ps1` 은 기동할 때 `ud` 를 지운다. 다음 단계로 넘어가
   인스턴스를 다시 띄우면 Crashpad 리포트와 Tabby 자기 로그가 함께 사라진다. 2026-09-09 에
   프로세스가 사라진 판의 원인을 끝내 못 짚은 이유가 ① 로그 파일을 실사용 Tabby 와 공유해
   마지막 줄이 밀려난 것, ② 그 판의 증거를 아무도 복사해두지 않은 것 두 가지였다.
@@ -349,7 +349,7 @@ function Add-ProbeFailureNote([string]$id, [string]$name, [string]$stage, [strin
         $script:nNoPlugin++
         Note $id $name $null ("플러그인 미로드 — 앱은 살아 있다(격리 Tabby $($c.testProcs)개)." +
             " 크래시 추적 금지. 볼 곳: $(Get-DiagDir) 의 .agentdeck-diag.log," +
-            " 그리고 dist 빌드/plugins junction. 재시도: npm run build 후 test-instance.ps1 재기동" +
+            " 그리고 dist 빌드/plugins junction. 재시도: npm run build 후 .performance-gate-instance.ps1 재기동" +
             " (러너는 Wait-ForPlugin 으로 40초까지 기다린다). 원문 $rawFile")
         return
     }
@@ -392,7 +392,7 @@ public class AdWin {
 "@
 function Set-TestWindow([int]$w, [int]$h) {
     $procs = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-        Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' }
+        Where-Object { $_.CommandLine -like '*tabby-agentdeck-test-perf-gate*' }
     $n = 0
     foreach ($p in $procs) {
         $proc = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
@@ -803,7 +803,7 @@ if (Test-AppStop) {
 # ---------------------------------------------------------------- 4) R10 재기동 후 복원
 Write-Output ''
 Write-Output '--- 4) 사이드바 폭 바꿔 재기동 (R10) ---'
-# 격리 폴더는 `test-instance.ps1` 이 말한 값을 쓴다 (`Start-TestInstance` 가 받아 뒀다)
+# 격리 폴더는 `.performance-gate-instance.ps1` 이 말한 값을 쓴다 (`Start-TestInstance` 가 받아 뒀다)
 $isoCfg = $script:cfgDir
 $ud = $script:udDir
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Tabby\Tabby.exe'
@@ -827,13 +827,13 @@ $setWidth = Join-Path $outDir 'set-width.js'
 Pop-Location
 Start-Sleep -Seconds 2
 
-# config 를 보존한 채 재기동한다 — `test-instance.ps1` 은 config 를 새로 쓰므로 쓸 수 없다
+# config 를 보존한 채 재기동한다 — `.performance-gate-instance.ps1` 은 config 를 새로 쓰므로 쓸 수 없다
 Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' } |
+    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test-perf-gate*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 $env:TABBY_CONFIG_DIRECTORY = $isoCfg
-# 진단 로그도 격리 폴더로 유지한다 — `test-instance.ps1` 은 이 값을 심는데 러너가 직접
+# 진단 로그도 격리 폴더로 유지한다 — `.performance-gate-instance.ps1` 은 이 값을 심는데 러너가 직접
 # 재기동하는 이 자리에서 빼먹으면 이 인스턴스의 로그가 홈(실사용 Tabby 와 **같은 파일**)으로
 # 돌아가고, 종료 원인 줄이 남의 줄에 밀려난다 (사고 ② 가 그래서 미확정으로 끝났다)
 $env:AGENTDECK_DIAG_DIR = $isoCfg
@@ -899,7 +899,7 @@ Pop-Location
 Start-Sleep -Seconds 2
 
 Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' } |
+    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test-perf-gate*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 $env:TABBY_CONFIG_DIRECTORY = $isoCfg

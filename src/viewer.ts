@@ -93,8 +93,9 @@ const PATH_CHAR = '[\\w\\u00c0-\\uffff.@+~-]'
 const PATH_RE = new RegExp(
     '(?:[A-Za-z]:[\\\\/]|\\.{0,2}[\\\\/])?'
     + '(?:' + PATH_CHAR + '+[\\\\/])*' + PATH_CHAR + '+\\.[A-Za-z0-9]{1,8}',
-    'g',
+    'y',
 )
+const PATH_TOKEN_RE = /(?:[A-Za-z]:)?[\w\u00c0-\uffff.@+~\/\\-]+/g
 
 /** 경로에 들어갈 수 없는 기호 — 하나라도 있으면 경로가 아니다 (잘림 표시 `…`, 화살표, 전각 문자) */
 const PUNCT = /[\u2000-\u206f\u2190-\u2bff\u3000-\u303f\uff00-\uffef]/
@@ -115,9 +116,15 @@ export function extractPaths (data: string): string[] {
     const out: string[] = []
     const seen = new Set<string>()
     let m: RegExpExecArray | null
-    PATH_RE.lastIndex = 0
-    while ((m = PATH_RE.exec(clean)) !== null) {
-        let token = m[0].replace(TRAILING, '')
+    PATH_TOKEN_RE.lastIndex = 0
+    while ((m = PATH_TOKEN_RE.exec(clean)) !== null) {
+        const candidate = m[0]
+        // Try each token only once; retrying at every suffix makes long non-path output quadratic.
+        if (!candidate.includes('.')) { continue }
+        PATH_RE.lastIndex = 0
+        const match = PATH_RE.exec(candidate)
+        if (!match) { continue }
+        let token = match[0].replace(TRAILING, '')
         if (!token || PUNCT.test(token)) {
             continue
         }

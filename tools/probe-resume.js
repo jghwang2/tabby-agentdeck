@@ -150,7 +150,11 @@
             await ad.config.save()
             ad.render()
             const after = ad.sessions()
-            const domGone = !rows().some(r => ((r.querySelector('.ad-title') || {}).textContent || '') === victimTitle)
+            // Different sessions can have the same title. Compare the complete remaining list,
+            // while the model assertion below checks the hidden session's unique identity.
+            const afterTitles = after.rows.map(r => r.label || `세션 ${r.sessionId.slice(0, 8)}`)
+            const actualTitles = rows().map(r => ((r.querySelector('.ad-title') || {}).textContent || ''))
+            const domGone = JSON.stringify(actualTitles) === JSON.stringify(afterTitles)
             add('RS9', '숨긴 세션은 목록에서 빠진다',
                 !after.rows.some(r => r.sessionId === victim) && domGone,
                 { hid: victim.slice(0, 8), title: victimTitle.slice(0, 30), domGone, rows: rows().length })

@@ -3,7 +3,7 @@ import { ConfigService } from 'tabby-core'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { agentHome } from './storagePaths'
+import { agentHome, runtimeRoot } from './storagePaths'
 
 import { diagCatch } from './diag'
 import { HistorySource } from './sessionSearch'
@@ -29,11 +29,8 @@ import {
  */
 @Injectable({ providedIn: 'root' })
 export class SessionLedgerService {
-    private root = path.join(
-        process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
-        'tabby-agentdeck',
-    )
-    private file = path.join(this.root, 'sessions.json')
+    private get root (): string { return runtimeRoot() }
+    private get file (): string { return path.join(this.root, 'sessions.json') }
     /** Claude Code 대화기록이 사는 곳 (`notify.service` 와 같은 자리) */
     private get projectsDir (): string { return path.join(agentHome('claude'), 'projects') }
 

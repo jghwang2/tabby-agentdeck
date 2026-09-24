@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { monitorEventLoop, PerformanceTrace, perfNow } from './performance'
 import { Injectable, NgZone, Optional } from '@angular/core'
 import { LocaleService } from 'tabby-core'
 import { Lang, pickLang } from './i18n'
@@ -864,6 +865,7 @@ export class AgentDeckService {
 
         // 경과 시간 갱신 + running -> idle 자동 복귀
         setInterval(() => this.tick(), 1000)
+        monitorEventLoop()
 
         this.relayout()
         this.render()
@@ -1368,23 +1370,25 @@ export class AgentDeckService {
      * @param scope `active` = 지금 보고 있는 탭만, `all` = 열려 있는 모든 탭
      */
     repair (scope: 'active' | 'all' = 'all'): void {
+        const trace = new PerformanceTrace('repair')
         const targets = scope === 'active' && this.app.activeTab
             ? [this.app.activeTab]
             : this.app.tabs
         this.diag(`repair scope=${scope} tabs=${targets.length}`)
 
         // 1) 사이드바 폭부터 다시 잰다 — 어긋남의 출발점이 대개 여기다
-        this.relayout()
+        trace.step('layout', () => this.relayout())
 
         // 2) 레이아웃이 실제로 반영된 다음에 재야 한다 (scheduleRefit 과 같은 이유로 두 프레임)
         requestAnimationFrame(() => requestAnimationFrame(() => {
+            trace.mark('frames-ready', `scope=${scope} tabs=${targets.length}`)
             for (const tab of targets) {
                 const anyTab = tab as any
                 const panes: BaseTabComponent[] = typeof anyTab.getAllTabs === 'function'
                     ? anyTab.getAllTabs()
                     : [tab]
                 for (const pane of panes) {
-                    this.repairPane(pane)
+                    this.repairPane(pane, trace)
                 }
             }
         }))
@@ -1410,7 +1414,7 @@ export class AgentDeckService {
      * `reset()` 은 스크롤백을 함께 지운다. 지난 대화를 남기고 싶으면 `repairHard: false` —
      * 그때는 예전처럼 크기 정합 + 흔들기까지만 한다.
      */
-    private repairPane (pane: BaseTabComponent): void {
+    private repairPane (pane: BaseTabComponent, trace?: PerformanceTrace): void {
         const cfg = this.config.store.agentDeck
         const anyPane = pane as any
         const frontend = anyPane.frontend
@@ -1423,6 +1427,7 @@ export class AgentDeckService {
         }
 
         const before = this.readScreen(pane)
+        trace?.mark('screen-read')
         const beforeVerdict = before ? judgeScreen(before.lines, before.cols, this.profileForPane(pane)?.screenShape) : null
         this.snapshot(pane, `manual-before ${beforeVerdict
             ? (beforeVerdict.broken ? beforeVerdict.reasons.join(' / ') : '판정=정상')
@@ -1435,6 +1440,7 @@ export class AgentDeckService {
             // 아직 붙는 중이다 — 아래 단계만이라도 태운다
         }
         this.syncPtySize(pane, frontend)
+        trace?.mark('fit-and-sync')
 
         // ② 잔상 지우기 — 입력창 영역만 비운다 (대화는 남는다)
         if (before) {
@@ -1454,7 +1460,8 @@ export class AgentDeckService {
         } catch { }
 
         // ③ 크기가 이미 맞아도 무조건 흔든다 — 이 함수를 부르는 이유 자체가 "맞는데 깨졌다" 다
-        this.nudgePtyRedraw(pane)
+        trace?.mark('clear-and-refresh')
+        this.nudgePtyRedraw(pane, trace)
 
         // ④ `Ctrl+L` — **기본으로 보내지 않는다** (`repairSendRedrawKey` 기본 끔).
         //    Claude Code 가 이걸 "화면 지우기" 로 받아 보고 있던 대화를 스크롤백으로 밀어내는 것을
@@ -1470,6 +1477,7 @@ export class AgentDeckService {
             const after = this.readScreen(pane)
             const still = after ? judgeScreen(after.lines, after.cols, this.profileForPane(pane)?.screenShape) : null
             this.snapshot(pane, `manual-after ${still ? (still.broken ? '아직 깨짐: ' + still.reasons.join(' / ') : '복구됨') : '읽을 수 없음'}`)
+            trace?.mark('after-snapshot')
         }, SNAP_AFTER_MS)
     }
 
@@ -4024,7 +4032,7 @@ export class AgentDeckService {
      * 좁힌 값을 `pane.size` 에 그대로 적는다. 되돌리기가 유실됐는데 낙관적으로 `cols` 를
      * 적어 두면 아무도 어긋남을 못 보고 한 열 좁은 채로 굳는다(옛 버그).
      */
-    private nudgePtyRedraw (pane: BaseTabComponent): void {
+    private nudgePtyRedraw (pane: BaseTabComponent, trace?: PerformanceTrace): void {
         const anyPane = pane as any
         const session = anyPane.session
         const cols = anyPane.frontend?.xterm?.cols
@@ -4036,12 +4044,14 @@ export class AgentDeckService {
         try {
             session.resize(cols - 1, rows)
             anyPane.size = { columns: cols - 1, rows }
+            const restoreAt = perfNow() + 60
             setTimeout(() => {
                 if (!anyPane.session?.open) {
                     return
                 }
                 // 되돌릴 값은 "지금" 의 xterm 폭이다 — 흔드는 사이 사이드바가 움직였을 수 있다
                 this.syncPtySize(pane, anyPane.frontend)
+                trace?.mark('pty-restored', `timerLagMs=${Math.max(0, perfNow() - restoreAt).toFixed(1)}`)
             }, 60)
         } catch {
             // 세션이 막 닫혔다

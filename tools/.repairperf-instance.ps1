@@ -1,4 +1,4 @@
-﻿# 격리 테스트 인스턴스를 띄운다 — 실사용 Tabby 를 죽이지 않는다.
+# 격리 테스트 인스턴스를 띄운다 — 실사용 Tabby 를 죽이지 않는다.
 #
 # `--user-data-dir` 이 Electron 싱글인스턴스 락을 갈라 주므로 별개 프로세스로 뜨고,
 # `TABBY_CONFIG_DIRECTORY` 로 config 를 분리한다. 플러그인은 %APPDATA% 의 junction 을
@@ -17,14 +17,14 @@ param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [str
 
 $root = Split-Path -Parent $PSScriptRoot
 if ($PluginRoot) { $root = (Resolve-Path -LiteralPath $PluginRoot -ErrorAction Stop).Path }
-$base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test'
+$base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-repairperf'
 $cfg  = Join-Path $base 'cfg'
 $ud   = Join-Path $base 'ud'
 
 # 테스트 인스턴스만 골라 내린다 — 실사용 Tabby 는 건드리면 안 되므로
 # 커맨드라인에 우리 ud 경로가 들어간 프로세스만 죽인다.
 $victims = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like "*tabby-agentdeck-test*" }
+    Where-Object { $_.CommandLine -like "*tabby-agentdeck-repairperf*" }
 foreach ($p in $victims) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
 if ($Kill) { Write-Output "killed=$($victims.Count)"; exit 0 }
 
@@ -102,3 +102,4 @@ $env:TABBY_PLUGINS = ''
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Tabby\Tabby.exe'
 Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port") -WindowStyle Hidden
 Write-Output "started cfg=$cfg ud=$ud port=$Port"
+

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import TabbyCoreModule, { AppService, ConfigProvider, ConfigService, HotkeyProvider } from 'tabby-core'
 import { configureStoragePaths } from './storagePaths'
+import { migrateRuntimeData } from './runtimeMigration'
 import { SettingsTabProvider } from 'tabby-settings'
 import { TerminalDecorator } from 'tabby-terminal'
 
@@ -56,6 +57,7 @@ export default class AgentDeckModule {
     ) {
         app.ready$.subscribe(() => {
             configureStoragePaths(config.store.agentDeck)
+            migrateRuntimeData()
             notify.configureStorageRoots()
         })
         // 서비스 모두 app.ready$ 를 기다렸다가 스스로 붙는다.

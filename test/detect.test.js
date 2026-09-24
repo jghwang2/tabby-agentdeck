@@ -1,7 +1,7 @@
 // 상태 자동 감지 — "진행중" 에서 제때 내려오는지가 핵심이다.
 // Claude Code 는 놀고 있을 때도 하단 상태줄을 매초 다시 그리므로, 출력이 있다는 사실만으로
 // 진행중을 유지하면 영원히 안 내려온다 (2026-09-01 실측: 세 탭 모두 진행중에 박혀 있었다).
-const { applyOutput, releaseLimited } = require('../.tmp/detect.js')
+const { applyOutput, applyTitle, forgetOutputBuffer, releaseLimited } = require('../.tmp/detect.js')
 
 let pass = 0
 let fail = 0
@@ -385,6 +385,76 @@ const CODEX_STATUSLINE = 'gpt-6-astra low fast · ~\\AppData\\Local\\work'
     applyOutput(st5, t5, t5, CODEX_LIMIT, true, unionProfile())
     check('한도로 바뀐다', st5.state.status, 'limited')
     check('승인 이유는 남지 않는다', st5.state.reason, '')
+}
+
+// Codex MCP trust approvals do not necessarily emit PermissionRequest.
+{
+    const { detectProfileFor } = require('../.tmp/agents.js')
+    const profile = detectProfileFor('codex')
+    const prompt = 'Allow the jira-search MCP server to run tool "jira_similar_issues"?'
+    for (let split = 0; split <= prompt.length; split++) {
+        const st = makeStatus(), tab = newTab()
+        st.setManual(tab, 'running', 'keep label')
+        applyOutput(st, tab, tab, prompt.slice(0, split), true, profile)
+        applyOutput(st, tab, tab, prompt.slice(split), true, profile)
+        check(`MCP approval split ${split}`, st.state.status, 'waiting')
+        check(`MCP label split ${split}`, st.state.label, 'keep label')
+        applyOutput(st, tab, tab, '\r\nenter to submit · esc to cancel', true, profile)
+        // The decorator repeats this output with the fallback union profile.
+        applyOutput(st, tab, tab, '\r\nenter to submit · esc to cancel', true)
+        check(`approval footer stays waiting ${split}`, st.state.status, 'waiting')
+        applyTitle(st, tab, '⠏ Review | Root', true, profile)
+        check(`approval resumes ${split}`, st.state.status, 'running')
+        check(`approval reason cleared ${split}`, st.state.reason, '')
+    }
+    for (const pinned of [false, true]) {
+        const st = makeStatus(), tab = newTab()
+        if (pinned) st.setManual(tab, 'running')
+        applyTitle(st, tab, '[ ! ] Action Required | Review | Root', true, profile)
+        check(`native approval title pinned=${pinned}`, st.state.status, 'waiting')
+        applyOutput(st, tab, tab, '✳ footer redraw', true, profile)
+        check(`stale spinner does not release pinned=${pinned}`, st.state.status, 'waiting')
+        applyOutput(st, tab, tab, 'Working (esc to interrupt)', true, profile)
+        check(`busy output releases pinned=${pinned}`, st.state.status, 'running')
+    }
+    for (const state of ['done', 'error', 'limited']) {
+        const st = makeStatus(), tab = newTab()
+        st.setManual(tab, state)
+        applyTitle(st, tab, '[ ! ] Action Required | Review', true, profile)
+        applyOutput(st, tab, tab, prompt, true, profile)
+        check(`other pinned state protected ${state}`, st.state.status, state)
+    }
+    for (const text of [
+        '  1. Allow                Run the tool and continue.',
+        '› 3. Always allow         Run the tool and remember this choice for future calls.',
+        '\x1b[36m' + prompt + '\x1b[0m',
+    ]) {
+        const st = makeStatus(), tab = newTab()
+        applyOutput(st, tab, tab, text, true, profile)
+        check('observed approval rendering', st.state.status, 'waiting')
+    }
+    for (const text of ['Always allow', '1. Allow', 'Explain: ' + prompt, 'Action Required documentation']) {
+        const st = makeStatus(), tab = newTab()
+        applyOutput(st, tab, tab, text, true, profile)
+        check('ordinary prose is not approval', st.state.status === 'waiting', false)
+    }
+    const st = makeStatus(), tab = newTab()
+    st.setManual(tab, 'running')
+    applyOutput(st, tab, tab, prompt, false, profile)
+    applyTitle(st, tab, '[ ! ] Action Required | Review', false, profile)
+    check('auto detection disabled', st.state.status, 'running')
+    applyOutput(st, tab, tab, prompt.slice(0, 30), true, profile)
+    forgetOutputBuffer(tab)
+    applyOutput(st, tab, tab, prompt.slice(30), true, profile)
+    check('detached pane drops partial dialog', st.state.status, 'running')
+    const unknown = makeStatus(), unknownTab = newTab()
+    unknown.setManual(unknownTab, 'running')
+    applyTitle(unknown, unknownTab, '[ ! ] Action Required | Review', true)
+    check('native title before agent discovery', unknown.state.status, 'waiting')
+    applyOutput(unknown, unknownTab, unknownTab, 'enter to submit · esc to cancel', true)
+    check('unknown decorator preserves native approval', unknown.state.status, 'waiting')
+    applyTitle(unknown, unknownTab, '⠏ Review | Root', true)
+    check('unknown native title resumes observed approval', unknown.state.status, 'running')
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -17,14 +17,14 @@ param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [str
 
 $root = Split-Path -Parent $PSScriptRoot
 if ($PluginRoot) { $root = (Resolve-Path -LiteralPath $PluginRoot -ErrorAction Stop).Path }
-$base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test'
+$base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test-perf-gate'
 $cfg  = Join-Path $base 'cfg'
 $ud   = Join-Path $base 'ud'
 
 # 테스트 인스턴스만 골라 내린다 — 실사용 Tabby 는 건드리면 안 되므로
 # 커맨드라인에 우리 ud 경로가 들어간 프로세스만 죽인다.
 $victims = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like "*tabby-agentdeck-test*" }
+    Where-Object { $_.CommandLine -like "*tabby-agentdeck-test-perf-gate*" }
 foreach ($p in $victims) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
 if ($Kill) { Write-Output "killed=$($victims.Count)"; exit 0 }
 

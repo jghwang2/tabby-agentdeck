@@ -22,11 +22,9 @@ import * as path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import * as https from 'node:https'
+import runtimePaths from './agentdeck-runtime.cjs'
 
-const ROOT = path.join(
-    process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
-    'tabby-agentdeck',
-)
+const ROOT = runtimePaths.runtimeRoot()
 /** 사이드바가 읽는 곳. 상태 보고(`status/`)와 폴더를 나눈다 — 그쪽 폴링은 자기 형식만 알아본다 */
 const META_DIR = path.join(ROOT, 'meta')
 const INNER_FILE = path.join(ROOT, 'statusline-inner.json')

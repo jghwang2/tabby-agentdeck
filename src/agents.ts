@@ -239,14 +239,22 @@ const CLAUDE: AgentProfile = {
  * (`detect.ts`). 대기·작업중이 여전히 미관측이라 `patternsProven` 은 false 그대로지만,
  * 합집합이 이 한도 문구를 품으므로(`buildUnion`) codex 탭도 그 문구로 판정된다.
  */
+// Observed 2026-09-23: Codex MCP approval dialog and native window title.
+export const CODEX_APPROVAL_PATTERNS = [
+    /^[\t ]*Allow the [^\r\n]+ MCP server to run tool [^\r\n]+\?[\t ]*$/im,
+    /^[\t ]*(?:[›>][\t ]*)?\d+\.[\t ]*(?:Always allow|Allow(?: for this session)?)[\t ]+Run the tool\b/im,
+]
+export const CODEX_WAITING_TITLE = /^\s*\[\s*!\s*\]\s*Action Required\s*\|/i
+export const CODEX_BUSY_TITLE = /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s+/
+
 const CODEX: AgentProfile = {
     id: 'codex',
     label: 'Codex CLI',
     icon: ICON_CODEX,
     processHints: ['codex'],
     titleHints: ['codex'],
-    // 근거 미확인 — 터미널 앱 일반의 확인 문구만. codex 고유 문구는 실사용 관측 필요
-    waitingPatterns: [CONFIRM_YN, CONFIRM_YN_CAP, PRESS_ENTER],
+    // MCP approval text observed in the 2026-09-23 user screenshot.
+    waitingPatterns: [...CODEX_APPROVAL_PATTERNS, CONFIRM_YN, CONFIRM_YN_CAP, PRESS_ENTER],
     // 근거 미확인 — codex 가 실제로 무엇을 찍는지 관측 필요
     busyPatterns: [CTRL_C_INTERRUPT],
     /**

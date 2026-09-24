@@ -3,6 +3,7 @@ import { AppService, BaseTabComponent, NotificationsService } from 'tabby-core'
 
 import { diag, diagCatch } from './diag'
 import { AgentDeckService } from './deck.service'
+import { PerformanceTrace } from './performance'
 
 /**
  * 복구 짐을 두는 localStorage 키.
@@ -42,6 +43,7 @@ interface Stash {
     at: number
     tokens: any[]
     activeIndex: number
+    requestedAt?: number
 }
 
 /**
@@ -92,6 +94,8 @@ export class AgentDeckReloadService {
             return false
         }
         this.reloading = true
+        const trace = new PerformanceTrace('reload-save')
+        const requestedAt = Date.now()
         try {
             const tr = (this.app as any).tabRecovery
             const tokens: any[] = []
@@ -100,6 +104,7 @@ export class AgentDeckReloadService {
             for (const tab of this.app.tabs) {
                 try {
                     const token = await tr.getFullRecoveryToken(tab, { includeState: true })
+                    trace.mark('token', `index=${tokens.length}`)
                     if (token) {
                         if (tab === this.app.activeTab) {
                             activeIndex = tokens.length
@@ -110,8 +115,10 @@ export class AgentDeckReloadService {
                     diagCatch('reload 토큰', e)
                 }
             }
-            const stash: Stash = { v: 1, at: Date.now(), tokens, activeIndex }
-            window.localStorage.setItem(STASH_KEY, JSON.stringify(stash))
+            const stash: Stash = { v: 1, at: Date.now(), tokens, activeIndex, requestedAt }
+            const encoded = trace.step('encode', () => JSON.stringify(stash))
+            trace.step('storage', () => window.localStorage.setItem(STASH_KEY, encoded))
+            trace.mark('scheduled', `tabs=${tokens.length} chars=${encoded.length}`)
 
             // 순정 복구가 같이 돌면(recoverTabs=true) 탭이 두 벌 생긴다 — 순정 짐은 비워 두고
             // 리로드 전까지 다시 쓰지 못하게 막는다. 복구가 끝나면 순정이 스스로 다시 저장한다
@@ -137,7 +144,9 @@ export class AgentDeckReloadService {
         if (!raw) {
             return
         }
-        const stash: Stash = JSON.parse(raw)
+        const trace = new PerformanceTrace('reload-restore')
+        const stash: Stash = trace.step('decode', () => JSON.parse(raw))
+        trace.mark('renderer-ready', `sinceRequestMs=${Date.now() - (stash.requestedAt ?? stash.at)} chars=${raw.length}`)
         if (Date.now() - stash.at > STASH_TTL_MS) {
             diag(`reload stash expired age=${Date.now() - stash.at}`)
             return
@@ -151,16 +160,18 @@ export class AgentDeckReloadService {
         let dead = 0
         for (const [index, token] of (stash.tokens ?? []).entries()) {
             // 이미 죽은 pty 를 가리키는 탭은 되살리지 않는다 — 순정은 그때 새 셸을 띄워 버린다
-            if (!this.ptysAlive(token)) {
+            if (!trace.step('pty-check', () => this.ptysAlive(token))) {
                 dead++
                 continue
             }
             try {
                 const params = await tr.recoverTab(token)
+                trace.mark('recover-token', `index=${index}`)
                 if (params) {
                     const tab = this.app.openNewTabRaw(params)
                     recovered.push(tab)
                     byIndex.set(index, tab)
+                    trace.mark('open-tab', `index=${index}`)
                 }
             } catch (e: any) {
                 diagCatch('reload recoverTab', e)
@@ -173,9 +184,12 @@ export class AgentDeckReloadService {
         for (const tab of recovered) {
             this.app.selectTab(tab)
             await this.waitAttached(tab)
+            trace.mark('attached', `index=${recovered.indexOf(tab)}`)
             // 리로드 공백 동안 나온 출력은 화면에 없다 — TUI 에게 다시 그리게 한다
             await sleep(250)
+            trace.mark('settled')
             this.deck.repair('active')
+            trace.mark('repair-requested')
         }
         const target = byIndex.get(stash.activeIndex) ?? recovered[recovered.length - 1]
         if (target) {
@@ -184,6 +198,7 @@ export class AgentDeckReloadService {
 
         const ms = Date.now() - t0
         diag(`reload restored tabs=${recovered.length} dead=${dead} ms=${ms}`)
+        trace.mark('complete', `tabs=${recovered.length} dead=${dead} sinceRequestMs=${Date.now() - (stash.requestedAt ?? stash.at)}`)
         this.notifications.info(`AgentDeck 리로드됨 — 탭 ${recovered.length}개 재부착 (${ms}ms)`)
     }
 

@@ -135,6 +135,7 @@
     const runHook = (opt) => new Promise(resolve => {
         const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', hookPath].concat(opt.args || [])
         const env = Object.assign({}, process.env, { LOCALAPPDATA: opt.lad || isoLad })
+        env.AGENTDECK_RUNTIME_ROOT = nodePath.join(opt.lad || isoLad, 'tabby-agentdeck')
         env.AGENTDECK_MAILBOX_ROOT = nodePath.join(opt.lad || isoLad, 'tabby-agentdeck')
         if (opt.tabId) { env.AGENTDECK_TAB = opt.tabId } else { delete env.AGENTDECK_TAB }
         let p = null
@@ -369,8 +370,7 @@
         isoStatusDir = nodePath.join(isoLad, 'tabby-agentdeck', 'status')
         nodeFs.mkdirSync(isoStatusDir, { recursive: true })
         // 제품과 **같은 식**으로 실제 상태 폴더를 구한다 (모듈 주석의 근거). HK8 만 쓴다
-        realStatusDir = nodePath.join(process.env.LOCALAPPDATA
-            || nodePath.join(nodeOs.homedir(), 'AppData', 'Local'), 'tabby-agentdeck', 'status')
+        realStatusDir = ad.runtimePaths().status
 
         /** 훅이 허용하는 상태 어휘 — 훅 파일의 `[ValidateSet(...)]` 을 그대로 읽는다 */
         let vocab = []

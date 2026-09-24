@@ -72,7 +72,40 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Step timing diagnostics — see agentdeck-codex-notify.ps1. When called from that wrapper the same
+# process/run id is reused; when called directly (Claude hooks) this starts a new run.
+if (-not $env:AGENTDECK_HOOK_RUN) { $env:AGENTDECK_HOOK_RUN = "$PID-" + [DateTime]::Now.ToString('HHmmssfff') }
+function Write-HookDiag ([string]$Step) {
+    try {
+        if (-not $script:hookDiagFile) {
+            $acct = if ($env:AGENTDECK_ACCOUNTS_FILE) { Split-Path -Parent $env:AGENTDECK_ACCOUNTS_FILE } else { Join-Path $env:USERPROFILE '.agentdeck' }
+            $diagDir = Join-Path $acct 'runtime\hook-diag'
+            if (-not (Test-Path $diagDir)) { New-Item -ItemType Directory -Force -Path $diagDir | Out-Null }
+            $script:hookDiagFile = Join-Path $diagDir ('hook-' + [DateTime]::Now.ToString('yyyyMMdd') + '.log')
+            $script:hookDiagStart = [System.Diagnostics.Process]::GetCurrentProcess().StartTime
+            if (-not (Test-Path $script:hookDiagFile)) {
+                Get-ChildItem $diagDir -Filter 'hook-*.log' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force
+            }
+        }
+        $ms = [int]([DateTime]::Now - $script:hookDiagStart).TotalMilliseconds
+        $line = '{0} run={1} notify-{2} +{3}ms {4}' -f [DateTime]::Now.ToString('HH:mm:ss.fff'), $env:AGENTDECK_HOOK_RUN, $Agent, $ms, $Step
+        [System.IO.File]::AppendAllText($script:hookDiagFile, $line + "`r`n", (New-Object System.Text.UTF8Encoding($false)))
+    } catch { }
+}
+Write-HookDiag "start status=$Status subagent=$Subagent"
+
+if (-not (Get-Command Write-AgentDeckHookTrace -ErrorAction SilentlyContinue)) {
+    try { . (Join-Path $PSScriptRoot 'agentdeck-hook-trace.ps1') } catch { }
+}
+if (-not (Get-Command Write-AgentDeckHookTrace -ErrorAction SilentlyContinue)) {
+    function Write-AgentDeckHookTrace { param($Stage, $Fields, $Failure) }
+    function Set-AgentDeckHookTraceIdentity { param($Hook) }
+}
+Write-AgentDeckHookTrace 'notify_enter'
 try {
+
+try {
+    Write-AgentDeckHookTrace 'notify_input_begin'
     # PS 5.1 은 stdin 을 시스템 ANSI(CP949) 로 읽어 UTF-8 JSON 의 한글을 깨뜨린다.
     # 표준입력 스트림을 UTF-8 로 직접 열어서 읽는다.
     #
@@ -87,12 +120,30 @@ try {
         $reader.Close()
     }
     $hook = if ($raw) { $raw | ConvertFrom-Json } else { $null }
+    Set-AgentDeckHookTraceIdentity $hook
+    Write-AgentDeckHookTrace 'notify_input_end'
 } catch {
+    Write-AgentDeckHookTrace 'notify_input_error' @{} $_
     $hook = $null
 }
+Write-HookDiag "hook-parsed bytes=$($raw.Length) event=$(if ($hook) { $hook.hook_event_name })"
 
-$dir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck\status'
+$runtimeRoot = $env:AGENTDECK_RUNTIME_ROOT
+if (-not $runtimeRoot) {
+    $accountRoot = if ($env:AGENTDECK_ACCOUNTS_FILE) { Split-Path -Parent $env:AGENTDECK_ACCOUNTS_FILE } else { Join-Path $env:USERPROFILE '.agentdeck' }
+    $runtimeRoot = Join-Path $accountRoot 'runtime'
+    if ($env:TABBY_CONFIG_DIRECTORY) {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetFullPath($env:TABBY_CONFIG_DIRECTORY).TrimEnd('\').ToLowerInvariant())) }
+        finally { $sha.Dispose() }
+        $profileKey = ([BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant().Substring(0,16)
+        $runtimeRoot = Join-Path $runtimeRoot $profileKey
+    }
+}
+$dir = Join-Path $runtimeRoot 'status'
+Write-AgentDeckHookTrace 'status_dir_begin'
 if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+Write-AgentDeckHookTrace 'status_dir_end' @{ exists = [IO.Directory]::Exists($dir) }
 
 # 세션 결정 — 훅 JSON > -SessionId > 가장 최근에 갱신된 파일
 $targetId = ''
@@ -121,6 +172,7 @@ if (Test-Path $file) {
         $prevStatus = [string]$prev.status
     } catch { }
 }
+Write-HookDiag "prev-read prev=$prevStatus tab=$($env:AGENTDECK_TAB) mail=$mailContext"
 
 # --- StopFailure: 한도 도달인가 그냥 오류인가 ---
 # 턴이 실패로 끝나면 Claude Code 는 Stop 대신 StopFailure 를 쏘고 `error` 에 원인 코드를 싣는다
@@ -156,7 +208,7 @@ if ($hook -and $hook.tool_input -and $hook.tool_input.file_path) {
 # 세션은 이미 탭에 묶여 있어 sessionId 만으로 찾아간다(notify.service `resolveTab` 의 `alive`).
 # **서브에이전트 이벤트도 건너뛰지 않는다** — 하나 빠지면 개수가 영구히 어긋난다(start 를 놓치면
 # 적게, stop 을 놓치면 많게 굳는다). 이쪽도 계보 조회는 하지 않는다(아래 tabId 분기).
-if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailContext) { exit 0 }
+if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailContext) { Write-HookDiag 'exit running-dup'; Write-AgentDeckHookTrace 'skip' @{ reason = 'already_running' }; exit 0 }
 
 # --- 어느 탭인가: tabId (1순위) / 프로세스 계보 pids (폴백) ---
 # 사이드바가 이 보고를 어느 탭에 붙일지 정하는 근거. 예전 규칙 "처음 보고할 때의 활성 탭" 은
@@ -183,6 +235,7 @@ $tabId = ([string]$env:AGENTDECK_TAB).Trim()
 $pids = @()
 $claudePid = 0
 $claudeName = ''
+Write-AgentDeckHookTrace 'ancestry_begin' @{ has_tab = [bool]$tabId }
 # 이미 running 인 세션의 "파일만 알리는" 보고와 서브에이전트 이벤트에서는 계보를 재지 않는다 —
 # 450ms 짜리 Win32_Process 전체 조회를 Edit·에이전트마다 낼 수는 없다. 그 세션은 앞선 보고로
 # 이미 탭에 묶여 있어 sessionId 만으로 찾아간다 (notify.service `resolveTab` 의 `alive` 경로).
@@ -224,9 +277,11 @@ if ($tabId) {
                 $claudeName = [string]$chain[$start].Name
                 $pids = @($chain[$start..($chain.Count - 1)] | ForEach-Object { [int]$_.ProcessId })
             }
-        } catch { }
+        } catch { Write-AgentDeckHookTrace 'ancestry_error' @{} $_ }
     }
+    Write-HookDiag "lineage reuse=$reuse pids=$($pids.Count)"
 }
+Write-AgentDeckHookTrace 'ancestry_end' @{ pid_count = $pids.Count }
 
 # --- 승인대기 오탐 차단 ---
 # Notification 훅은 "도구 승인 요청" 말고 "입력이 없다"는 유휴 알림에도 발화한다.
@@ -237,7 +292,7 @@ if ($Status -eq 'waiting' -and $Agent -eq 'claude') {
     $msg = if ($hook -and $hook.message) { [string]$hook.message } else { '' }
     $idleNotice = $msg -match '(?i)waiting for your input|idle'
     $alreadyFinished = $prevStatus -eq 'done' -or $prevStatus -eq 'idle' -or $prevStatus -eq 'limited'
-    if ($idleNotice -or $alreadyFinished) { exit 0 }
+    if ($idleNotice -or $alreadyFinished) { Write-HookDiag 'exit waiting-filtered'; Write-AgentDeckHookTrace 'skip' @{ reason = 'idle_notification' }; exit 0 }
 }
 
 # --- 부연(reason) ---
@@ -351,15 +406,21 @@ if ($pids.Count -gt 0) {
 $json = $payload | ConvertTo-Json -Compress -Depth 5
 $tmp = "$file.$PID.tmp"
 $enc = New-Object System.Text.UTF8Encoding($false)
+Write-AgentDeckHookTrace 'state_write_begin'
+try {
 [System.IO.File]::WriteAllText($tmp, $json, $enc)
 [System.IO.File]::Copy($tmp, $file, $true)
 Remove-Item $tmp -Force
+Write-HookDiag 'status-file-written'
+Write-AgentDeckHookTrace 'state_write_end'
+} catch { Write-AgentDeckHookTrace 'state_write_error' @{} $_ }
 
 # --- TCP 즉시 통보 ---
 # Tabby 의 WorkNotifyService 가 127.0.0.1 임의 포트로 듣고 그 번호를 port 파일에 적어 둔다.
 # 여기로 JSON 한 줄을 보내면 폴링을 기다리지 않고 사이드바가 바로 바뀐다.
 # 실패는 전부 무시한다 — Tabby 가 안 떠 있거나 포트가 바뀐 것뿐이고, 위에 쓴 파일을 폴링이 주워 간다.
-$portFile = if ($env:AGENTDECK_MAILBOX_ROOT) { Join-Path $env:AGENTDECK_MAILBOX_ROOT 'port' } else { Join-Path $env:LOCALAPPDATA 'tabby-agentdeck\port' }
+$portFile = Join-Path $runtimeRoot 'port'
+Write-AgentDeckHookTrace 'tcp_begin' @{ port_file = [IO.File]::Exists($portFile) }
 if (Test-Path $portFile) {
     try {
         $port = [int]((Get-Content -Raw $portFile).Trim())
@@ -372,12 +433,24 @@ if (Test-Path $portFile) {
                 $stream.Write($bytes, 0, $bytes.Length)
                 $stream.Flush()
                 $stream.Close()
+                Write-AgentDeckHookTrace 'tcp_sent'
+            } else {
+                Write-AgentDeckHookTrace 'tcp_timeout'
             }
             $client.Close()
         }
-    } catch { }
+    } catch { Write-AgentDeckHookTrace 'tcp_error' @{} $_ }
 }
+Write-HookDiag 'tcp-sent'
+Write-AgentDeckHookTrace 'tcp_end'
 if ($mailContext) {
+    Write-AgentDeckHookTrace 'mailbox_begin'
     & node (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') --hook $targetId ([string]$hook.hook_event_name) 2>$null
+    Write-HookDiag "mailbox-done exit=$LASTEXITCODE"
+    Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $LASTEXITCODE }
 }
+Write-HookDiag 'end'
 exit 0
+} finally {
+    Write-AgentDeckHookTrace 'notify_end'
+}

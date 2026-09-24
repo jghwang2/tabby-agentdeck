@@ -1,5 +1,6 @@
 import * as path from 'path'
 import * as os from 'os'
+import { runtimeRoot } from './storagePaths'
 import { HistoryHit, HistorySource, SessionSearch } from './sessionSearch'
 import { ResumeRow } from './sessionLedger'
 
@@ -17,8 +18,8 @@ export class SessionSearchPanel {
     private input = document.createElement('input')
     private status = document.createElement('div')
     private results = document.createElement('div')
-    private engine = new SessionSearch(path.join(process.env.LOCALAPPDATA || path.join(os.homedir(),'AppData','Local'), 'tabby-agentdeck','history-search'))
-    private previewEngine = new SessionSearch(path.join(process.env.LOCALAPPDATA || path.join(os.homedir(),'AppData','Local'), 'tabby-agentdeck','history-search'))
+    private engine = new SessionSearch(path.join(runtimeRoot(), 'history-search'))
+    private previewEngine = new SessionSearch(path.join(runtimeRoot(), 'history-search'))
     private generation = 0
     private timer: ReturnType<typeof setTimeout> | null = null
     private hits: HistoryHit[] = []

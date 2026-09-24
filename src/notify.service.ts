@@ -18,7 +18,7 @@ import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
 import { SessionMailbox } from './sessionMailbox'
 import { diag, diagCatch } from './diag'
 import { accountEmail } from './accounts'
-import { agentHome } from './storagePaths'
+import { agentHome, runtimeRoot, runtimeEnvironment } from './storagePaths'
 import {
     createSubagentState, feedChunk, formatSubagentTooltip, matchesSessionTranscript, summarizeSubagents,
     summarizeLiveAgents, formatLiveAgentTooltip, LiveAgent,
@@ -527,6 +527,11 @@ export class WorkNotifyService {
     }
 
     configureStorageRoots (): void {
+        this.root = runtimeRoot()
+        this.dir = path.join(this.root, 'status')
+        this.metaDir = path.join(this.root, 'meta')
+        this.portFile = path.join(this.root, 'port')
+        this.mailboxRoot = path.join(this.root, 'mailbox')
         this.codexHome = agentHome('codex')
         this.projectsDir = path.join(agentHome('claude'), 'projects')
     }
@@ -537,6 +542,7 @@ export class WorkNotifyService {
         // `tabid-map` 줄로만 볼 수 있어 검증 도구가 대조할 방법이 없었다 (2026-09-08 R18).
         const g = window as any
         g.__agentdeck = g.__agentdeck ?? {}
+        g.__agentdeck.runtimePaths = () => ({ root: this.root, status: this.dir, meta: this.metaDir, mailbox: this.mailboxRoot })
         g.__agentdeck.tabIds = () => [...this.tabIds].map(([tab, ids]) => ({
             title: (tab as any).title ?? '', ids,
         }))
@@ -779,7 +785,7 @@ export class WorkNotifyService {
         }
         const id = newTabId()
         pane.profile = { ...pane.profile, options: { ...pane.profile.options,
-            env: { ...env, [TAB_ENV]: id, AGENTDECK_MAILBOX_ROOT: this.mailboxRoot } } }
+            env: { ...env, [TAB_ENV]: id, ...runtimeEnvironment() } } }
         if (pane.sessionOptions !== undefined) {
             pane.sessionOptions = pane.profile.options
         }
@@ -808,7 +814,7 @@ export class WorkNotifyService {
         }
         const id = newTabId()
         state.profile = { ...profile, options: { ...profile.options,
-            env: { ...(profile.options.env ?? {}), [TAB_ENV]: id, AGENTDECK_MAILBOX_ROOT: this.mailboxRoot } } }
+            env: { ...(profile.options.env ?? {}), [TAB_ENV]: id, ...runtimeEnvironment() } } }
         this.diag(`tabid stamp tab=${this.tabName(root)} id=${id} (recovery token)`)
     }
 

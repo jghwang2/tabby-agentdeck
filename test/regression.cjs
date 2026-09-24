@@ -180,7 +180,7 @@ try {
     fs.writeFileSync(config, '{broken')
     assert.throws(() => setCodexHooks(true))
     assert.equal(fs.readFileSync(config, 'utf8'), '{broken')
-    const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
+    const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_RUNTIME_ROOT: path.join(temp, 'tabby-agentdeck'), AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
     const report = event => {
         const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
             input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,

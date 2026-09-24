@@ -347,8 +347,7 @@
             throw new Error('ad-sa-prereq')
         }
         // 제품과 **같은 식**으로 상태파일 폴더를 만든다 (모듈 주석의 근거)
-        statusDir = nodePath.join(process.env.LOCALAPPDATA
-            || nodePath.join(require('os').homedir(), 'AppData', 'Local'), 'tabby-agentdeck', 'status')
+        statusDir = ad.runtimePaths().status
 
         // ---------------------------------------------------------- 탭 고르기 (tabId 로 묶는다)
         /**

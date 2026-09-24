@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { runtimeRoot } from './storagePaths'
 
 import { claudeSettingsPath } from './claudeHooks'
 
@@ -23,11 +24,7 @@ const MARK = 'agentdeck-statusline'
 
 /** 원래 걸려 있던 statusLine 을 옮겨 두는 자리 (스크립트도 같은 경로를 읽는다) */
 export function innerConfigPath (): string {
-    return path.join(
-        process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
-        'tabby-agentdeck',
-        'statusline-inner.json',
-    )
+    return path.join(runtimeRoot(), 'statusline-inner.json')
 }
 
 /** statusLine 스크립트의 실제 경로. dist/index.js 기준으로 한 단계 위가 패키지 뿌리다 */

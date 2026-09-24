@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { createHash } from 'crypto'
 
 export interface StoragePaths { accountStorageDir: string, claudeStorageDir: string, codexStorageDir: string }
 export const STORAGE_KEYS = ['accountStorageDir', 'claudeStorageDir', 'codexStorageDir'] as const
@@ -24,6 +25,17 @@ export function storageDefaults (): StoragePaths {
 
 export function accountsFile (): string {
     return active.accountStorageDir ? path.join(active.accountStorageDir, 'accounts.json') : inherited.accountFile
+}
+
+/** Runtime data belongs to the account storage setting, with separate writers per Tabby profile. */
+export function runtimeRoot (): string {
+    const base = path.join(path.dirname(accountsFile()), 'runtime')
+    const profile = process.env.TABBY_CONFIG_DIRECTORY
+    return profile ? path.join(base, createHash('sha256').update(path.resolve(profile).toLowerCase()).digest('hex').slice(0, 16)) : base
+}
+
+export function runtimeEnvironment (): Record<string, string> {
+    return { AGENTDECK_RUNTIME_ROOT: runtimeRoot(), AGENTDECK_MAILBOX_ROOT: path.join(runtimeRoot(), 'mailbox') }
 }
 
 export function agentHome (provider: 'claude' | 'codex'): string {

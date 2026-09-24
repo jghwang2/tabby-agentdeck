@@ -30,7 +30,7 @@ if (!sessionId || !label) {
 const payload = JSON.stringify({ sessionId, label, ts: Date.now() }) + '\n'
 
 const fallback = () => {
-    const dir = path.join(process.env.LOCALAPPDATA || process.env.HOME, 'tabby-agentdeck', 'status')
+    const dir = path.join(require('./agentdeck-runtime.cjs').runtimeRoot(), 'status')
     try {
         fs.mkdirSync(dir, { recursive: true })
         // 직전 status 를 읽어 합치지 않는다 — 플러그인이 없는 필드를 지금 값으로 채운다
