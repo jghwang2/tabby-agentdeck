@@ -77,3 +77,48 @@ reruns by case ID; raw reports are retained unchanged.
 The production bundle is from the final product source; later changes only affect
 test probes and this report. No npm release or production hot reload is part of
 this validation/push task.
+
+## Live integration follow-up (2026-09-27)
+
+The three previously unexercised cases now pass. Combined by case ID with the
+earlier evidence: **174 PASS, 0 FAIL, 2 measured without a pass/fail threshold**
+(PF4/PF6). No unexercised integration case remains in this report.
+
+`tools/verify-live-integrations.cjs` ran against an isolated Tabby ConPTY instance,
+the same validated production bundle, and a real Claude Code 2.1.270 process.
+No product code, hook result, transcript or session mapping was stubbed.
+
+- R6: Electron wrote a 64×64 bitmap to the actual Windows clipboard. The probe
+  confirmed nonempty image data and empty text, sent Ctrl+V through CDP keyboard
+  events, and read `[Image #1]` from the real Claude input draft.
+- IN6: with both image and test text on the OS clipboard, Ctrl+V inserted the text
+  without attaching `[Image #2]`. Original clipboard text and HTML were held in
+  renderer memory, never printed, and restored with equality checks.
+- RS8: Claude's real SessionStart hook and persisted conversation produced the
+  matching recent-session row, `.open` class and `.re-was.live` badge. Clicking
+  the row selected the existing tab without increasing the tab count.
+
+Claude was not authenticated in this isolated launch. A benign submitted prompt
+produced a login error and the real persisted conversation needed for RS8; no
+successful model inference is claimed or required for these UI integration cases.
+
+Evidence: `E:/project/agentdeck-integration-20260927/live-integration.json` and
+`live-integration.png`. The JSON reports all three cases passing and
+`clipboardRestored: true`.
+
+Reproduction, after starting a real Claude session in the isolated app with a
+SessionStart hook and at least one persisted turn, leaving an empty input draft:
+
+```powershell
+node tools/verify-live-integrations.cjs <CDP-port> <test-Claude-session-id> <test-root>
+```
+
+The probe checks that the target app uses `<test-root>/cfg`, that the session's
+hook CWD is inside that root, and that the selected agent is Claude. It refuses
+unsupported clipboard formats instead of losing them. It does not launch an
+agent or submit prompts; it leaves the tested image/text draft in the test CLI.
+
+The user explicitly authorized deletion of the earlier `ad-cwd-gStJmz` fixture.
+A new path-checked PowerShell deletion attempt was still rejected by automatic
+execution policy, with no specific reason returned. It was not bypassed; deletion
+remains uncompleted separately from the successful integration verification.
