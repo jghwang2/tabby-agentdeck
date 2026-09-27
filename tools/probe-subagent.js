@@ -173,6 +173,7 @@
     let statusDir = null
     let projectsDir = null
     let targetTab = null
+    let fixtureTab = null
     let targetIdx = -1
     let savedLabel = null
     let cleanedUp = false
@@ -268,6 +269,7 @@
             }
         }
         try { ad.render() } catch { /* 무시 */ }
+        if (fixtureTab && ad.app.tabs.includes(fixtureTab)) { await ad.app.closeTab(fixtureTab, false) }
 
         // ④ 잔여 확인 — **접두로만** 훑는다
         const leftovers = (dir) => {
@@ -337,6 +339,18 @@
             await ad.config.save()
         }
 
+        // Earlier probes legitimately bind their tabs to fixture sessions. Open
+        // an owned test tab through the product UI instead of skipping all SA cases.
+        if (!process.env.TABBY_CONFIG_DIRECTORY) { throw new Error('An isolated app is required') }
+        const previousTabs = new Set(ad.app.tabs)
+        sb().querySelector('.ad-new')?.click()
+        fixtureTab = await waitFor(() => ad.app.tabs.find(t => !previousTabs.has(t)), 5000, 100)
+        if (!fixtureTab) { throw new Error('Could not create subagent fixture tab') }
+        await waitFor(() => {
+            const terminals = fixtureTab.getAllTabs?.() || [fixtureTab]
+            return terminals.some(p => p.session?.open && p.profile?.options?.env?.AGENTDECK_TAB)
+        }, 5000, 100)
+        ad.render()
         const s0 = sub()
         projectsDir = s0 ? s0.projectsDir : null
         if (!projectsDir || !nodeFs.existsSync(projectsDir)) {

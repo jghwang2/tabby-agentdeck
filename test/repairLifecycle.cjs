@@ -59,6 +59,31 @@ const flush = () => { while (frames.length) frames.shift()() }
     oldRetries.forEach(t => t.fn())
     assert.equal(sizes.length, before, 'superseded retries must not touch PTY')
 
+    // repairPane also schedules a redraw key. A replaced session must receive
+    // neither an old resize nor that old key (which can clear a new CLI screen).
+    let redrawKeys = 0, fits = 0
+    const repairHost = {
+        config: { store: { agentDeck: { repairSendRedrawKey: true } } },
+        readScreen: () => null, snapshot() {}, syncPtySize() {}, nudgePtyRedraw() {},
+        sendRedrawKey: () => { redrawKeys++ },
+    }
+    const repairSession = { open: true }
+    const repairTarget = { session: repairSession, frontend: {
+        xterm: { rows: 40, element: { parentElement: { clientWidth: 800, clientHeight: 600 } }, refresh() {} },
+        fitAddon: { fit() { fits++ } },
+    } }
+    proto.repairPane.call(repairHost, repairTarget)
+    repairTarget.session = { open: true }
+    timers.splice(0).forEach(t => t.fn())
+    assert.equal(redrawKeys, 0, 'stale repair must not send Ctrl+L to a replacement session')
+    proto.repairPane.call(repairHost, repairTarget)
+    timers.splice(0).forEach(t => t.fn())
+    assert.equal(redrawKeys, 1, 'current session still receives the configured redraw key')
+    repairTarget.frontend.xterm.element.parentElement.clientWidth = 0
+    proto.repairPane.call(repairHost, repairTarget)
+    assert.equal(fits, 2, 'hidden terminals must not be fitted to zero width')
+    assert.equal(timers.length, 0, 'hidden terminals schedule no repair work')
+
     const sid = '11111111-1111-4111-8111-111111111111', row = { sessionId: sid, agent: 'codex' }
     let resolve, opens = 0, selected
     const resume = { app: { tabs: [tab], selectTab: t => { selected = t } }, resumeTabs: new Map(), resumeStarting: new Map(),
@@ -89,6 +114,26 @@ const flush = () => { while (frames.length) frames.shift()() }
     assert.equal(resume.resumeStarting.get(sid), wrapper, 'reserve AppService wrapper, not the inner terminal')
     const live = proto.liveSessionIds.call(resume)
     assert.equal(live.get(sid), sid)
+    const releaseChecks = [
+        ['tab closed', () => { resume.app.tabs = [] }],
+        ['hook arrived', () => { resume.notify.liveSessions = () => new Map([[sid, wrapper]]) }],
+        ['session closed', () => { pane.session.open = false }],
+        ['session replaced', () => { pane.session = { open: true } }],
+    ]
+    for (const [name, transition] of releaseChecks) {
+        intervals = []
+        let unsubscribed = 0
+        resume.app.tabs = [wrapper]
+        resume.notify.liveSessions = () => new Map()
+        pane.session = { open: true, output$: { subscribe: () => ({ unsubscribe() { unsubscribed++ } }) } }
+        proto.trackResumeStart.call(resume, sid, inner)
+        intervals.filter(Boolean).forEach(fn => fn())
+        transition()
+        intervals.filter(Boolean).forEach(fn => fn())
+        assert.equal(resume.resumeStarting.size, 0, name + ' releases the pending reservation')
+        assert.equal(unsubscribed, 1, name + ' releases output subscription')
+        assert.equal(intervals.filter(Boolean).length, 0, name + ' stops polling')
+    }
     console.log('PASS repair lifecycle: burst, subsequent retry, exception cleanup, Codex redraw, PTY replacement, stale timer, resume race and failure')
 })().finally(() => { global.setTimeout = timeout; global.setInterval = interval; global.clearInterval = clear; delete global.requestAnimationFrame })
     .catch(e => { console.error(e); process.exitCode = 1 })

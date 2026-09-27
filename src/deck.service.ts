@@ -1489,7 +1489,10 @@ export class AgentDeckService {
         //    2026-09-11 채증으로 확정했다(`sendRedrawKey` 주석). ①~③ 이 이미 고치므로 없어도 된다.
         //    켜 둔 경우에만 보내고, 흔들기가 도착한 뒤여야 하므로 nudge 되돌리기(60ms)보다 뒤에 둔다.
         if (cfg.repairSendRedrawKey === true) {
-            setTimeout(() => this.sendRedrawKey(pane), REPAIR_REDRAW_DELAY_MS)
+            const session = anyPane.session
+            setTimeout(() => {
+                if (session?.open && anyPane.session === session) { this.sendRedrawKey(pane) }
+            }, REPAIR_REDRAW_DELAY_MS)
         }
 
         // ⑤ 채증 — "↻ 를 눌렀는데 안 고쳐진다" 를 감이 아니라 파일로 가른다.

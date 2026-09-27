@@ -104,8 +104,11 @@
     const tabId = tabIdRow ? (tabIdRow.ids || [])[0] : null
     const stubbed = []
     const madeTabs = []
-    /** `변경` 탭 검사에 쓸 저장소 — 이 플러그인 자신 (없으면 CW4 는 판정 불가) */
-    const REPO = 'D:\\Project\\tabby-agentdeck'
+    // A disposable repository gives CW4/CW6 real changes without depending on
+    // this machine's checkout path or modifying the user's working tree.
+    const REPO = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-cwd-'))
+    const git = (...args) => require('child_process').execFileSync('git', ['-C', REPO, ...args],
+        { encoding: 'utf8', windowsHide: true })
     /** 사이드바 `+ 새 탭` — 제품 경로로 탭을 여는 유일한 창구 (probe-perf.js 와 같은 이유) */
     const newTabBtn = () => {
         const sb = document.getElementById('agentdeck-sidebar')
@@ -113,6 +116,12 @@
     }
 
     try {
+        git('init', '--quiet')
+        for (const file of ['first.txt', 'second.txt']) { fs.writeFileSync(path.join(REPO, file), 'before\n') }
+        git('add', '.')
+        git('-c', 'user.name=AgentDeck Test', '-c', 'user.email=test@example.invalid',
+            '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'Fixture')
+        for (const file of ['first.txt', 'second.txt']) { fs.writeFileSync(path.join(REPO, file), 'after\n') }
         // ---------- CW1: 훅이 말해 준 cwd 가 탭 cwd 가 된다 ----------
         if (!tabId || !pane0) {
             add('CW1', '훅 보고의 cwd 가 탭에 반영된다', null,
@@ -429,6 +438,9 @@
             try { fs.unlinkSync(cfgFile); fs.unlinkSync(workFile); fs.rmdirSync(fx) } catch (e) { /* 남아도 무해 */ }
         }
     } finally {
+        if (path.dirname(REPO) === os.tmpdir() && path.basename(REPO).startsWith('ad-cwd-')) {
+            fs.rmSync(REPO, { recursive: true, force: true })
+        }
         for (const undo of stubbed) { try { undo() } catch (e) { /* 이미 사라진 세션 */ } }
         for (const t of madeTabs) { try { ad.app.closeTab(t, false) } catch (e) { /* 이미 닫혔다 */ } }
         try { fs.unlinkSync(STATUS_FILE) } catch (e) { /* 이미 없다 */ }
