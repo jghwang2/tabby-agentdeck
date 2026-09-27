@@ -533,9 +533,9 @@
         }
 
         // ============================================================ IN6 이미지 전용 클립보드 분기
-        // 격리 환경에서는 `clipboard.writeImage()` 뒤 `readImage().isEmpty()` 가 true 라
-        // 이 분기를 **만들 수 없다** (`tools/README.md` "사람이 해야 하는 것" R6).
-        // 대신 `clipboardHasImageOnly` 가 실제로 보는 값을 같은 방법으로 읽어 남긴다
+        // OS clipboard contents belong to the user. This probe only observes
+        // the current value; it does not claim an image write was attempted.
+        // `clipboardHasImageOnly` 가 실제로 보는 값을 같은 방법으로 읽어 남긴다
         // (`require('electron').clipboard`, deck.service.ts:137). 읽기만 하므로 클립보드 무변경.
         // 키 매핑 자체는 IN6B 가 정적으로 판정한다.
         {
@@ -560,7 +560,7 @@
             }
             add('IN6', '이미지 전용 클립보드 분기', null,
                 cb
-                    ? '판정 불가 — 격리 환경은 클립보드에 이미지를 넣을 수 없다(writeImage 후 readImage().isEmpty()===true). '
+                    ? '미검증 — 이 실행은 OS 이미지 클립보드를 변경하거나 이미지 붙여넣기를 실행하지 않았다. '
                         + `clipboardHasImageOnly 가 지금 보는 값만 남긴다: imageOnly=${seen && seen.imageOnly}`
                     : 'Electron clipboard 를 얻지 못했다 — 제품도 이때 텍스트 붙여넣기로 떨어진다(:1782)',
                 {

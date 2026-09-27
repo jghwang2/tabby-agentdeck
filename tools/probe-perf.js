@@ -289,6 +289,9 @@
         // 전용 임시 탭을 하나 열어 **거기에만** 조각을 흘린다. 활성 탭에 쓰면 그 글자가 남아
         // 뒤 단계(R11 재측정, R10·PR1 재기동)가 우리 화면을 재게 된다.
         const scratch = await openTab(12000)
+        if (scratch.ok) {
+            await waitFor(() => !!emitChan(paneOf(scratch.tab)), 12000, 100)
+        }
         const pane = scratch.ok ? paneOf(scratch.tab) : null
         const chan = pane ? emitChan(pane) : null
         if (!chan) {
