@@ -648,7 +648,8 @@
             const budget = 40000
             const t0g = now()
             let failedOpen = null
-            for (let i = 0; i < 10 && now() - t0g < budget; i++) {
+            const capacity = typeof ad.jump === 'function' ? ad.jump(0).slots.length : 30
+            for (let i = 0; i < 10 && ad.app.tabs.length < capacity && now() - t0g < budget; i++) {
                 const r = await openTab(9000)
                 if (!r.ok) { failedOpen = r.why; break }
                 await sleep(350)          // 새 탭의 첫 출력이 몰려오는 구간을 피한다
@@ -673,13 +674,13 @@
                 const s1 = slope(first, mid)
                 const s2 = slope(mid, last)
                 const sAll = slope(first, last)
-                const at30 = r3(last.p50 + sAll * Math.max(0, 30 - last.tabs))
-                const ok = last.p50 <= 8 && at30 <= 16.7
+                const projected = r3(last.p50 + sAll * Math.max(0, capacity - last.tabs))
+                const ok = last.p50 <= 8 && projected <= 16.7
                 add('PF8', '탭 수 대비 렌더 증가', ok,
                     `탭 ${first.tabs}→${last.tabs}개: frame p50 ${first.p50}→${last.p50}ms`
                         + ` · 기울기 ${sAll}ms/탭 (앞절반 ${s1} / 뒤절반 ${s2} → 비 ${s1 ? r3(s2 / s1) : 'n/a'})`
-                        + ` · 30탭 외삽 ${at30}ms · 기준 최대N p50≤8ms 그리고 30탭 외삽 ≤16.7ms`,
-                    { series, slopePerTab: sAll, slopeFirstHalf: s1, slopeSecondHalf: s2, projectedAt30Tabs: at30, thresholds: { p50: 8, frame: 16.7 } })
+                        + ` · 지원 상한 ${capacity}탭 예상 ${projected}ms · 기준 최대N p50≤8ms 그리고 지원 상한 ≤16.7ms`,
+                    { series, slopePerTab: sAll, slopeFirstHalf: s1, slopeSecondHalf: s2, capacity, projectedAtCapacity: projected, thresholds: { p50: 8, frame: 16.7 } })
             }
 
             // ============================================================ PF9 탭 닫은 뒤 잔여

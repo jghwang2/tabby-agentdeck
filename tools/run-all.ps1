@@ -775,7 +775,7 @@ if (Test-AppStop) {
         # 세션이 붙고 첫 프롬프트가 나올 시간 — 이게 짧으면 PF3~PF7 이 "출력 채널이 없다" 로 빠진다
         Start-Sleep -Seconds 9
 
-        $pf = Invoke-Probe 'perf'
+        $pf = Invoke-Probe 'perf' 'tools/probe-perf.js'
         if ($pf -and $pf.results) {
             foreach ($r in $pf.results) {
                 if ($report.id -contains $r.id) { continue }
