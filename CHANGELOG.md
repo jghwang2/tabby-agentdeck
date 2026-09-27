@@ -19,6 +19,8 @@ Korean release notes for the current version are at the top of [`docs/REFERENCE.
   question shortcuts, approval detection, hook diagnostics and performance.
 - Display the installed version in the sidebar. Expand isolated regression
   coverage, including real clipboard attachment and live Claude session navigation.
+- Keep PowerShell hook status and diagnostics in the same runtime folder as Node
+  when Windows supplies a short (8.3) profile path.
 
 ## 1.2.0 — 2026-09-17
 

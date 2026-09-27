@@ -134,7 +134,8 @@ if (-not $runtimeRoot) {
     $runtimeRoot = Join-Path $accountRoot 'runtime'
     if ($env:TABBY_CONFIG_DIRECTORY) {
         $sha = [System.Security.Cryptography.SHA256]::Create()
-        try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetFullPath($env:TABBY_CONFIG_DIRECTORY).TrimEnd('\').ToLowerInvariant())) }
+        # Match Node path.resolve without expanding Windows 8.3 aliases.
+        try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($env:TABBY_CONFIG_DIRECTORY).TrimEnd('\').ToLowerInvariant())) }
         finally { $sha.Dispose() }
         $profileKey = ([BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant().Substring(0,16)
         $runtimeRoot = Join-Path $runtimeRoot $profileKey

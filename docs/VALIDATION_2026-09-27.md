@@ -128,7 +128,7 @@ The user subsequently deleted that fixture manually. Before preparing 1.2.2,
 
 ## 1.2.2 release verification
 
-Prepared from `359c8bf` in the detached worktree
+Initially prepared from `359c8bf` in the detached worktree
 `E:/project/agentdeck-release-1.2.2`. Release changes are version synchronization
 and documentation; product and test code are unchanged from the verification above.
 
@@ -148,3 +148,24 @@ and documentation; product and test code are unchanged from the verification abo
 - Release evidence is in `E:/project/agentdeck-release-evidence-1.2.2`, including
   `typecheck.log`, `unit.log`, `pack.log`, `regression.log`, `main-recheck.json`,
   and `app/report/regression.json`. The production Tabby plugin was not replaced.
+
+### CI short-path failure and correction
+
+The first publish workflow, run `36307969835`, failed in `runtimePaths.cjs`
+before npm publication. Local reproduction with `TEMP` set to the Windows 8.3
+alias of the evidence directory failed at the identical old-shell fallback
+assertion. Windows PowerShell's .NET `GetFullPath` expands 8.3 path aliases,
+while Node `path.resolve` preserves them, producing different profile hashes.
+
+Both PowerShell hook writers now use lexical provider path resolution to match
+Node. Regression coverage checks real hook status and timing files for a short
+profile path and a path containing `..` and a trailing separator. The complete
+`npm test` suite passed with both `TEMP` and `TMP` set to the short path;
+typecheck and release prepack also passed. Logs: `unit-short-path.log`,
+`typecheck-fixed.log`, and `pack-fixed.log` in the release evidence directory.
+
+The fixed package passed a second complete isolated regression run: 168 PASS,
+0 FAIL, 8 SKIP, with the same separately verified/measurement-only categories
+listed above (`regression-fixed.log`, `app-fixed/report/regression.json`).
+The JavaScript bundle hash remained unchanged; only the two packaged PowerShell
+hook files changed. The unpublished `v1.2.2` tag is advanced to include this fix.

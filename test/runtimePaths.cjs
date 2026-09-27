@@ -25,6 +25,25 @@ const oldEnv = { ...process.env }; delete oldEnv.AGENTDECK_RUNTIME_ROOT
 const old = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], { env: oldEnv, encoding: 'utf8', timeout: 15000, windowsHide: true })
 assert.equal(old.status, 0, old.stderr)
 assert.ok(fs.existsSync(path.join(paths.runtimeRoot(), 'status/runtime-fixture.json')))
+// Windows CI uses 8.3 aliases in TEMP. .NET GetFullPath expands those aliases,
+// whereas Node path.resolve preserves them: both hook writers must use Node's key.
+const short = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:AD_TEST_ROOT).ShortPath'], {
+    env: { ...process.env, AD_TEST_ROOT: root }, encoding: 'utf8', timeout: 15000, windowsHide: true,
+})
+assert.equal(short.status, 0, short.stderr)
+assert.ok(short.stdout.trim(), 'Windows fixture must have a path')
+for (const profile of [path.join(short.stdout.trim(), 'short-profile'), path.join(root, 'parent', '..', 'normalized-profile') + path.sep]) {
+    process.env.TABBY_CONFIG_DIRECTORY = profile
+    const fallbackEnv = { ...process.env }; delete fallbackEnv.AGENTDECK_RUNTIME_ROOT
+    const fallback = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], {
+        env: fallbackEnv, encoding: 'utf8', timeout: 15000, windowsHide: true,
+    })
+    assert.equal(fallback.status, 0, fallback.stderr)
+    assert.equal(paths.runtimeRoot(), hook.runtimeRoot())
+    assert.equal(JSON.parse(fs.readFileSync(path.join(paths.runtimeRoot(), 'status/runtime-fixture.json'))).sessionId, json.session_id)
+    const timing = path.join(paths.runtimeRoot(), 'hook-timing')
+    assert.ok(fs.readdirSync(timing).some(day => fs.readdirSync(path.join(timing, day)).some(file => file.endsWith('.jsonl'))), 'Trace writer must share the Node runtime root')
+}
 const source = path.join(root, 'source'), target = path.join(root, 'target')
 fs.mkdirSync(source); fs.mkdirSync(target)
 fs.writeFileSync(path.join(source, 'sessions.json'), 'old')
