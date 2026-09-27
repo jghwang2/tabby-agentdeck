@@ -869,7 +869,11 @@
         // 그룹 키의 원천인 `cwdCache` 는 탭 출력이 흐를 때 `touchCwd` 가 채우므로 프로브가 심을
         // 수 없다. 그래서 cwd 가 다른 임시 폴더에서 탭을 실제로 띄운다. 이름은 그 프로브들과 같은
         // 접두를 쓴다 — 러너의 GR15(정리 확인)가 그 이름으로 잔여를 찾는다.
-        if (!nodeFs) {
+        if (typeof ad.jump === 'function') {
+            add('NV14', 'Fixed slots have no collapsible group headers',
+                document.querySelectorAll('#agentdeck-sidebar .ad-group-head').length === 0,
+                'Fixed-slot navigation replaces the former grouped navigation')
+        } else if (!nodeFs) {
             skipCases(['NV14'], 'renderer 에서 require("fs") 를 못 잡았다 — cwd 가 다른 임시 폴더를'
                 + ' 만들 수 없다 (그룹 헤더 화면 불가)', null)
         } else {

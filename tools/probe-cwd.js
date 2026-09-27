@@ -438,14 +438,16 @@
             try { fs.unlinkSync(cfgFile); fs.unlinkSync(workFile); fs.rmdirSync(fx) } catch (e) { /* 남아도 무해 */ }
         }
     } finally {
-        if (path.dirname(REPO) === os.tmpdir() && path.basename(REPO).startsWith('ad-cwd-')) {
-            fs.rmSync(REPO, { recursive: true, force: true })
-        }
         for (const undo of stubbed) { try { undo() } catch (e) { /* 이미 사라진 세션 */ } }
         for (const t of madeTabs) { try { ad.app.closeTab(t, false) } catch (e) { /* 이미 닫혔다 */ } }
         try { fs.unlinkSync(STATUS_FILE) } catch (e) { /* 이미 없다 */ }
         try { fs.unlinkSync(path.join(os.tmpdir(), 'adprobe_scratch.py')) } catch (e) { /* 이미 없다 */ }
         try { ad.view().setOpen(false) } catch (e) { /* 패널이 없다 */ }
+        // Close the diff panel before removing its repository. Git subprocesses
+        // and Windows directory watchers can briefly retain handles.
+        if (path.dirname(REPO) === os.tmpdir() && path.basename(REPO).startsWith('ad-cwd-')) {
+            await fs.promises.rm(REPO, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
+        }
     }
 
     const pass = results.filter(r => r.pass === true).length

@@ -606,6 +606,7 @@ $extra = @(
     @{ tag = 'input';   script = 'tools/probe-input.js';   label = '입력 경로' },
     @{ tag = 'layout';  script = 'tools/probe-layout.js';  label = '레이아웃·외형' },
     @{ tag = 'profile'; script = 'tools/probe-profile.js'; label = '프로필·복구' },
+    @{ tag = 'repair-lifecycle'; script = 'tools/probe-repair-lifecycle.js'; label = '복구·이어받기 생명주기' },
     @{ tag = 'viewer';  script = 'tools/probe-viewer.js';  label = '미리보기 심화' },
     # 탭 작업 폴더(CW*)는 미리보기 바로 뒤다 — `변경` 탭·상대경로 풀기·사이드바 그룹이 전부
     # 이 값을 원천으로 쓰므로, cwd 가 틀린 판에서 그것들을 재면 원인을 가를 수 없다.
