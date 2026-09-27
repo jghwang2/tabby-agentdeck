@@ -5,6 +5,21 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.2 — 2026-09-27
+
+- Stabilize Windows Codex screen repair with row-only redraw, duplicate-request
+  suppression and guards against stale work reaching replacement sessions.
+- Prevent duplicate session resumes while a tab starts; release pending state
+  and subscriptions after startup failure, session replacement or tab closure.
+- Improve named account management, account verification and CLI discovery when
+  Tabby inherits an outdated Windows PATH.
+- Add configurable storage locations, runtime migration and Windows environment
+  synchronization; protect private account files and populated templates.
+- Improve prompt-time session context, mailbox access without MCP, Codex queued
+  question shortcuts, approval detection, hook diagnostics and performance.
+- Display the installed version in the sidebar. Expand isolated regression
+  coverage, including real clipboard attachment and live Claude session navigation.
+
 ## 1.2.0 — 2026-09-17
 
 - **Shortcuts are editable in the settings window.** Settings → AgentDeck → *Shortcuts* lists the keys

@@ -9,6 +9,15 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.2
+
+- Windows Codex 화면 복구 시 너비를 유지하고, 연속 복구 요청과 교체된 세션에 대한 지연 작업을 차단합니다.
+- 세션 이어받기의 중복 탭 생성을 막고, 시작 실패·탭 종료·세션 교체 시 대기 상태를 정리합니다.
+- 이름을 붙인 계정 관리·검증, 오래된 PATH 환경의 CLI 탐색, 저장 위치 설정과 런타임 이전을 개선했습니다.
+- 프롬프트 시점의 세션 정보, MCP 없는 메시지함 접근, Codex 질문 단축키, 훅 진단과 성능을 개선했습니다.
+- 사이드바에 설치 버전을 표시합니다. 실제 이미지 붙여넣기와 Claude 세션 표시를 포함한 검증 결과는
+  [2026-09-27 검증 기록](VALIDATION_2026-09-27.md)에 있습니다.
+
 ## 1.2.0
 
 - **설정 창에서 단축키를 바꾼다.** 설정 → AgentDeck → *단축키* 에 첫 화면의 키들이 늘어서고, *바꾸기* 를 누르고

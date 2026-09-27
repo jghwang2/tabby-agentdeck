@@ -122,3 +122,29 @@ The user explicitly authorized deletion of the earlier `ad-cwd-gStJmz` fixture.
 A new path-checked PowerShell deletion attempt was still rejected by automatic
 execution policy, with no specific reason returned. It was not bypassed; deletion
 remains uncompleted separately from the successful integration verification.
+
+The user subsequently deleted that fixture manually. Before preparing 1.2.2,
+`Test-Path C:\Users\power\AppData\Local\Temp\ad-cwd-gStJmz` returned `False`.
+
+## 1.2.2 release verification
+
+Prepared from `359c8bf` in the detached worktree
+`E:/project/agentdeck-release-1.2.2`. Release changes are version synchronization
+and documentation; product and test code are unchanged from the verification above.
+
+- `npm ci --ignore-scripts`, `npm run typecheck`, full `npm test`, and
+  `npm pack --json` all exited 0. Prepack built the release bundle and
+  `check-release.js` confirmed that development reload code and sourcemaps are absent.
+- The packed `package.json` reports `tabby-agentdeck@1.2.2`. The archive's
+  `dist/index.js` and the bundle loaded by the isolated regression app have the
+  same SHA-256: `E3574BAF6070D8B137BD262DE057269A24E932C71CF5C91350490FA04951E4A2`.
+- `run-all.ps1 -SkipBuild -SkipUnit` on port 9239 returned 168 PASS, 0 FAIL,
+  8 SKIP across 176 entries. B0 and R13 were separately verified by the commands
+  above. A follow-up `probe-all.js` run in the repository passed R28, matching
+  Git's nine changed files and line totals; that follow-up had no failures.
+- Thus 171 entries passed in this release run. R6, IN6 and RS8 retain the real
+  integration evidence above for unchanged product code; they were not repeated
+  against the release bundle. PF4 and PF6 remain measurements without verdicts.
+- Release evidence is in `E:/project/agentdeck-release-evidence-1.2.2`, including
+  `typecheck.log`, `unit.log`, `pack.log`, `regression.log`, `main-recheck.json`,
+  and `app/report/regression.json`. The production Tabby plugin was not replaced.
