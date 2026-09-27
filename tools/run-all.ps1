@@ -45,6 +45,7 @@ param(
     [switch]$SkipUnit,
     [switch]$SkipBuild,
     [string]$PluginRoot = '',
+    [string]$TestRoot = '',
     [switch]$ContinueAfterAppGone,
     [int]$Port = 9222,
     [int]$Width = 1700,
@@ -64,6 +65,7 @@ $env:TABBY_PLUGINS = ''
 
 $root = Split-Path -Parent $PSScriptRoot
 $outDir = Join-Path $env:TEMP 'agentdeck-regression'
+if ($TestRoot) { $outDir = Join-Path ([IO.Path]::GetFullPath($TestRoot)) 'report' }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $report = @()
 
@@ -94,6 +96,10 @@ $script:nDerived = 0
 # 여기까지로 제한한다 (`tools/README.md` "로그 경로를 프로브가 만들지 말 것")
 $script:cfgDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test\cfg'
 $script:udDir = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test\ud'
+if ($TestRoot) {
+    $script:cfgDir = Join-Path ([IO.Path]::GetFullPath($TestRoot)) 'cfg'
+    $script:udDir = Join-Path ([IO.Path]::GetFullPath($TestRoot)) 'ud'
+}
 
 function Note([string]$id, [string]$name, $pass, [string]$detail) {
     $script:report += [ordered]@{ id = $id; name = $name; pass = $pass; detail = $detail }
@@ -113,6 +119,7 @@ function Note([string]$id, [string]$name, $pass, [string]$detail) {
 function Start-TestInstance([switch]$Kill) {
     $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'test-instance.ps1'))
     if ($PluginRoot) { $psArgs += @('-PluginRoot', $PluginRoot) }
+    if ($TestRoot) { $psArgs += @('-TestRoot', $TestRoot) }
     $psArgs += @('-Port', $Port)
     if ($Kill) { $psArgs += '-Kill' }
     $out = & powershell @psArgs 2>&1 | Out-String
@@ -135,7 +142,7 @@ function Start-TestInstance([switch]$Kill) {
 function Get-TabbyCounts {
     $test = 0
     foreach ($p in (Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' })) {
+            Where-Object { $_.CommandLine -and $_.CommandLine.Contains($script:udDir) })) {
         if ($p) { $test++ }
     }
     $any = 0
@@ -392,7 +399,7 @@ public class AdWin {
 "@
 function Set-TestWindow([int]$w, [int]$h) {
     $procs = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-        Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' }
+        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($script:udDir) }
     $n = 0
     foreach ($p in $procs) {
         $proc = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
@@ -807,6 +814,7 @@ Write-Output '--- 4) 사이드바 폭 바꿔 재기동 (R10) ---'
 $isoCfg = $script:cfgDir
 $ud = $script:udDir
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Tabby\Tabby.exe'
+if (-not (Test-Path -LiteralPath $exe)) { $exe = Join-Path $env:ProgramFiles 'Tabby\Tabby.exe' }
 $wantWidth = 333
 if (Test-AppStop) {
     Add-DerivedSkipNote 'R10' '크기조절 후 재기동'
@@ -829,7 +837,7 @@ Start-Sleep -Seconds 2
 
 # config 를 보존한 채 재기동한다 — `test-instance.ps1` 은 config 를 새로 쓰므로 쓸 수 없다
 Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' } |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($script:udDir) } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 $env:TABBY_CONFIG_DIRECTORY = $isoCfg
@@ -837,7 +845,7 @@ $env:TABBY_CONFIG_DIRECTORY = $isoCfg
 # 재기동하는 이 자리에서 빼먹으면 이 인스턴스의 로그가 홈(실사용 Tabby 와 **같은 파일**)으로
 # 돌아가고, 종료 원인 줄이 남의 줄에 밀려난다 (사고 ② 가 그래서 미확정으로 끝났다)
 $env:AGENTDECK_DIAG_DIR = $isoCfg
-Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port")
+Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port") -WindowStyle Hidden
 Start-Sleep -Seconds 9
 $plug = Wait-ForPlugin 15
 if ($plug -eq 'gone') {
@@ -899,12 +907,12 @@ Pop-Location
 Start-Sleep -Seconds 2
 
 Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like '*tabby-agentdeck-test*' } |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($script:udDir) } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 $env:TABBY_CONFIG_DIRECTORY = $isoCfg
 $env:AGENTDECK_DIAG_DIR = $isoCfg
-Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port")
+Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port") -WindowStyle Hidden
 Start-Sleep -Seconds 9
 $plug = Wait-ForPlugin 15
 if ($plug -eq 'gone') {
@@ -956,6 +964,7 @@ if (-not (Test-Path $hook)) {
     $iso = Join-Path $outDir 'localappdata'
     New-Item -ItemType Directory -Force -Path $iso | Out-Null
     $statusDir = Join-Path $iso 'tabby-agentdeck\status'
+    if (-not ([IO.Path]::GetFullPath($statusDir).StartsWith([IO.Path]::GetFullPath($outDir) + [IO.Path]::DirectorySeparatorChar))) { throw 'Unexpected status directory' }
     if (Test-Path $statusDir) { Remove-Item -Recurse -Force $statusDir -ErrorAction SilentlyContinue }
     $sid = 'regression-probe'
     $json = '{"session_id":"' + $sid + '","hook_event_name":"StopFailure","error":"rate_limit",' +

@@ -13,18 +13,19 @@
 #
 # ud 폴더는 매번 새로 만든다 — 남아 있으면 recoverTabs 가 지난 실행의 탭을 되살려
 # 매번 다른 초기 상태로 뜬다 (docs/REGRESSION.md 실측).
-param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [string]$PluginRoot = '', [string]$Language = 'ko-KR')
+param([switch]$Kill, [int]$Port = 9222, [switch]$ConPTY, [string]$Cwd = '', [string]$PluginRoot = '', [string]$Language = 'ko-KR', [string]$TestRoot = '')
 
 $root = Split-Path -Parent $PSScriptRoot
 if ($PluginRoot) { $root = (Resolve-Path -LiteralPath $PluginRoot -ErrorAction Stop).Path }
 $base = Join-Path $env:LOCALAPPDATA 'tabby-agentdeck-test'
+if ($TestRoot) { $base = [IO.Path]::GetFullPath($TestRoot) }
 $cfg  = Join-Path $base 'cfg'
 $ud   = Join-Path $base 'ud'
 
 # 테스트 인스턴스만 골라 내린다 — 실사용 Tabby 는 건드리면 안 되므로
 # 커맨드라인에 우리 ud 경로가 들어간 프로세스만 죽인다.
 $victims = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
-    Where-Object { $_.CommandLine -like "*tabby-agentdeck-test*" }
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($ud) }
 foreach ($p in $victims) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
 if ($Kill) { Write-Output "killed=$($victims.Count)"; exit 0 }
 
@@ -100,5 +101,6 @@ $env:AGENTDECK_DIAG_DIR = $cfg
 $env:NODE_PATH = ''
 $env:TABBY_PLUGINS = ''
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Tabby\Tabby.exe'
+if (-not (Test-Path -LiteralPath $exe)) { $exe = Join-Path $env:ProgramFiles 'Tabby\Tabby.exe' }
 Start-Process -FilePath $exe -ArgumentList @("--user-data-dir=$ud", "--remote-debugging-port=$Port") -WindowStyle Hidden
 Write-Output "started cfg=$cfg ud=$ud port=$Port"

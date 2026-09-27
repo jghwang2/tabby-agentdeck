@@ -718,7 +718,7 @@
                 const baseA0 = x.buffer.active.baseY
                 log.length = 0
                 ad.repair('active')
-                await sleep(900)   // REPAIR_REDRAW_DELAY_MS(180) + rAF 2회 + 여유
+                await sleep(1800)  // Wait for the full repair (including its 1500ms snapshot) before testing another mode.
                 const a = {
                     ctrlL: log.filter(d => d.indexOf(CTRL_L) >= 0).length,
                     baseYBefore: baseA0,
@@ -737,7 +737,7 @@
                 const baseB0 = x.buffer.active.baseY
                 log.length = 0
                 ad.repair('active')
-                await sleep(1000)
+                await sleep(1800)  // The next case must not be a duplicate request during this repair.
                 const b = {
                     ctrlL: log.filter(d => d.indexOf(CTRL_L) >= 0).length,
                     baseYBefore: baseB0,

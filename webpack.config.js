@@ -29,7 +29,7 @@ module.exports = (env = {}) => ({
             // 통째로 빠진다. 빌드 쪽에도 두어 **둘 중 하나만 돌아도** 막히게 한다
             {
                 apply: compiler => compiler.hooks.done.tap('DropStaleSourceMap', () => {
-                    const map = path.resolve(__dirname, 'dist', 'index.js.map')
+                    const map = path.resolve(compiler.outputPath, 'index.js.map')
                     if (fs.existsSync(map)) { fs.rmSync(map) }
                 }),
             },

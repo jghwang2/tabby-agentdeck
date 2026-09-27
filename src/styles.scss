@@ -159,6 +159,16 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     .ad-resize-top { bottom: 0; }
 
     // 상태별 집계 칩 한 줄 — `⏸ 2  ● 3  ○ 1`. 헤더 높이는 총 개수만 있던 때와 같게 유지한다
+    .ad-head-title {
+        white-space: nowrap;
+    }
+
+    .ad-head-version {
+        margin-left: 4px;
+        letter-spacing: 0;
+        font-weight: 400;
+    }
+
     .ad-head-count {
         -webkit-app-region: no-drag;
         display: flex;

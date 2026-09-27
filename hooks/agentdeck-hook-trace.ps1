@@ -1,4 +1,4 @@
-# Process-local diagnostics. Never serialize hook input, exception messages or credentials.
+﻿# Process-local diagnostics. Never serialize hook input, exception messages or credentials.
 $global:AgentDeckHookTrace = $null
 try {
     $traceRoot = $env:AGENTDECK_RUNTIME_ROOT

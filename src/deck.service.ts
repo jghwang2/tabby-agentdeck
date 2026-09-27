@@ -35,7 +35,7 @@ import { SessionSearchPanel } from './sessionSearchPanel'
 import { ResumeRow, formatWhen, resumeCommand, resumeRowsFor } from './sessionLedger'
 import { ViewPanel, ViewSide, MIN_VIEW_W } from './viewPanel'
 import { followModeOf, migrateFollow } from './viewer'
-import { appendScreenLog, collectDiagBundle, configStamp, diag, diagCatch, diagMemory, diagOnce, installErrorCapture, resetDiagOnce, startDiagSession, DIAG_PATH, DIAG_PREV_PATH, SCREEN_PATH } from './diag'
+import { appendScreenLog, collectDiagBundle, configStamp, diag, diagCatch, diagMemory, diagOnce, installErrorCapture, pluginVersion, resetDiagOnce, startDiagSession, DIAG_PATH, DIAG_PREV_PATH, SCREEN_PATH } from './diag'
 
 const SIDEBAR_ID = 'agentdeck-sidebar'
 const BODY_CLASS = 'agentdeck-active'
@@ -586,6 +586,10 @@ export class AgentDeckService {
      * 매 렌더마다 `liveSessionIds()` 가 다시 채운다(탭이 닫히면 그 줄은 이어받기로 돌아간다).
      */
     private resumeTabs = new Map<string, BaseTabComponent>()
+    private resumeOpening = new Set<string>()
+    private resumeStarting = new Map<string, BaseTabComponent>()
+    private repairInProgress = false
+    private ptyResizeGeneration = new WeakMap<object, number>()
 
     /**
      * 이 서비스의 출력 구독이 실제로 몇 번 돌았나 (진단용).
@@ -1364,32 +1368,49 @@ export class AgentDeckService {
      * 커널은 SIGWINCH 를 내지 않고, 앱은 다시 그릴 이유를 영영 못 받는다. 증상은
      * "statusline 이 사라지고 입력창 구분선이 중간에서 끊긴다" (2026-09-01 실측).
      *
-     * 그래서 복구는 크기를 맞추는 것으로 끝내지 않고 **항상 한 번 흔든다**(`nudgePtyRedraw`).
-     * 어긋남이 없어도 무해하다 — 폭이 한 칸 줄었다 돌아올 뿐이고 xterm 은 건드리지 않는다.
+     * 복구는 크기 정합 후 한 번의 재그리기를 요청한다. Windows Codex는 열 재배치를
+     * 피하도록 높이를 바꾼다. 완료 전의 반복 요청은 추가 작업으로 예약하지 않는다.
      *
      * @param scope `active` = 지금 보고 있는 탭만, `all` = 열려 있는 모든 탭
      */
     repair (scope: 'active' | 'all' = 'all'): void {
+        if (this.repairInProgress) {
+            this.diag('repair already in progress')
+            return
+        }
+        this.repairInProgress = true
         const trace = new PerformanceTrace('repair')
         const targets = scope === 'active' && this.app.activeTab
             ? [this.app.activeTab]
-            : this.app.tabs
+            : [...this.app.tabs]
         this.diag(`repair scope=${scope} tabs=${targets.length}`)
 
         // 1) 사이드바 폭부터 다시 잰다 — 어긋남의 출발점이 대개 여기다
-        trace.step('layout', () => this.relayout())
+        try {
+            trace.step('layout', () => this.relayout())
+        } catch (e) {
+            this.repairInProgress = false
+            diagCatch('repair layout', e)
+            return
+        }
 
         // 2) 레이아웃이 실제로 반영된 다음에 재야 한다 (scheduleRefit 과 같은 이유로 두 프레임)
         requestAnimationFrame(() => requestAnimationFrame(() => {
-            trace.mark('frames-ready', `scope=${scope} tabs=${targets.length}`)
-            for (const tab of targets) {
-                const anyTab = tab as any
-                const panes: BaseTabComponent[] = typeof anyTab.getAllTabs === 'function'
-                    ? anyTab.getAllTabs()
-                    : [tab]
-                for (const pane of panes) {
-                    this.repairPane(pane, trace)
+            try {
+                trace.mark('frames-ready', `scope=${scope} tabs=${targets.length}`)
+                for (const tab of targets) {
+                    if (!this.app.tabs.includes(tab)) { continue }
+                    const anyTab = tab as any
+                    const panes: BaseTabComponent[] = typeof anyTab.getAllTabs === 'function'
+                        ? anyTab.getAllTabs()
+                        : [tab]
+                    for (const pane of panes) {
+                        try { this.repairPane(pane, trace) } catch (e) { diagCatch('repair pane', e) }
+                    }
                 }
+            } finally {
+                // Hold through redraw and the after-snapshot; repeated keys do not queue repairs.
+                setTimeout(() => { this.repairInProgress = false }, SNAP_AFTER_MS)
             }
         }))
     }
@@ -3962,7 +3983,7 @@ export class AgentDeckService {
      *
      * 그래서 fit() 뒤에 pty 로 직접 한 번 더 내려보낸다. 같은 값이면 pty 쪽에서 무시되므로 무해하다.
      */
-    private syncPtySize (pane: BaseTabComponent, frontend: any): void {
+    private syncPtySize (pane: BaseTabComponent, frontend: any, retry = true): void {
         const cols = frontend?.xterm?.cols
         const rows = frontend?.xterm?.rows
         if (!cols || !rows) {
@@ -3973,6 +3994,9 @@ export class AgentDeckService {
         if (!session || !session.open || typeof session.resize !== 'function') {
             return
         }
+        const generations = this.ptyResizeGeneration ??= new WeakMap<object, number>()
+        const generation = (generations.get(pane) ?? 0) + 1
+        generations.set(pane, generation)
         // 이 경로는 지금까지 조용했다. 그래서 "언제 pty 폭이 바뀌었나" 가 로그에 안 남아
         // 어긋남 사고를 만나도 발생 지점을 못 짚었다 (watchSize 의 `size fix` 만 남았다).
         // 값이 실제로 달라질 때만 남긴다 — 같은 값 재전송은 매 refit 마다 일어나므로 시끄럽다.
@@ -4001,12 +4025,13 @@ export class AgentDeckService {
         //
         // 그래서 값이 실제로 바뀐 경우에만 같은 크기를 몇 번 더 보낸다. pty 크기가 이미
         // 그 값이면 아무 일도 일어나지 않으므로(SIGWINCH 도 안 난다) 재전송은 무해하다.
-        if (prev?.columns !== cols || prev?.rows !== rows) {
+        if (retry && (prev?.columns !== cols || prev?.rows !== rows)) {
             for (const delay of PTY_RESIZE_RETRY_MS) {
                 setTimeout(() => {
                     const now = anyPane.frontend?.xterm
                     // 그동안 폭이 또 바뀌었으면 그쪽 경로가 새 값을 보낸다 — 옛 값을 덮어쓰지 않는다
-                    if (!anyPane.session?.open || now?.cols !== cols || now?.rows !== rows) {
+                    if (anyPane.session !== session || !session.open || generations.get(pane) !== generation
+                        || now?.cols !== cols || now?.rows !== rows) {
                         return
                     }
                     try {
@@ -4021,7 +4046,8 @@ export class AgentDeckService {
     }
 
     /**
-     * pty 크기만 한 칸 줄였다 되돌려 TUI 가 화면을 다시 그리게 한다. **수동 복구 전용.**
+     * pty 크기를 한 칸 줄였다 되돌려 TUI가 다시 그리게 한다. Windows Codex는 높이를,
+     * 다른 TUI는 너비를 바꾼다. 수동 복구 전용이며 세션 교체 후에는 타이머를 적용하지 않는다.
      *
      * 자동 경로에서는 전부 걷어냈다 — 이 흔들기가 순정 수렴과 경쟁하며 깨진 화면을
      * 만들어 왔다(2026-09-02). 남겨 둔 이유는 `repairPane`(사이드바 `↻` / `agentdeck-repair`)
@@ -4040,17 +4066,22 @@ export class AgentDeckService {
         if (!session?.open || typeof session.resize !== 'function' || !(cols > 1) || !(rows > 1)) {
             return
         }
-        this.diag(`redraw nudge ${cols}x${rows}`)
+        // Width reflow in Windows conhost crashed immediately after Codex repair.
+        // A row change still requests a redraw without reflowing the transcript's columns.
+        const keepColumns = process.platform === 'win32' && this.profileForPane(pane)?.id === 'codex'
+        const nextCols = keepColumns ? cols : cols - 1
+        const nextRows = keepColumns ? rows - 1 : rows
+        this.diag(`redraw nudge ${cols}x${rows} -> ${nextCols}x${nextRows}`)
         try {
-            session.resize(cols - 1, rows)
-            anyPane.size = { columns: cols - 1, rows }
+            session.resize(nextCols, nextRows)
+            anyPane.size = { columns: nextCols, rows: nextRows }
             const restoreAt = perfNow() + 60
             setTimeout(() => {
-                if (!anyPane.session?.open) {
+                if (anyPane.session !== session || !session.open) {
                     return
                 }
                 // 되돌릴 값은 "지금" 의 xterm 폭이다 — 흔드는 사이 사이드바가 움직였을 수 있다
-                this.syncPtySize(pane, anyPane.frontend)
+                this.syncPtySize(pane, anyPane.frontend, false)
                 trace?.mark('pty-restored', `timerLagMs=${Math.max(0, perfNow() - restoreAt).toFixed(1)}`)
             }, 60)
         } catch {
@@ -4073,7 +4104,7 @@ export class AgentDeckService {
         el.id = SIDEBAR_ID
         el.innerHTML = [
             '<div class="ad-head">',
-            '  <span class="ad-head-title">AGENT DECK</span>',
+            '  <span class="ad-head-title">AGENT DECK <span class="ad-head-version"></span></span>',
             '  <span class="ad-head-count"></span>',
             '</div>',
             // 검색 줄은 헤더와 목록 **사이**에 둔다. 목록 안에 넣으면 render() 가 지우고,
@@ -4110,6 +4141,7 @@ export class AgentDeckService {
         ].join('\n')
 
         // 순정 탭바보다 뒤(오른쪽)에 놓는다 — 왼쪽에 두면 세로로 길어 허전하다는 피드백(2026-08-28)
+        el.querySelector('.ad-head-version').textContent = `v${pluginVersion()}`
         this.windowEl.appendChild(el)
         this.sidebar = el
         this.listEl = el.querySelector('.ad-list')
@@ -5159,6 +5191,13 @@ export class AgentDeckService {
             }
             out.set(sid, sid)
             this.resumeTabs.set(sid, tab)
+        }
+        for (const [sid, tab] of this.resumeStarting ?? []) {
+            if (!this.app.tabs.includes(tab)) { continue }
+            if (!out.has(sid)) {
+                out.set(sid, sid)
+                this.resumeTabs.set(sid, tab)
+            }
         }
         return out
     }
@@ -6566,6 +6605,10 @@ export class AgentDeckService {
      * 세션↔탭 매핑은 `notify` 가 이미 들고 있어 판정에 드는 비용이 없으니 막는다.
      */
     private async activateResume (row: ResumeRow, fork: boolean): Promise<void> {
+        // Refresh at click time: the row can predate a hook or a previous click.
+        if (!fork && this.liveSessionIds) {
+            row = { ...row, openTabId: this.liveSessionIds().get(row.sessionId) || null }
+        }
         if (row.openTabId) {
             const tab = this.resumeTabs.get(row.openTabId)
             if (tab && this.app.tabs.includes(tab)) {
@@ -6579,7 +6622,45 @@ export class AgentDeckService {
             this.diag(`resume 거부 sid=${row.sessionId}`)
             return
         }
-        await this.openResumeTab(row, command)
+        const opening = this.resumeOpening ??= new Set<string>()
+        const key = `${row.agent ?? 'claude'}:${fork ? 'fork' : 'resume'}:${row.sessionId}`
+        if (opening.has(key)) { return }
+        opening.add(key)
+        try {
+            const tab = await this.openResumeTab(row, command)
+            if (tab && !fork) { this.trackResumeStart(row.sessionId, tab) }
+        } finally {
+            opening.delete(key)
+        }
+    }
+
+    /** Cover the gap between tab creation and the first CLI hook. */
+    private trackResumeStart (sid: string, tab: BaseTabComponent): void {
+        // Profiles returns an inner terminal; AppService owns its SplitTab wrapper.
+        tab = this.app.tabs.find(root => root === tab || (root as any).getAllTabs?.().includes(tab)) ?? tab
+        this.resumeStarting.set(sid, tab)
+        let sub: any = null
+        let session: any = null
+        let tail = ''
+        const release = () => {
+            clearInterval(timer)
+            sub?.unsubscribe?.()
+            if (this.resumeStarting.get(sid) === tab) { this.resumeStarting.delete(sid) }
+        }
+        const timer = setInterval(() => {
+            if (!this.app.tabs.includes(tab) || this.notify.liveSessions().has(sid)) { release(); return }
+            const current = (this.firstPane(tab) as any)?.session
+            if (session && (session !== current || !session.open)) { release(); return }
+            if (!session && current?.open) {
+                session = current
+                sub = session.output$?.subscribe((chunk: string) => {
+                    tail = (tail + chunk).slice(-4096)
+                    if (/thread-store conflict:|failed to (?:create|resume|load) session|no (?:saved )?session found|is not recognized as|command not found/i.test(tail)) {
+                        release()
+                    }
+                })
+            }
+        }, 100)
     }
 
     /**
@@ -6593,7 +6674,7 @@ export class AgentDeckService {
      * **cwd 는 그 세션의 것으로 덮는다.** `--resume` 은 cwd 로 세션을 묶기 때문에(같은 세션도
      * 다른 폴더에서 띄우면 목록에 없다) 여기를 틀리면 이어받기 자체가 실패한다.
      */
-    private async openResumeTab (row: ResumeRow, command: string, account?: SavedAccount): Promise<void> {
+    private async openResumeTab (row: ResumeRow, command: string, account?: SavedAccount): Promise<BaseTabComponent | undefined> {
         this.syncSessionSlots()
         if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
         this.pendingSessionOpens++
@@ -6632,6 +6713,7 @@ export class AgentDeckService {
                 this.status.setLabel(tab, row.label)
             }
             this.sendResumeCommand(tab, command)
+            return tab
         } catch (e: any) {
             if (account) { throw new Error(this.ui('새 계정 탭을 열지 못했습니다.')) }
             diagCatch('resume 탭 열기', e)

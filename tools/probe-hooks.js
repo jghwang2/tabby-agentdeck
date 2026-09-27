@@ -346,7 +346,7 @@
         // Probe the loaded build's hooks, not the user's globally installed older copy.
         let loadedRoot = null
         try {
-            if (process.env.TABBY_CONFIG_DIRECTORY?.includes('tabby-agentdeck-test')) {
+            if (process.env.TABBY_CONFIG_DIRECTORY) {
                 loadedRoot = nodeFs.realpathSync(nodePath.join(nodePath.dirname(process.env.TABBY_CONFIG_DIRECTORY), 'ud/plugins/node_modules/tabby-agentdeck'))
             }
         } catch {}
