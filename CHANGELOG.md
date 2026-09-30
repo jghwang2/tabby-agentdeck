@@ -5,6 +5,16 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.3 — 2026-09-30
+
+- Keep sidebar click targets alive during status updates so mouse tab switching
+  and close buttons work reliably.
+- Introduce fixed tab numbers and cross-session messaging in English and Korean
+  READMEs, website feature cards, and package descriptions, including setup,
+  slot reuse, and delivery acknowledgements.
+- Add real Chromium mouse regression coverage and isolate repair measurements
+  from tab-selection redraws.
+
 ## 1.2.2 — 2026-09-27
 
 - Stabilize Windows Codex screen repair with row-only redraw, duplicate-request
