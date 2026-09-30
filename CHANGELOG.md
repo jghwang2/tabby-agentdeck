@@ -5,6 +5,16 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.4 — 2026-09-30
+
+- Stop launching Codex every minute for account checks. Refresh credentials only
+  near expiry and stop automatic checks after five minutes of failures until a
+  successful new login, for both Codex and Claude.
+- Block Git network access in the temporary Codex authentication helper to avoid
+  repeated marketplace downloads and disk consumption.
+- Bound mailbox hook execution time so stalled or trickling responses cannot
+  hold up the agent's tool hooks.
+
 ## 1.2.3 — 2026-09-30
 
 - Keep sidebar click targets alive during status updates so mouse tab switching

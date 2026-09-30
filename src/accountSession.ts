@@ -7,6 +7,7 @@ import { SavedAccount, AccountQuota, AccountRequestError, accountHome, accountEm
     restoreAccountAuth, saveAccountAuth, authenticateAccount, fetchAccountQuotas } from './accounts'
 import { MetaInput } from './meta'
 import { agentHome } from './storagePaths'
+import { accountRefreshState, recordRefreshFailure, recordRefreshSuccess, REFRESH_WINDOW_MS } from './accountRefreshPolicy'
 
 function read (file: string): any {
     try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) } catch { return null }
@@ -99,14 +100,60 @@ function refreshToken (refresh: string): Promise<any> {
     })
 }
 
+export function codexRefreshDeadline (auth: any): number {
+    try {
+        const payload = JSON.parse(Buffer.from(auth?.tokens?.access_token?.split('.')[1] || '', 'base64').toString('utf8'))
+        if (typeof payload.exp === 'number' && Number.isFinite(payload.exp) && payload.exp > 0) { return payload.exp * 1000 }
+    } catch { /* Opaque tokens use the official managed-session refresh age below. */ }
+    const refreshed = Date.parse(auth?.last_refresh)
+    // Official Codex managed-auth fallback: refresh after eight days.
+    return Number.isFinite(refreshed) ? refreshed + 8 * 86400000 : 0
+}
+
+function reloginRequired (): AccountRequestError {
+    return new AccountRequestError('auth', '재로그인 필요 · 인증 갱신에 계속 실패하여 자동 점검을 중단했습니다.')
+}
+
+async function ensureCodexSession (account: SavedAccount, forceRefresh: boolean): Promise<void> {
+    const home = accountHome(account), file = path.join(home, 'auth.json')
+    let auth = read(file)
+    if (accountEmail('codex', home).toLowerCase() !== account.id.toLowerCase() || !auth?.tokens?.access_token) {
+        throw new AccountRequestError('auth', '저장된 로그인 정보가 없습니다.')
+    }
+    if (!codexRefreshDeadline(auth)) { throw new AccountRequestError('auth', '로그인 만료 정보를 확인할 수 없습니다. 다시 로그인하세요.') }
+    if (!forceRefresh && codexRefreshDeadline(auth) > Date.now() + REFRESH_WINDOW_MS) { return }
+    const lock = path.join(home, '.agentdeck-auth-refresh.lock')
+    let fd: number
+    try { fd = fs.openSync(lock, 'wx') } catch {
+        try { if (Date.now() - fs.statSync(lock).mtimeMs > 60000) { fs.unlinkSync(lock) } } catch { /* retry later */ }
+        throw new AccountRequestError('temporary', '인증 갱신 중입니다. 잠시 후 다시 시도합니다.')
+    }
+    try {
+        // The running CLI may already have refreshed since the first file read.
+        auth = read(file)
+        if (!forceRefresh && codexRefreshDeadline(auth) > Date.now() + REFRESH_WINDOW_MS) { return }
+        await authenticateAccount(account, true)
+        const latest = read(file)
+        if (accountEmail('codex', home).toLowerCase() !== account.id.toLowerCase()
+            || codexRefreshDeadline(latest) <= Date.now() + REFRESH_WINDOW_MS) {
+            throw new AccountRequestError('auth', '로그인 정보를 갱신하지 못했습니다.')
+        }
+    } finally { fs.closeSync(fd); try { fs.unlinkSync(lock) } catch { /* already removed */ } }
+}
+
 export function ensureAccountSession (account: SavedAccount, forceRefresh = false): Promise<void> {
     const active = inFlight.get(account.key)
     if (active) { return active }
+    const home = accountHome(account), state = accountRefreshState(home)
+    if (state.blocked) { return Promise.reject(reloginRequired()) }
+    if ((state.nextAttemptAt || 0) > Date.now()) {
+        return Promise.reject(new AccountRequestError('temporary', '인증 갱신 대기 중 · 잠시 후 자동으로 다시 시도합니다.'))
+    }
     const task = (async () => {
         if (account.provider === 'claude') { synchronizeClaudeAuth(account) }
         await restoreAccountAuth(account)
         if (account.provider === 'codex') {
-            await authenticateAccount(account)
+            await ensureCodexSession(account, forceRefresh)
             await persistIfChanged(account)
             return
         }
@@ -152,7 +199,13 @@ export function ensureAccountSession (account: SavedAccount, forceRefresh = fals
             } finally { fs.closeSync(fd); try { fs.unlinkSync(lock) } catch { /* lease already removed */ } }
         }
         await persistIfChanged(account)
-    })().finally(() => inFlight.delete(account.key))
+    })().then(() => {
+        recordRefreshSuccess(home, state.generation)
+    }, error => {
+        const latest = recordRefreshFailure(home, state.generation)
+        if (latest.blocked) { throw reloginRequired() }
+        throw error
+    }).finally(() => inFlight.delete(account.key))
     inFlight.set(account.key, task)
     return task
 }
@@ -230,6 +283,7 @@ export async function maintainAccountSessions (metas: (MetaInput & { ts?: number
     try { accounts = readAccounts() } catch { return }
     for (const account of accounts) {
         try {
+            if (accountRefreshState(accountHome(account)).blocked) { continue }
             for (const meta of metas) { recordAccountUsage(account, meta) }
             await ensureAccountSession(account)
         } catch { /* Retry next minute; never open a browser in the background. */ }

@@ -23,6 +23,7 @@ import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, pre
 import { storageEnvironment } from './storagePaths'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
+import { accountRefreshState } from './accountRefreshPolicy'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
 import { CompositionHelperLike, flushComposition, planSend, readCompositionState } from './ime'
 import { DockController, DockSide, DOCK_SIDES, isDockSide, isHorizontalDock } from './dock'
@@ -4934,6 +4935,10 @@ export class AgentDeckService {
             registerAccountSource(account, meta.configDir)
             const refresh = () => {
                 if (!popup.isConnected) { polls.forEach(clearInterval); return }
+                if (accountRefreshState(accountHome(account)).blocked) {
+                    quota.textContent = this.sidebarLang === 'ko' ? '재로그인 필요 · 자동 점검 중단' : 'Sign in again · automatic checks stopped'
+                    return
+                }
                 for (const live of this.app.tabs.map(t => this.notify.metaOf(t)).filter(Boolean)) { recordAccountUsage(account, live) }
                 void getAccountQuotas(account).then(snapshot => {
                 if (!popup.isConnected) { return }
@@ -4970,7 +4975,7 @@ export class AgentDeckService {
             button.onclick = async () => {
                 if (this.accountSwitchBusy) { return }
                 if (!this.app.tabs.includes(tab)) { message.textContent = this.ui('원래 탭이 닫혔습니다. 계정 목록을 다시 여세요.'); return }
-                if (current) { dismiss(); return }
+                if (current && !accountRefreshState(accountHome(account)).blocked) { dismiss(); return }
                 this.accountSwitchBusy = true
                 popup.querySelectorAll<HTMLButtonElement>('.ad-account-option').forEach(b => { b.disabled = true })
                 try {

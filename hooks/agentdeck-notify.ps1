@@ -446,9 +446,35 @@ Write-HookDiag 'tcp-sent'
 Write-AgentDeckHookTrace 'tcp_end'
 if ($mailContext) {
     Write-AgentDeckHookTrace 'mailbox_begin'
-    & node (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') --hook $targetId ([string]$hook.hook_event_name) 2>$null
-    Write-HookDiag "mailbox-done exit=$LASTEXITCODE"
-    Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $LASTEXITCODE }
+    $mailProcess = New-Object System.Diagnostics.Process
+    try {
+        $mailProcess.StartInfo.FileName = (Get-Command node -CommandType Application -ErrorAction Stop).Source
+        $mailProcess.StartInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') + '" --hook "' + $targetId + '" "' + [string]$hook.hook_event_name + '"'
+        $mailProcess.StartInfo.UseShellExecute = $false
+        $mailProcess.StartInfo.CreateNoWindow = $true
+        $mailProcess.StartInfo.RedirectStandardOutput = $true
+        $mailProcess.StartInfo.RedirectStandardError = $true
+        $mailProcess.StartInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
+        $mailProcess.StartInfo.EnvironmentVariables['AGENTDECK_HOOK_DEADLINE'] = [string]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() + 1000)
+        [void]$mailProcess.Start()
+        $mailOutput = $mailProcess.StandardOutput.ReadToEndAsync()
+        $mailError = $mailProcess.StandardError.ReadToEndAsync()
+        if (-not $mailProcess.WaitForExit(1500)) {
+            try { $mailProcess.Kill() } catch { }
+            Write-HookDiag 'mailbox-timeout budget=1500ms'
+            Write-AgentDeckHookTrace 'mailbox_timeout' @{ budget_ms = 1500 }
+        } else {
+            if ($mailProcess.ExitCode -eq 0 -and $mailOutput.IsCompleted) {
+                $mailText = $mailOutput.Result
+                if ($mailText) { [Console]::Out.Write($mailText) }
+            }
+            Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $mailProcess.ExitCode }
+        }
+    } catch {
+        Write-AgentDeckHookTrace 'mailbox_error' @{} $_
+    } finally {
+        $mailProcess.Dispose()
+    }
 }
 Write-HookDiag 'end'
 exit 0

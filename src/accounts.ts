@@ -5,6 +5,7 @@ import * as https from 'https'
 import { createHash } from 'crypto'
 import { spawn, execFileSync, ChildProcessWithoutNullStreams } from 'child_process'
 import { accountsFile, agentHome, hasConfiguredAgentHome } from './storagePaths'
+import { resetAccountRefreshAfterLogin } from './accountRefreshPolicy'
 
 export type AccountProvider = 'claude' | 'codex'
 export interface SavedAccount { provider: AccountProvider, key: string, name: string, id: string }
@@ -468,17 +469,17 @@ function fetchCodexUsage (account: SavedAccount): Promise<AccountQuota[]> {
     })
 }
 
-export async function authenticateAccount (account: SavedAccount): Promise<void> {
+export async function authenticateAccount (account: SavedAccount, refreshToken = false): Promise<void> {
     await restoreAccountAuth(account)
     if (accountEmail(account.provider, accountHome(account)).toLowerCase() !== account.id.toLowerCase()) {
         throw new AccountRequestError('auth', '저장된 로그인 정보가 없습니다.')
     }
-    if (account.provider === 'codex') {
+    if (account.provider === 'codex' && refreshToken) {
         const client = new CodexAccountClient(account)
         try {
             await client.init()
-            // Checking identity must not rotate refresh tokens behind a running CLI.
-            const identity = await client.request('account/read', { refreshToken: false })
+            // Only invoke Codex when the local expiry check requests an actual refresh.
+            const identity = await client.request('account/read', { refreshToken: true })
             if (identity.account?.email?.toLowerCase() !== account.id.toLowerCase()) { throw new AccountRequestError('auth', '계정 확인이 필요합니다.') }
         } finally { client.close() }
     }
@@ -567,4 +568,5 @@ export async function loginAccount (account: SavedAccount, browser: LoginBrowser
         } finally { closeBrowser(); if (!child.killed) { child.kill() } }
     }
     await saveAccountAuth(account)
+    resetAccountRefreshAfterLogin(accountHome(account))
 }

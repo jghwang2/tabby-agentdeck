@@ -7,6 +7,7 @@ require.extensions['.ts'] = (m, file) => m._compile(ts.transpileModule(fs.readFi
 }).outputText, file)
 fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify({claude:[{id:'session-fixture@example.test',name:'fixture'}]}))
 const accounts = require('../src/accounts.ts'), session = require('../src/accountSession.ts')
+const policy = require('../src/accountRefreshPolicy.ts')
 const account = accounts.readAccounts()[0], dest = accounts.accountHome(account), source = path.join(dir,'live')
 const write = (p,v) => {fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,JSON.stringify(v))}
 const read = p => JSON.parse(fs.readFileSync(p,'utf8'))
@@ -70,6 +71,7 @@ https.get = (url,options,callback) => {
     const cache=read(path.join(dest,'usage.json'));cache.ts=Date.now()-300000;write(path.join(dest,'usage.json'),cache)
     assert.equal((await session.getAccountQuotas(account)).stale,true,'old cache is explicitly marked stale')
     mode='network';await assert.rejects(session.ensureAccountSession(account,true),e=>e.kind==='temporary')
+    policy.resetAccountRefreshAfterLogin(dest)
     mode='invalid';await assert.rejects(session.ensureAccountSession(account,true),e=>e.kind==='auth')
     assert.equal(read(path.join(dest,'.credentials.json')).claudeAiOauth.accessToken,'rotated-1','failed refresh retains token')
     // A different account in the live source can never replace this account's snapshot.
@@ -77,7 +79,79 @@ https.get = (url,options,callback) => {
     write(path.join(source,'.credentials.json'),cred('wrong-user',Date.now()+86400000))
     session.synchronizeClaudeAuth(account)
     assert.equal(read(path.join(dest,'.credentials.json')).claudeAiOauth.accessToken,'rotated-1')
-    console.log('PASS: live-token synchronization, background refresh/rotation, encrypted persistence, concurrency, 429 backoff, live/stale quotas, identity isolation, auth vs transient failures')
+    const codex = {provider:'codex',id:'background@example.test',key:'codex-background',name:'background'}
+    const originals = {readAccounts:accounts.readAccounts, authenticateAccount:accounts.authenticateAccount,
+        restoreAccountAuth:accounts.restoreAccountAuth, saveAccountAuth:accounts.saveAccountAuth}
+    let authChecks=0, saves=0
+    accounts.readAccounts=()=>[codex]
+    const jwt = payload => 'fixture.'+Buffer.from(JSON.stringify(payload)).toString('base64url')+'.fixture'
+    const codexAuth = exp => ({tokens:{id_token:jwt({email:codex.id}),access_token:jwt({exp}),refresh_token:'fixture'}})
+    accounts.authenticateAccount=async(a,refresh)=>{
+        assert.equal(refresh,true)
+        authChecks++
+        write(path.join(accounts.accountHome(a),'auth.json'),codexAuth(Math.floor(Date.now()/1000)+3600))
+    }
+    accounts.restoreAccountAuth=async()=>{}
+    accounts.saveAccountAuth=async()=>{saves++}
+    try {
+        const home=accounts.accountHome(codex)
+        write(path.join(home,'auth.json'),codexAuth(Math.floor(Date.now()/1000)+3600))
+        await originals.authenticateAccount(codex)
+        for(let i=0;i<3;i++) await session.maintainAccountSessions([{agent:'codex',account:codex.id,ts:Date.now(),limits:{fiveHourPct:20}}])
+        assert.equal(authChecks,0,'minute maintenance never starts Codex authentication')
+        assert.equal(saves,1,'unchanged credentials are saved only once')
+        assert.equal(session.cachedAccountQuotas(codex).values[0].remaining,80,'live usage still updates')
+        write(path.join(home,'auth.json'),codexAuth(Math.floor(Date.now()/1000)+7200))
+        await session.maintainAccountSessions()
+        assert.equal(saves,2,'changed credentials are still preserved')
+        assert.equal(authChecks,0)
+        await session.ensureAccountSession(codex)
+        assert.equal(authChecks,0,'unexpired explicit account use also avoids starting Codex')
+        write(path.join(home,'auth.json'),codexAuth(Math.floor(Date.now()/1000)+299))
+        await session.ensureAccountSession(codex)
+        assert.equal(authChecks,1,'only near-expiry credentials invoke an actual refresh')
+        assert.ok(session.codexRefreshDeadline(read(path.join(home,'auth.json')))>Date.now()+300000)
+        const realNow=Date.now
+        let clock=realNow(), failures=0
+        Date.now=()=>clock
+        accounts.authenticateAccount=async()=>{failures++;throw new accounts.AccountRequestError('temporary','fixture failure')}
+        try {
+            write(path.join(home,'auth.json'),codexAuth(Math.floor(clock/1000)+299))
+            await assert.rejects(session.ensureAccountSession(codex))
+            await assert.rejects(session.ensureAccountSession(codex))
+            assert.equal(failures,1,'calls within a minute cannot retry')
+            for(let minute=1;minute<5;minute++) { clock+=60000; await session.maintainAccountSessions() }
+            assert.equal(failures,5)
+            clock+=60000
+            await session.maintainAccountSessions()
+            assert.equal(failures,5,'five minutes of failure stops further attempts')
+            assert.equal(policy.accountRefreshState(home).blocked,true)
+            await assert.rejects(session.ensureAccountSession(codex,true),e=>e.kind==='auth'&&e.message.includes('재로그인'))
+            assert.equal(failures,5,'force refresh cannot bypass a disabled account')
+            policy.resetAccountRefreshAfterLogin(home)
+            write(path.join(home,'auth.json'),codexAuth(Math.floor(clock/1000)+3600))
+            await session.ensureAccountSession(codex)
+            assert.equal(policy.accountRefreshState(home).blocked,undefined)
+        } finally { Date.now=realNow }
+    } finally { Object.assign(accounts,originals) }
+    const realNow=Date.now
+    let clock=realNow()
+    Date.now=()=>clock
+    try {
+        policy.resetAccountRefreshAfterLogin(dest)
+        write(path.join(dest,'.credentials.json'),cred('expired-fixture',clock-1000))
+        mode='network'
+        const start=refreshes
+        for(let minute=0;minute<5;minute++) { await session.maintainAccountSessions();clock+=60000 }
+        assert.equal(refreshes-start,5,'Claude retries once per minute')
+        await session.maintainAccountSessions()
+        assert.equal(refreshes-start,5,'Claude also stops after five minutes')
+        assert.equal(policy.accountRefreshState(dest).blocked,true)
+        clock+=86400000
+        await session.maintainAccountSessions()
+        assert.equal(refreshes-start,5,'disabled Claude account remains untouched')
+    } finally { Date.now=realNow }
+    console.log('PASS: live-token synchronization, background refresh/rotation, encrypted persistence, concurrency, 429 backoff, live/stale quotas, identity isolation, auth vs transient failures, expiry-only Codex refresh, five-minute stop for both providers')
 })().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>{
     https.request=original.request;https.get=original.get;fs.rmSync(dir,{recursive:true,force:true})
 })

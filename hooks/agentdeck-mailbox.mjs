@@ -12,6 +12,11 @@ const root = mailboxRoot()
 const tab = process.env.AGENTDECK_TAB || ''
 let identity
 const mode = process.argv[2]
+// Bound the whole hook, including multiple requests and trickling responses.
+if (mode === '--hook') {
+    const deadline = Number(process.env.AGENTDECK_HOOK_DEADLINE) || Date.now() + 1000
+    setTimeout(() => process.exit(0), Math.max(1, Math.min(1000, deadline - Date.now()))).unref()
+}
 function credentials () {
     if (identity) return identity
     if (!/^[a-zA-Z0-9_-]+$/.test(tab)) throw new Error('Start this MCP server inside an AgentDeck session')

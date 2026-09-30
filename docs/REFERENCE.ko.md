@@ -9,6 +9,13 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.4
+
+- Codex 로그인 상태 확인을 위해 매분 프로세스를 실행하던 동작을 없앴습니다.
+- Codex·Claude 모두 만료 5분 전부터 갱신하고, 5분간 실패하면 새 로그인 성공 전까지 자동 점검을 중단합니다.
+- Codex 인증 보조 프로세스의 Git 통신을 차단하여 마켓플레이스 반복 다운로드와 디스크 낭비를 막습니다.
+- 세션 메시지함 응답이 없거나 지연되어도 통신 훅이 오래 대기하지 않도록 제한했습니다.
+
 ## 1.2.2
 
 - Windows 짧은 경로명(8.3)을 사용하는 환경에서도 훅의 상태·진단 로그 저장 위치를 일치시킵니다.
