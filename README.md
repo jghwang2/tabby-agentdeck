@@ -9,8 +9,19 @@
 
 A [Tabby](https://tabby.sh) plugin for people who keep **Claude Code, Codex and Gemini CLI open in several tabs at once**.
 A 4:3 terminal, a session deck with live status, and a preview panel for what the agents produce.
+Fixed tab numbers help you identify agents consistently and ask them to exchange work across sessions.
 
 ![tabby-agentdeck — terminal, preview panel and session deck](docs/guide/img/00-full.png)
+
+## Fixed tab numbers and cross-session messaging
+
+Keep one agent implementing, another reviewing, and another investigating a bug. You can ask an agent, **“Send the findings to the agent in tab 3”** or **“Ask tab 2 to review this change.”** With session communication configured, the agent can look up the target, send a message, receive a reply, and acknowledge the work.
+
+- **Numbers 1–9 stay assigned while tabs remain open.** Filtering, status changes, or closing another tab will not renumber them. `Ctrl+1` … `Ctrl+9` jumps to that fixed number, even if its row is filtered out. Automatic sorting and drag reordering are disabled so the numbers remain easy to follow.
+- **Vacant numbers are reused.** A newly opened tab can take a closed tab's number. Before sending, the agent resolves the current number to the exact session ID; queued messages stay addressed to the original session.
+- **Delivery and receipt are separate.** Sending queues a message. An acknowledgement or reply confirms that the recipient has read it. An idle agent checks at its next supported hook/task boundary; sending does not automatically start it.
+
+Communication uses AgentDeck's local mailbox through an optional MCP connection or the authenticated CLI fallback. Participating sessions need the supported status hooks and registration; a visible tab alone does not mean messaging is ready. See [setup and supported behavior](https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md).
 
 ## Keys
 

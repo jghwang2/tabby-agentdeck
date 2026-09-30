@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentDeck — a live deck of AI agent sessions for Tabby</title>
-<meta name="description" content="A Tabby terminal plugin for people who run Claude Code, Codex and Gemini CLI in several tabs at once. See which agent is working and which one is waiting for you, preview what they produced, and fix the terminal problems agent CLIs run into.">
+<meta name="description" content="Run Claude Code, Codex and Gemini CLI side by side in Tabby. Identify agents with fixed tab numbers, exchange work across connected sessions, see live status and preview their files.">
 <meta property="og:title" content="AgentDeck — a live deck of AI agent sessions for Tabby">
-<meta property="og:description" content="Run AI coding agents side by side in Tabby. Status at a glance, a preview panel for the files they touch, agent-friendly hotkeys and image paste.">
+<meta property="og:description" content="Run AI coding agents side by side in Tabby with fixed tab numbers, cross-session messaging, live status and file previews.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jghwang2.github.io/tabby-agentdeck/">
 <meta property="og:image" content="https://jghwang2.github.io/tabby-agentdeck/guide/img/00-full.png">
@@ -114,11 +114,14 @@
         </p>
     </div>
     <div class="card">
-        <h3>Fixed session slots</h3>
+        <h3>Fixed tabs and agent messaging</h3>
         <p>
-            <kbd>Ctrl</kbd>+<kbd>L</kbd> to walk the deck without switching tabs as you go.
-            Ctrl+1…9 selects fixed reusable session slots. Filtering never renumbers them.
-            Optional session messaging uses actual session IDs, never these human numbers.
+            <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd> selects a fixed tab number.
+            Filtering or closing another tab never renumbers it; new tabs reuse vacant numbers.
+            With messaging configured, ask “Send the findings to tab 3” to exchange work and replies between agents.
+            The sender resolves the current number to an actual session ID before sending.
+            Sending does not automatically start the recipient; an acknowledgement or reply confirms receipt.
+            <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md">Set up communication</a>
         </p>
     </div>
 </div>

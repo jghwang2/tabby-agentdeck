@@ -526,6 +526,7 @@ export class AgentDeckService {
     private shiftDownAt = 0
     /** rAF 가 멈춘 상황(창 가려짐)을 대비한 렌더 폴백 타이머 */
     private renderTimer: any = null
+    private listPointerActive = false
     /** 직전에 적용한 폭 — 같은 값이면 DOM 을 다시 건드리지 않는다 */
     private lastTermW = -1
     private lastSidebarW = -1
@@ -4148,6 +4149,25 @@ export class AgentDeckService {
         this.windowEl.appendChild(el)
         this.sidebar = el
         this.listEl = el.querySelector('.ad-list')
+        // Keep the pressed DOM target alive until the browser dispatches click.
+        // Status updates otherwise replace it between pointerdown and pointerup.
+        this.listEl.addEventListener('pointerdown', ev => {
+            if (ev.button !== 0 || this.listPointerActive) { return }
+            this.listPointerActive = true
+            const finish = () => {
+                document.removeEventListener('pointerup', finish, true)
+                document.removeEventListener('pointercancel', finish, true)
+                window.removeEventListener('blur', finish)
+                // pointerup precedes click; release only after both have run.
+                setTimeout(() => {
+                    this.listPointerActive = false
+                    this.scheduleRender()
+                }, 0)
+            }
+            document.addEventListener('pointerup', finish, true)
+            document.addEventListener('pointercancel', finish, true)
+            window.addEventListener('blur', finish)
+        })
         this.nowEl = el.querySelector('.ad-now')
         this.resumeEl = el.querySelector('.ad-resume-drawer')
         this.wireSearch(el)
@@ -4744,7 +4764,7 @@ export class AgentDeckService {
         // 삽입선이 가리킬 대상도, 되돌아갈 자리도 없어진다 (라벨 편집 중에 안 그리는 것과 같은 이유).
         // 상태 갱신이 드래그가 끝날 때까지(수 초) 밀리는 것은 그 대가로 받아들인다 —
         // `endRowDrag` 가 끝에 반드시 한 번 그린다.
-        if (!this.listEl || !this.enabled || this.editing || this.drag?.moved) {
+        if (!this.listEl || !this.enabled || this.editing || this.drag?.moved || this.listPointerActive) {
             return
         }
         // 닫힌 탭을 가리키는 키보드 포커스를 먼저 버린다 (`pruneNavFocus` 주석)

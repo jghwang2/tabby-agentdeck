@@ -33,6 +33,9 @@
         await sleep(1000)
         ad.app.selectTab(tab)
         ad.pinAgent(pane, 'codex')
+        // Tabby's focus redraw briefly resizes columns. Let selection settle
+        // before observing the separate AgentDeck repair operation.
+        await sleep(300)
         let repairs = 0
         const sizes = []
         deck.repairPane = function (...args) { repairs++; return originalRepair.apply(this, args) }

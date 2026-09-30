@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentDeck — Tabby 용 에이전트 세션 데크</title>
-<meta name="description" content="Claude Code · Codex · Gemini CLI 를 여러 탭에 띄워 놓고 쓰는 사람을 위한 Tabby 터미널 플러그인. 어느 에이전트가 돌고 어느 쪽이 내 승인을 기다리는지 한눈에 보고, 만든 결과물은 터미널 옆에서 바로 확인한다.">
+<meta name="description" content="Claude Code · Codex · Gemini CLI를 여러 탭에서 쓰는 Tabby 플러그인. 고정 탭 번호로 에이전트를 구분하고 연결된 세션끼리 작업을 주고받으며, 실시간 상태와 결과물을 확인한다.">
 <meta property="og:title" content="AgentDeck — Tabby 용 에이전트 세션 데크">
-<meta property="og:description" content="AI 에이전트 CLI 를 여러 탭에 띄워 놓고 쓴다. 작업 상태 한눈에, 결과물 미리보기, 에이전트에 맞춘 단축키와 이미지 붙여넣기.">
+<meta property="og:description" content="고정 탭 번호와 탭 간 에이전트 통신, 실시간 작업 상태와 결과물 미리보기를 제공하는 Tabby 플러그인.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jghwang2.github.io/tabby-agentdeck/ko.html">
 <meta property="og:image" content="https://jghwang2.github.io/tabby-agentdeck/guide/img/00-full.png">
@@ -114,10 +114,14 @@
         </p>
     </div>
     <div class="card">
-        <h3>키보드와 그룹</h3>
+        <h3>고정 탭 번호와 에이전트 통신</h3>
         <p>
-            <kbd>Ctrl</kbd>+<kbd>L</kbd> 로 탭을 바꾸지 않고 목록만 훑는다.
-            세션은 저장소 루트를 기준으로 저절로 묶이므로 설정할 것이 없다.
+            <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd>로 고정 번호의 탭에 바로 이동한다.
+            필터나 다른 탭 종료에도 번호는 유지되고, 빈 번호는 새 탭이 재사용한다.
+            통신을 연결하면 “3번 탭에 조사 결과 전달해”처럼 에이전트끼리 메시지와 답장을 주고받을 수 있다.
+            전송할 때는 현재 번호에 해당하는 실제 세션 ID를 확인한다.
+            메시지 전송만으로 상대가 자동 실행되지는 않으며, 수신 확인이나 답장으로 읽었는지 확인한다.
+            <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md">통신 연결 방법</a>
         </p>
     </div>
 </div>
