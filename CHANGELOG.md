@@ -5,6 +5,18 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.5 — 2026-09-30
+
+- Restore full-width Windows title-bar dragging without administrator privileges.
+- Save multiple work root profiles and choose when opening a tab; open directly
+  when only one root is configured.
+- Notify idle recipient tabs of queued messages while deferring during work,
+  typing and IME composition; keep delivery separate from acknowledgement.
+- Treat npm stderr warnings as successful updates when the process exits with 0.
+- Drain mailbox responses within the hook deadline and select one Node executable
+  when PATH contains multiple installations.
+- Expand regression coverage, translations and usage documentation.
+
 ## 1.2.4 — 2026-09-30
 
 - Stop launching Codex every minute for account checks. Refresh credentials only

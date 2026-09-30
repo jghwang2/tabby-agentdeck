@@ -9,6 +9,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.5
+
+- 일반 권한에서도 상단 제목 표시줄 전체를 드래그하여 창을 옮길 수 있습니다.
+- 작업 루트 프로필을 여러 개 저장하고 새 탭을 열 때 선택합니다. 하나뿐이면 바로 엽니다.
+- 대기·완료 상태의 수신 탭에 메시지 안내를 입력하며, 작업·타이핑·한글 조합 중에는 기다립니다. 안내 입력과 수신 확인은 구분합니다.
+- npm 경고가 있어도 종료 코드가 성공이면 업데이트 성공으로 처리합니다.
+- 메시지함 응답 처리 기한과 Node 실행 파일이 여러 개 설치된 환경의 탐색을 보완했습니다.
+
 ## 1.2.4
 
 - Codex 로그인 상태 확인을 위해 매분 프로세스를 실행하던 동작을 없앴습니다.
