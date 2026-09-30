@@ -181,6 +181,13 @@ try {
     assert.throws(() => setCodexHooks(true))
     assert.equal(fs.readFileSync(config, 'utf8'), '{broken')
     const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_RUNTIME_ROOT: path.join(temp, 'tabby-agentdeck'), AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
+    // Windows CI has both setup-node and preinstalled Node on PATH. Get-Command
+    // can return multiple applications; the hook must select one executable.
+    const nodeCopy = path.join(temp, 'second-node')
+    fs.mkdirSync(nodeCopy)
+    fs.copyFileSync(process.execPath, path.join(nodeCopy, 'node.exe'))
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH'
+    env[pathKey] = [nodeCopy, path.dirname(process.execPath), env[pathKey] || ''].join(path.delimiter)
     const report = event => {
         const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
             input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,

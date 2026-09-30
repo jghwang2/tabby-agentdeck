@@ -448,7 +448,7 @@ if ($mailContext) {
     Write-AgentDeckHookTrace 'mailbox_begin'
     $mailProcess = New-Object System.Diagnostics.Process
     try {
-        $mailProcess.StartInfo.FileName = (Get-Command node -CommandType Application -ErrorAction Stop).Source
+        $mailProcess.StartInfo.FileName = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
         $mailProcess.StartInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') + '" --hook "' + $targetId + '" "' + [string]$hook.hook_event_name + '"'
         $mailProcess.StartInfo.UseShellExecute = $false
         $mailProcess.StartInfo.CreateNoWindow = $true
