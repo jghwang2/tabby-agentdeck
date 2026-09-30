@@ -456,15 +456,19 @@ if ($mailContext) {
         $mailProcess.StartInfo.RedirectStandardError = $true
         $mailProcess.StartInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
         $mailProcess.StartInfo.EnvironmentVariables['AGENTDECK_HOOK_DEADLINE'] = [string]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() + 1000)
+        $mailBudget = [System.Diagnostics.Stopwatch]::StartNew()
         [void]$mailProcess.Start()
         $mailOutput = $mailProcess.StandardOutput.ReadToEndAsync()
         $mailError = $mailProcess.StandardError.ReadToEndAsync()
-        if (-not $mailProcess.WaitForExit(1500)) {
+        if (-not $mailProcess.WaitForExit([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))) {
             try { $mailProcess.Kill() } catch { }
             Write-HookDiag 'mailbox-timeout budget=1500ms'
             Write-AgentDeckHookTrace 'mailbox_timeout' @{ budget_ms = 1500 }
         } else {
-            if ($mailProcess.ExitCode -eq 0 -and $mailOutput.IsCompleted) {
+            # Process exit and redirected pipe completion are separate notifications.
+            # Drain the pipe within the remaining budget instead of dropping a valid reply.
+            $mailDrained = $mailOutput.Wait([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))
+            if ($mailProcess.ExitCode -eq 0 -and $mailDrained) {
                 $mailText = $mailOutput.Result
                 if ($mailText) { [Console]::Out.Write($mailText) }
             }
