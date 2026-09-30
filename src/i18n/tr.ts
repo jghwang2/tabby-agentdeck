@@ -1,5 +1,9 @@
 /** Türkçe */
 export default {
+    'root.more': 'Ek çalışma profilleri',
+    'root.choose.desc': 'Birden fazla çalışma klasörü kaydedin ve yeni sekme açarken bir profil seçin.',
+    'root.add': 'Profil ekle',
+    'root.remove': 'Profili kaldır',
     'layout.title': 'AgentDeck düzenini kullan',
     'layout.desc': 'Kapatırsanız kenar çubuğu ve sabit genişlik kaybolur, Tabby’nin özgün görünümüne dönersiniz.',
 

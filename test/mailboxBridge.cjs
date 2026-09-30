@@ -114,14 +114,14 @@ async function run () {
     a.register(); b.register()
     assert.equal(JSON.parse((await tool(a, 'receive')).content[0].text)[0].id, reply.id)
     mailbox.close('actual-b')
-    assert.equal((await tool(a, 'send', { toSessionId: 'actual-b', body: 'late', requestKey: 'two' })).isError, true)
+    assert.equal(JSON.parse((await tool(a, 'send', { toSessionId: 'actual-b', body: 'late', requestKey: 'two' })).content[0].text).wake.reason, 'no-tab')
     assert.equal((await tool(a, 'send', { slot: 2 })).isError, true)
     fs.writeFileSync(path.join(root, 'port'), '1')
     fs.writeFileSync(path.join(root, 'navigation-context.txt'), 'STALE SLOT MUST NOT BE USED')
     const offline = await invoke(['--hook', 'actual-plain', 'UserPromptSubmit'], plainEnv)
     assert.match(offline.stdout, /live UI snapshot unavailable/)
     assert.ok(!offline.stdout.includes('STALE SLOT MUST NOT BE USED'))
-    console.log('PASS: two real MCP stdio processes, TCP send/receive/reply, hook additionalContext, disk restart, closed-session error and no slot addressing')
+    console.log('PASS: two real MCP stdio processes, TCP send/receive/reply, hook additionalContext, disk restart, closed-session queue and no slot addressing')
 }
 run().catch(error => { console.error(error); process.exitCode = 1 }).finally(() => {
     children.forEach(child => child.kill())

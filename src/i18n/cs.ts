@@ -1,5 +1,9 @@
 /** Čeština */
 export default {
+    'root.more': 'Další pracovní profily',
+    'root.choose.desc': 'Uložte více pracovních složek a při otevření nové karty vyberte profil.',
+    'root.add': 'Přidat profil',
+    'root.remove': 'Odstranit profil',
     'layout.title': 'Používat rozvržení AgentDeck',
     'layout.desc': 'Po vypnutí zmizí postranní panel i pevná šířka a vrátí se původní vzhled Tabby.',
 

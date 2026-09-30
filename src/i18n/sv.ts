@@ -1,5 +1,9 @@
 /** Svenska */
 export default {
+    'root.more': 'Fler arbetsprofiler',
+    'root.choose.desc': 'Spara flera arbetsmappar och välj en profil när du öppnar en ny flik.',
+    'root.add': 'Lägg till profil',
+    'root.remove': 'Ta bort profil',
     'layout.title': 'Använd AgentDecks layout',
     'layout.desc': 'Stäng av så försvinner sidopanelen och den fasta bredden — Tabby ser ut som vanligt igen.',
 

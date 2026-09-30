@@ -15,7 +15,8 @@ import { claudeSettingsPath, hooksInstalled, hooksSupported, installHooks } from
 import { pickTabByPids } from './bind'
 import { shortenReason } from './reason'
 import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
-import { SessionMailbox } from './sessionMailbox'
+import { SessionMailbox, MailMessage } from './sessionMailbox'
+import { WakeResult } from './mailboxWake'
 import { diag, diagCatch } from './diag'
 import { accountEmail } from './accounts'
 import { agentHome, runtimeRoot, runtimeEnvironment } from './storagePaths'
@@ -298,6 +299,20 @@ export class WorkNotifyService {
     private mailboxOwners = new Map<string, { sessionId: string; tab: BaseTabComponent; clientPid: number }>()
     private navigationContext = ''
     private navigationRefresh: (() => void) | null = null
+    private mailboxWake: ((message: MailMessage) => WakeResult) | null = null
+
+    setMailboxWake (wake: (message: MailMessage) => WakeResult): void { this.mailboxWake = wake }
+
+    mailboxTarget (sessionId: string): { tab: BaseTabComponent; pane: any } | null {
+        if (!this.mailbox?.isActive(sessionId)) { return null }
+        const matches = [...this.mailboxOwners.entries()].filter(([, owner]) => owner.sessionId === sessionId)
+        if (matches.length !== 1) { return null }
+        const [paneId, owner] = matches[0]
+        if (!this.app.tabs.includes(owner.tab)) { return null }
+        const panes = this.panesOf(owner.tab).filter(pane => pane.profile?.options?.env?.[TAB_ENV] === paneId)
+        if (panes.length !== 1 || !panes[0].session?.open) { return null }
+        return { tab: owner.tab, pane: panes[0] }
+    }
 
     setNavigationRefresh (refresh: () => void): void { this.navigationRefresh = refresh }
 
@@ -339,7 +354,8 @@ export class WorkNotifyService {
         try { clientPid = Number(fs.readFileSync(path.join(this.mailboxRoot, 'mailbox-connections', paneId + '.client'), 'utf8')) } catch {}
         if (previous?.sessionId === sessionId && previous.clientPid === clientPid) { return }
         try {
-            this.mailbox ??= new SessionMailbox(path.join(this.mailboxRoot, 'mailbox.json'))
+            this.mailbox ??= new SessionMailbox(path.join(this.mailboxRoot, 'mailbox.json'), message =>
+                this.mailboxWake?.(message) ?? { attempted: false, delivered: false, reason: 'no-tab' })
             if (previous && previous.sessionId !== sessionId) { this.mailbox.close(previous.sessionId) }
             const credentials = this.mailbox.register(sessionId, tab.customTitle || tab.title || '', this.cwdOf(tab) || '')
             const dir = path.join(this.mailboxRoot, 'mailbox-connections')

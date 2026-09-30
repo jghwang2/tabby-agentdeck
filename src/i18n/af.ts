@@ -1,5 +1,9 @@
 /** Afrikaans */
 export default {
+    'root.more': 'Bykomende werkprofiele',
+    'root.choose.desc': 'Stoor verskeie werkvouers en kies ’n profiel wanneer jy ’n nuwe oortjie oopmaak.',
+    'root.add': 'Voeg profiel by',
+    'root.remove': 'Verwyder profiel',
     'layout.title': 'Gebruik die AgentDeck-uitleg',
     'layout.desc': 'Skakel af om die sybalk en die vaste breedte te verwyder en na gewone Tabby terug te keer.',
 

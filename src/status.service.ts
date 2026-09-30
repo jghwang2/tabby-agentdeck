@@ -28,6 +28,7 @@ const STALE_STATUSES: readonly WorkStatus[] = ['running', 'done', 'error']
 export class WorkStatusService {
     private states = new Map<BaseTabComponent, TabState>()
     private changed = new Subject<void>()
+    private idled = new Subject<void>()
 
     /** 진단용 카운터 — decorator 가 실제로 붙었는지, 출력이 흘러오는지 확인한다 */
     debug = {
@@ -38,6 +39,7 @@ export class WorkStatusService {
     }
 
     get changed$ (): Observable<void> { return this.changed }
+    get idled$ (): Observable<void> { return this.idled }
 
     get (tab: BaseTabComponent): TabState {
         let s = this.states.get(tab)
@@ -219,6 +221,7 @@ export class WorkStatusService {
                 s.status = 'idle'
                 s.since = Date.now()
                 this.clearReasonUnlessWaiting(s)
+                this.idled.next()
             }
             return true
         }
@@ -232,6 +235,7 @@ export class WorkStatusService {
             s.status = 'idle'
             s.since = Date.now()
             this.clearReasonUnlessWaiting(s)
+            this.idled.next()
             return true
         }
         return false

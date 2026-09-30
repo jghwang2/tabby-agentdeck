@@ -2,6 +2,14 @@ import { Injectable } from '@angular/core'
 import { AppService, ConfigService } from 'tabby-core'
 
 export const ROOT_PROFILE_ID = 'agentdeck:root'
+export const ROOT_PROFILE_PREFIX = 'agentdeck:root:'
+
+export interface WorkRootProfile {
+    id: string
+    name: string
+    cwd: string
+    command: string
+}
 
 /**
  * 새 탭이 항상 작업 루트에서 열리게 한다.
@@ -18,7 +26,7 @@ export class AgentDeckProfileService {
     ) { }
 
     init (): void {
-        this.app.ready$.subscribe(() => this.ensureProfile())
+        this.app.ready$.subscribe(() => { this.ensureProfile(); this.syncAdditionalProfiles() })
     }
 
     /** Settings UI explicitly changed our profile; preserve unrelated shell options. */
@@ -31,7 +39,39 @@ export class AgentDeckProfileService {
                 command: cfg.rootProfileCommand || 'powershell.exe' }
         }
         this.ensureProfile()
+        this.syncAdditionalProfiles()
         this.config.save()
+    }
+
+    private syncAdditionalProfiles (): void {
+        const cfg = this.config.store.agentDeck
+        const roots: WorkRootProfile[] = Array.isArray(cfg.rootProfiles) ? cfg.rootProfiles : []
+        const valid = roots.filter(p => p && typeof p.id === 'string' && p.id.startsWith(ROOT_PROFILE_PREFIX)
+            && typeof p.cwd === 'string' && p.cwd.trim())
+        const profiles = this.config.store.profiles || []
+        const before = JSON.stringify(profiles)
+        const wanted = new Set(valid.map(p => p.id))
+        const retained = profiles.filter((p: any) => !p.id?.startsWith(ROOT_PROFILE_PREFIX) || wanted.has(p.id))
+        for (const root of valid) {
+            let profile = retained.find((p: any) => p.id === root.id)
+            if (!profile) {
+                profile = { id: root.id, type: 'local', options: {
+                    args: [...(cfg.rootProfileArgs || [])], env: { ...(cfg.rootProfileEnv || {}) },
+                } }
+                retained.push(profile)
+            }
+            profile.name = String(root.name || '').trim() || root.cwd.trim()
+            profile.options = { ...profile.options, cwd: root.cwd.trim(), command: String(root.command || '').trim() || 'powershell.exe' }
+        }
+        if (JSON.stringify(retained) !== before) {
+            this.config.store.profiles = retained
+            const current = this.config.store.terminal.profile
+            if (current?.startsWith(ROOT_PROFILE_PREFIX) && !wanted.has(current)) {
+                this.config.store.terminal.profile = retained.find((p: any) => p.id === ROOT_PROFILE_ID)?.id
+                    || retained[0]?.id || null
+            }
+            this.config.save()
+        }
     }
 
     private ensureProfile (): void {

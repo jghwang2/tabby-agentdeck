@@ -236,6 +236,14 @@ node tools/regress-update.js --keep   # 인스턴스를 남긴다 (눈으로 볼
 
 실측 2026-09-14: `7 ok, 0 fail`.
 
+2026-09-30 재검증: 로컬 tgz 두 벌(1.2.3 → 1.2.4)을 격리 npm 설치본에 적용하여 **U1~U7 전부 통과**.
+실행 중 설치, 디스크/실행 버전 갱신, 터미널 2개의 동일 PTY 복구, 동일 Tabby 프로세스 유지를 확인했다.
+최초 실행에서는 npm의 `NO_COLOR`/`FORCE_COLOR` 경고가 Windows PowerShell의 `ErrorActionPreference=Stop`에 걸려
+설치 성공에도 실패 로그·종료 코드 1을 남겼다. 업데이트 스크립트의 네이티브 명령 구간만 `Continue`로 실행하고
+실제 종료 코드로 판정하도록 수정했다. `npm run test:updater`는 stderr 경고 + 종료 0의 성공과 종료 42의 실패를 모두 고정한다.
+로그: `.tmp/update-verify-fixed.log` (`7 ok, 0 fail`). 레지스트리 새 릴리스 탐지·OS 승인 버튼은 이 설치 회귀의 범위 밖이다.
+실사용 빌드를 건드리지 않도록 소스 사본에서 릴리스 패키징했고, 실사용 `dist/index.js` 해시는 검사 전후 동일하다.
+
 두 가지는 **러너가 알아서 한다** — 사람이 손댈 것은 없고, 왜 필요한지만 적어 둔다.
 
 - **부모 환경의 `NODE_PATH`·`TABBY_PLUGINS` 를 비우고 Tabby 를 띄운다.** 회귀는 보통 Tabby 안의

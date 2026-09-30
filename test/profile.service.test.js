@@ -240,6 +240,33 @@ check('프로필 id 는 고정 (바뀌면 기존 사용자에게 두 번째 프�
     check('Explicit folder edit does not duplicate profiles', cfg.store.profiles.length, 1)
 }
 
+{
+    const cfg = fakeConfig({ rootProfiles: [
+        { id: 'agentdeck:root:a', name: 'A', cwd: 'D:/A', command: 'powershell.exe' },
+        { id: 'agentdeck:root:b', name: 'B', cwd: 'D:/B', command: 'cmd.exe' },
+        { id: 'agentdeck:root:blank', name: '', cwd: ' ', command: '' },
+    ], rootProfileArgs: ['-NoLogo'], rootProfileEnv: { KEEP: 'yes' } }, [
+        { id: 'local:personal', options: { cwd: 'D:/Personal' } },
+    ])
+    const service = new AgentDeckProfileService({}, cfg)
+    service.applySettings()
+    check('Additional roots register without requiring legacy root', cfg.store.profiles.length, 3)
+    check('Blank folder is not registered', cfg.store.profiles.some(p => p.id.endsWith(':blank')), false)
+    const a = cfg.store.profiles.find(p => p.id.endsWith(':a'))
+    a.options.args = ['custom']
+    cfg.store.agentDeck.rootProfiles[0].cwd = 'D:/Changed'
+    service.applySettings()
+    check('Editing updates cwd', a.options.cwd, 'D:/Changed')
+    check('Editing preserves shell args', a.options.args[0], 'custom')
+    check('Repeated save does not duplicate profiles', cfg.store.profiles.length, 3)
+    cfg.store.terminal.profile = 'agentdeck:root:a'
+    cfg.store.agentDeck.rootProfiles = cfg.store.agentDeck.rootProfiles.slice(1)
+    service.applySettings()
+    check('Deleting root removes only owned profile', cfg.store.profiles.length, 2)
+    check('Unrelated profile survives', cfg.store.profiles[0].id, 'local:personal')
+    check('Deleted default no longer referenced', cfg.store.terminal.profile, 'local:personal')
+}
+
 console.log(`\nprofile.service: ${pass} passed, ${fail} failed`)
 if (fail) {
     process.exit(1)

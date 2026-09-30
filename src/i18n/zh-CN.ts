@@ -1,5 +1,9 @@
 /** 简体中文 */
 export default {
+    'root.more': '其他工作根目录配置',
+    'root.choose.desc': '保存多个工作文件夹，并在打开新标签页时选择配置。',
+    'root.add': '添加配置',
+    'root.remove': '删除配置',
     'layout.title': '使用 AgentDeck 布局',
     'layout.desc': '关闭后侧边栏和固定宽度布局会消失，回到 Tabby 原版界面。',
 

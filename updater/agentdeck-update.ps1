@@ -116,8 +116,17 @@ if (-not $npm) {
     Write-Log "설치 대상: $target"
     $npmArgs = @('install', '--prefix', $PluginsDir, '--no-audit', '--no-fund', $target)
     try {
-        $out = & $npm.Source @npmArgs 2>&1
-        $code = $LASTEXITCODE
+        # Windows PowerShell promotes redirected native stderr to ErrorRecord.
+        # npm warnings are not installation failures; use the process exit code.
+        $previousErrorAction = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $LASTEXITCODE = $null
+            $out = & $npm.Source @npmArgs 2>&1
+            $code = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorAction
+        }
         foreach ($line in $out) { Write-Log "npm| $line" }
         if ($code -eq 0) {
             Write-Log "OK 설치 완료 $pkg@$Version"

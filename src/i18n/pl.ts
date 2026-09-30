@@ -1,5 +1,9 @@
 /** Polski */
 export default {
+    'root.more': 'Dodatkowe profile robocze',
+    'root.choose.desc': 'Zapisz wiele folderów roboczych i wybierz profil podczas otwierania nowej karty.',
+    'root.add': 'Dodaj profil',
+    'root.remove': 'Usuń profil',
     'layout.title': 'Używaj układu AgentDeck',
     'layout.desc': 'Po wyłączeniu znikają panel boczny i stała szerokość — wraca zwykły wygląd Tabby.',
 

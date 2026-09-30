@@ -1,5 +1,9 @@
 /** 한국어 */
 export default {
+    'root.more': '추가 작업 루트 프로필',
+    'root.choose.desc': '작업 폴더를 여러 개 저장할 수 있습니다. 새 탭을 열 때 사용할 프로필을 선택합니다.',
+    'root.add': '프로필 추가',
+    'root.remove': '프로필 삭제',
     'layout.title': '레이아웃 사용',
     'layout.desc': '끄면 사이드바와 고정폭 레이아웃이 사라지고 Tabby 순정 화면으로 돌아간다.',
 

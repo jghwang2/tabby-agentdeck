@@ -1,5 +1,9 @@
 /** 繁體中文 */
 export default {
+    'root.more': '其他工作根目錄設定檔',
+    'root.choose.desc': '儲存多個工作資料夾，並在開啟新分頁時選擇設定檔。',
+    'root.add': '新增設定檔',
+    'root.remove': '刪除設定檔',
     'layout.title': '使用 AgentDeck 版面',
     'layout.desc': '關閉後側邊欄與固定寬度版面會消失，回到 Tabby 原生畫面。',
 

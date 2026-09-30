@@ -46,7 +46,8 @@ Tools:
 Receive does not delete messages. Acknowledge records read/completed timestamps.
 Repeating a send with the same sender/request key returns the original message;
 reusing that key for different contents is an error. A reply must reference a
-message received from the target. Closed recipients are rejected. Disk state
+message received from the target. Closed or unregistered recipients retain queued
+messages but cannot receive a terminal wake prompt until addressable. Disk state
 survives reload/restart; sessions become active again only after hook registration.
 
 ## Notification and execution
@@ -64,8 +65,14 @@ from the caller's pane and must match its explicit session ID. No global CLI
 configuration or credential file edits are needed. A queued send does not prove
 that the receiving model has read it; obtain acknowledgement or a reply.
 
-Models still decide when to call tools. Waiting/idle recipients read messages on
-their next supported hook/task boundary. Clients without those hooks can poll
+With mailbox wake enabled, AgentDeck can inject a fixed receive reminder into an
+idle or completed recipient's live terminal. Busy states, approval prompts, typing
+and IME composition defer injection. The response's `wake.delivered` confirms
+prompt injection only, not that the model read the message. Message bodies are
+never injected. See [mailbox wake behavior and settings](MAILBOX_WAKE.md).
+
+Models still decide when to call tools. Without wake, idle recipients read messages
+on their next supported hook/task boundary. Clients without those hooks can poll
 the same receive tool explicitly. Message bodies are other-session input, not
 system instructions. Past-conversation search is a separate AgentDeck feature;
 there is no search tool in this MCP server.

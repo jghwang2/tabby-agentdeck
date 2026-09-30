@@ -1,5 +1,9 @@
 /** Français */
 export default {
+    'root.more': 'Profils de travail supplémentaires',
+    'root.choose.desc': 'Enregistrez plusieurs dossiers de travail et choisissez un profil en ouvrant un nouvel onglet.',
+    'root.add': 'Ajouter un profil',
+    'root.remove': 'Supprimer le profil',
     'layout.title': 'Utiliser la disposition AgentDeck',
     'layout.desc': 'Désactivez pour supprimer la barre latérale et la largeur fixe, et revenir à Tabby d’origine.',
 

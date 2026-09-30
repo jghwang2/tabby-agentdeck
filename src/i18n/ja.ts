@@ -1,5 +1,9 @@
 /** 日本語 */
 export default {
+    'root.more': '追加の作業ルートプロファイル',
+    'root.choose.desc': '複数の作業フォルダーを保存し、新しいタブを開くときにプロファイルを選択します。',
+    'root.add': 'プロファイルを追加',
+    'root.remove': 'プロファイルを削除',
     'layout.title': 'AgentDeck のレイアウトを使う',
     'layout.desc': 'オフにするとサイドバーと固定幅レイアウトが消え、Tabby 標準の画面に戻る。',
 

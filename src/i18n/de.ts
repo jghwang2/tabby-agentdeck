@@ -1,5 +1,9 @@
 /** Deutsch */
 export default {
+    'root.more': 'Weitere Arbeitsprofile',
+    'root.choose.desc': 'Speichere mehrere Arbeitsordner und wähle beim Öffnen eines neuen Tabs ein Profil.',
+    'root.add': 'Profil hinzufügen',
+    'root.remove': 'Profil entfernen',
     'layout.title': 'AgentDeck-Layout verwenden',
     'layout.desc': 'Ausgeschaltet verschwinden Seitenleiste und feste Breite — Tabby sieht wieder aus wie im Original.',
 

@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { randomBytes, randomUUID, timingSafeEqual } from 'crypto'
+import { WakeResult } from './mailboxWake'
 
 export interface MailSession { sessionId: string; name: string; cwd: string; active: boolean }
 export interface MailMessage {
@@ -13,7 +14,7 @@ interface Store { version: 1; sessions: Array<MailSession & { token: string }>; 
 export class SessionMailbox {
     private data: Store = { version: 1, sessions: [], messages: [] }
     private committed = JSON.stringify(this.data)
-    constructor (private file: string) {
+    constructor (private file: string, private wake?: (message: MailMessage) => WakeResult) {
         if (fs.existsSync(file)) {
             const value = JSON.parse(fs.readFileSync(file, 'utf8'))
             if (value.version !== 1 || !Array.isArray(value.sessions) || !Array.isArray(value.messages)) {
@@ -95,11 +96,9 @@ export class SessionMailbox {
             if (previous.toSessionId !== args.toSessionId || previous.body !== args.body || previous.replyTo !== args.replyTo) {
                 throw new Error('requestKey already belongs to a different message')
             }
-            return previous
+            return this.sendResult(previous)
         }
-        if (!this.data.sessions.some(x => x.sessionId === args.toSessionId && x.active)) {
-            throw new Error('Recipient session is not active')
-        }
+        if (!args.toSessionId || args.toSessionId.length > 256) { throw new Error('Invalid recipient session ID') }
         if (args.replyTo !== undefined && !this.data.messages.some(x => x.id === args.replyTo
             && x.toSessionId === sessionId && x.fromSessionId === args.toSessionId)) {
             throw new Error('Reply must address the sender of a received message')
@@ -111,6 +110,17 @@ export class SessionMailbox {
         }
         this.data.messages.push(message)
         this.save()
-        return message
+        return this.sendResult(message)
+    }
+
+    isActive (sessionId: string): boolean {
+        return this.data.sessions.some(session => session.sessionId === sessionId && session.active)
+    }
+
+    private sendResult (message: MailMessage): MailMessage & { wake: WakeResult } {
+        let wake: WakeResult = { attempted: false, delivered: false, reason: 'no-tab' }
+        // Wake failure must never turn a committed queue write into a send failure.
+        try { if (this.wake) { wake = this.wake(message) } } catch {}
+        return { ...message, wake }
     }
 }

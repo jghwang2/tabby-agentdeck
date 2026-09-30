@@ -1,5 +1,9 @@
 /** Hrvatski */
 export default {
+    'root.more': 'Dodatni radni profili',
+    'root.choose.desc': 'Spremite više radnih mapa i odaberite profil pri otvaranju nove kartice.',
+    'root.add': 'Dodaj profil',
+    'root.remove': 'Ukloni profil',
     'layout.title': 'Koristi AgentDeck raspored',
     'layout.desc': 'Isključite pa nestaju bočna traka i fiksna širina — Tabby se vraća na izvorni izgled.',
 

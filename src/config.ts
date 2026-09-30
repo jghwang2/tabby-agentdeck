@@ -37,6 +37,11 @@ export class AgentDeckConfigProvider extends ConfigProvider {
             codexStorageDir: '',
             /** 레이아웃/사이드바 전체 on-off */
             enabled: true,
+            mailboxWake: {
+                enabled: true,
+                typingGuardMs: 3000,
+                text: '[agentdeck] 새 메시지 {N}건 도착  receive 로 확인하고 acknowledge 할 것',
+            },
             /** 터미널 뷰포트 가로:세로 비율 */
             aspectW: 4,
             aspectH: 3,
@@ -641,6 +646,7 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              * 기본값을 가로채면 곤란하므로, 쓰려는 사람이 `rootProfileCwd` 를 채우고 켜야 한다.
              */
             rootProfile: false,
+            rootProfiles: [],
             rootProfileName: 'Agent Root',
             // 백슬래시 이스케이프 함정을 피하려고 슬래시로 적는다 (Windows 도 그대로 받는다)
             // 빈 값이면 프로필을 만들지 않는다

@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { ROOT_PROFILE_ID } from './profile.service'
 import { monitorEventLoop, PerformanceTrace, perfNow } from './performance'
 import { Injectable, NgZone, Optional } from '@angular/core'
 import { LocaleService } from 'tabby-core'
@@ -14,6 +15,7 @@ import { SettingsTabComponent } from 'tabby-settings'
 import { WorkStatusService } from './status.service'
 import { WorkNotifyService } from './notify.service'
 import { SessionSlots } from './sessionSlots'
+import { MailboxWake, MAILBOX_WAKE_TEXT } from './mailboxWake'
 import { applyOutput, applyTitle, releaseLimited, stripTitleMarker } from './detect'
 import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent, profileFor, unionProfile } from './agents'
 import { STATUS_STYLES, WorkStatus } from './api'
@@ -377,6 +379,58 @@ export type DropReject = 'outside-list' | 'other-group' | 'self' | 'gone' | 'no-
  */
 @Injectable({ providedIn: 'root' })
 export class AgentDeckService {
+    private mailboxLastInput = new WeakMap<object, number>()
+    private mailboxComposing = new WeakSet<object>()
+    private mailboxWakeDisabled = new WeakSet<BaseTabComponent>()
+    private mailboxWake = new MailboxWake(sessionId => {
+        const target = this.notify.mailboxTarget(sessionId)
+        if (!target) { return null }
+        const { tab, pane } = target
+        const settings = this.config.store.agentDeck.mailboxWake ?? {}
+        const guard = Number(settings.typingGuardMs ?? 3000)
+        const status = this.status.get(tab).status
+        return {
+            identity: pane,
+            enabled: settings.enabled !== false && !this.mailboxWakeDisabled.has(tab),
+            idle: status === 'idle' || status === 'done',
+            lastInput: this.mailboxLastInput.get(pane) ?? 0,
+            composing: this.mailboxComposing.has(pane) || readCompositionState(this.compositionHelper(pane)) === 'composing',
+            typingGuardMs: Number.isFinite(guard) ? Math.max(0, Math.min(guard, 2147483647)) : 3000,
+            text: typeof settings.text === 'string' ? settings.text : MAILBOX_WAKE_TEXT,
+            send: write => this.sendToPane(pane, 'mailbox-wake', () => write(text => {
+                if (!pane.session?.open) { throw new Error('Closed mailbox pane') }
+                pane.sendInput(text)
+                // Close the interval before the asynchronous UserPromptSubmit hook arrives.
+                this.status.setManual(tab, 'running')
+            })),
+        }
+    }, line => this.diag(line))
+
+    private setupMailboxWake (): void {
+        this.notify.setMailboxWake(message => this.mailboxWake.enqueue(message))
+        const observe = (event: Event): void => {
+            for (const tab of this.app.tabs) {
+                const root = tab as any
+                const panes = typeof root.getAllTabs === 'function' ? root.getAllTabs() : [root]
+                for (const pane of panes) {
+                    const textarea = pane.frontend?.xterm?.textarea
+                    if (!textarea || event.target !== textarea) { continue }
+                    this.mailboxLastInput.set(pane, Date.now())
+                    if (event.type === 'compositionstart') { this.mailboxComposing.add(pane) }
+                    if (event.type === 'compositionend') { this.mailboxComposing.delete(pane) }
+                    // compositionend's xterm commit is deferred by one event-loop turn.
+                    if (event.type === 'compositionend') {
+                        setTimeout(() => this.mailboxWake.flushAll(), 0)
+                    } else { this.mailboxWake.flushAll() }
+                    return
+                }
+            }
+        }
+        for (const event of ['keydown', 'paste', 'input', 'compositionstart', 'compositionupdate', 'compositionend']) {
+            document.addEventListener(event, observe, true)
+        }
+    }
+
     private readonly sessionSlots = new SessionSlots<BaseTabComponent>()
     private pendingSessionOpens = 0
 
@@ -739,6 +793,7 @@ export class AgentDeckService {
         }
 
         this.diag(`setup start tabs=${this.app.tabs.length}`)
+        this.setupMailboxWake()
 
         this.migrateFollowConfig()
         this.buildSidebar()
@@ -795,6 +850,7 @@ export class AgentDeckService {
             // (분할 탭의 자식이 detach 될 때 부모가 아직 목록에 있으면 그냥 지나간다 —
             //  `status.service` 의 `sweep` 주석에 실측값). 여기서 목록을 기준으로 한 번 훑는다.
             this.status.sweep(this.app.tabs)
+            this.mailboxWake.flushAll()
             this.scheduleRender()
         })
 
@@ -802,11 +858,16 @@ export class AgentDeckService {
         for (const tab of this.app.tabs) {
             this.watchTab(tab)
         }
-        this.status.changed$.subscribe(() => this.scheduleRender())
+        this.status.changed$.subscribe(() => {
+            this.mailboxWake.flushAll()
+            this.scheduleRender()
+        })
+        this.status.idled$.subscribe(() => this.mailboxWake.flushAll())
         // 모델·한도는 상태와 다른 통로로 온다(statusLine 래퍼). 상태가 그대로인 채 한도만
         // 오르는 일이 흔하므로 여기서 따로 렌더를 부른다 — 안 그러면 다음 상태 변화까지 옛 값이 남는다
         this.notify.onMetaChange = () => this.scheduleRender()
         this.config.changed$.subscribe(() => {
+            this.mailboxWake.flushAll()
             this.applyEnabled()
             this.applyOpacity()
             // 검색 줄 on/off 는 설정 창에서 바뀐다 (끄면 걸려 있던 필터도 같이 지운다)
@@ -3742,6 +3803,8 @@ export class AgentDeckService {
 
     /** 사이드바를 창 한쪽에 붙이고, 남는 자리를 `.content.main` 이 갖게 한다 */
     private relayout (): void {
+        document.body.classList.toggle('ad-native-titlebar', process.platform === 'win32'
+            && this.config.store.appearance?.frame === 'thin' && !this.hostWindow.isFullscreen)
         if (!this.enabled || !this.windowEl) {
             this.diagOnce('relayout-skip-enabled', `relayout skipped enabled=${this.enabled} windowEl=${!!this.windowEl}`)
             return
@@ -4148,6 +4211,11 @@ export class AgentDeckService {
         // 순정 탭바보다 뒤(오른쪽)에 놓는다 — 왼쪽에 두면 세로로 길어 허전하다는 피드백(2026-08-28)
         el.querySelector('.ad-head-version').textContent = `v${pluginVersion()}`
         this.windowEl.appendChild(el)
+        const titlebar = document.createElement('div')
+        titlebar.className = 'ad-window-drag'
+        titlebar.textContent = 'AgentDeck'
+        titlebar.title = this.sidebarLang === 'ko' ? '드래그하여 창 이동 · 더블 클릭하여 최대화/복원' : 'Drag to move window · Double-click to maximize/restore'
+        document.body.appendChild(titlebar)
         this.sidebar = el
         this.listEl = el.querySelector('.ad-list')
         // Keep the pressed DOM target alive until the browser dispatches click.
@@ -4523,12 +4591,25 @@ export class AgentDeckService {
     /** 설정에 지정된 기본 프로필(기본값 agentdeck:root)로 새 탭을 연다 */
     private async openNewTab (): Promise<void> {
         this.syncSessionSlots()
+        if (this.pendingSessionOpens) { return }
         if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
         this.pendingSessionOpens++
         try {
             const wanted = this.config.store.terminal.profile
             const profiles = await this.profiles.getProfiles()
-            const profile = profiles.find(p => p.id === wanted) ?? profiles[0]
+            const cfg = this.config.store.agentDeck
+            const rootIds = new Set((cfg.rootProfiles || []).filter((p: any) => p?.cwd?.trim()).map((p: any) => p.id))
+            if (cfg.rootProfile && cfg.rootProfileCwd) { rootIds.add(ROOT_PROFILE_ID) }
+            const roots = profiles.filter(p => rootIds.has(p.id))
+            let profile = profiles.find(p => p.id === wanted) ?? profiles[0]
+            if (roots.length === 1) {
+                profile = roots[0]
+            } else if (roots.length > 1) {
+                try {
+                    profile = await this.app.showSelector(this.sidebarLang === 'ko' ? '작업 루트 선택' : 'Choose work root',
+                        roots.map(p => ({ name: p.name, description: (p as any).options?.cwd, result: p })))
+                } catch { return }
+            }
             if (profile) {
                 const options = (profile as any).options || {}
                 await this.profiles.openNewTabForProfile({ ...profile,
@@ -6894,6 +6975,12 @@ export class AgentDeckService {
             return [label, action] as [string, () => void]
         })
         items.push([this.ui('↺ 자동 감지로'), () => this.status.unpin(tab)])
+        const wakeOff = this.mailboxWakeDisabled.has(tab)
+        items.push([this.sidebarLang === 'ko' ? (wakeOff ? '메일 wake 켜기' : '메일 wake 끄기')
+            : (wakeOff ? 'Enable mailbox wake' : 'Disable mailbox wake'), () => {
+            if (wakeOff) { this.mailboxWakeDisabled.delete(tab) } else { this.mailboxWakeDisabled.add(tab) }
+            this.mailboxWake.flushAll()
+        }])
         for (const targetSessionId of this.notify.sessionIdsOf(tab)) {
             items.push([(this.sidebarLang === 'ko' ? '통신 대상 복사: ' : 'Copy message target: ') + targetSessionId, () => {
                 getClipboard()?.writeText('AgentDeck target session ID: ' + targetSessionId

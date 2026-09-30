@@ -1,5 +1,9 @@
 /** English — the fallback every other language falls back to (`i18n.ts`). */
 export default {
+    'root.more': 'Additional work root profiles',
+    'root.choose.desc': 'Save multiple working folders and choose a profile when opening a new tab.',
+    'root.add': 'Add profile',
+    'root.remove': 'Remove profile',
     'layout.title': 'Use the AgentDeck layout',
     'layout.desc': 'Turn this off to drop the sidebar and the fixed-width layout and go back to stock Tabby.',
 

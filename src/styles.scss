@@ -1953,6 +1953,30 @@ body.ad-resizing {
 }
 
 // AgentDeck 이 켜져 있을 때만 순정 탭바를 감춘다 (사이드바가 그 역할을 대신함)
+.ad-window-drag { display: none; }
+body.agentdeck-active.ad-native-titlebar {
+    .ad-window-drag {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 32px;
+        padding-left: 12px;
+        line-height: 32px;
+        font-size: 11px;
+        user-select: none;
+        -webkit-app-region: drag;
+        z-index: 100;
+        color: var(--bs-secondary-color, #a0a0a0);
+        background: var(--bs-body-bg, #1e2127);
+    }
+    .window {
+        margin-top: 32px;
+        height: calc(100% - 32px) !important;
+    }
+}
+
 body.agentdeck-active {
     .content.main > .tab-bar {
         display: none !important;

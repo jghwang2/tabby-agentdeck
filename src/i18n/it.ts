@@ -1,5 +1,9 @@
 /** Italiano */
 export default {
+    'root.more': 'Profili di lavoro aggiuntivi',
+    'root.choose.desc': 'Salva più cartelle di lavoro e scegli un profilo quando apri una nuova scheda.',
+    'root.add': 'Aggiungi profilo',
+    'root.remove': 'Rimuovi profilo',
     'layout.title': 'Usa il layout di AgentDeck',
     'layout.desc': 'Disattivandolo spariscono la barra laterale e la larghezza fissa: si torna a Tabby originale.',
 

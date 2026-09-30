@@ -1,5 +1,9 @@
 /** Português (pt-PT e pt-BR partilham este ficheiro) */
 export default {
+    'root.more': 'Perfis de trabalho adicionais',
+    'root.choose.desc': 'Guarde várias pastas de trabalho e escolha um perfil ao abrir um novo separador.',
+    'root.add': 'Adicionar perfil',
+    'root.remove': 'Remover perfil',
     'layout.title': 'Usar o layout do AgentDeck',
     'layout.desc': 'Desligue para remover a barra lateral e a largura fixa e voltar ao Tabby original.',
 

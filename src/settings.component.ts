@@ -494,6 +494,19 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
 
 </ng-container>
 
+<section class="ad-root-profiles">
+    <h4>{{t('root.more')}}</h4>
+    <p class="text-muted">{{t('root.choose.desc')}}</p>
+    <div class="ad-root-profile card p-3 mb-2" *ngFor="let root of config.store.agentDeck.rootProfiles">
+        <label>{{t('root.name.title')}}<input class="form-control" [(ngModel)]="root.name" (change)="saveRootProfile()"></label>
+        <label>{{t('root.cwd.title')}}<input class="form-control" [(ngModel)]="root.cwd" (change)="saveRootProfile()"></label>
+        <button class="btn btn-secondary" (click)="pickAdditionalCwd(root)">{{t('root.browse')}}</button>
+        <label>{{t('root.command.title')}}<input class="form-control" [(ngModel)]="root.command" (change)="saveRootProfile()"></label>
+        <button class="btn btn-secondary mt-2" (click)="removeRootProfile(root)">{{t('root.remove')}}</button>
+    </div>
+    <button class="btn btn-secondary" (click)="addRootProfile()">{{t('root.add')}}</button>
+</section>
+
 <h3 class="mt-4 mb-3">{{t('diag.head')}}</h3>
 <div class="text-muted mb-3" [innerHTML]="t('diag.intro', { path: diagPath })"></div>
 
@@ -1028,6 +1041,27 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     }
 
     saveRootProfile (): void { this.rootProfiles.applySettings() }
+
+    addRootProfile (): void {
+        const cfg = this.config.store.agentDeck
+        cfg.rootProfiles = [...(cfg.rootProfiles || []), {
+            id: 'agentdeck:root:' + require('crypto').randomUUID(),
+            name: '', cwd: '', command: cfg.rootProfileCommand || 'powershell.exe',
+        }]
+        this.saveRootProfile()
+    }
+
+    removeRootProfile (root: any): void {
+        this.config.store.agentDeck.rootProfiles = this.config.store.agentDeck.rootProfiles.filter((p: any) => p.id !== root.id)
+        this.saveRootProfile()
+    }
+
+    async pickAdditionalCwd (root: any): Promise<void> {
+        const picked = await (this.platform as any).pickDirectory(this.t('root.cwd.title'))
+        if (!picked) { return }
+        root.cwd = String(picked).replace(/\\/g, '/')
+        this.saveRootProfile()
+    }
 
     storageLabel (key: string): string { return storageText(key, this.lang) }
 

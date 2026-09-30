@@ -1,5 +1,9 @@
 /** Dansk */
 export default {
+    'root.more': 'Flere arbejdsprofiler',
+    'root.choose.desc': 'Gem flere arbejdsmapper, og vælg en profil, når du åbner en ny fane.',
+    'root.add': 'Tilføj profil',
+    'root.remove': 'Fjern profil',
     'layout.title': 'Brug AgentDeck-layoutet',
     'layout.desc': 'Slå fra, så forsvinder sidepanelet og den faste bredde — Tabby ser ud som normalt igen.',
 

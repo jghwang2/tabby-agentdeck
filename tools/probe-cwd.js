@@ -169,7 +169,13 @@
             const before = ad.app.tabs.length
             const nb = newTabBtn()
             if (nb) { nb.click() }
-            for (let i = 0; i < 20 && ad.app.tabs.length <= before; i++) { await sleep(200) }
+            let selectedRoot = false
+            for (let i = 0; i < 30 && ad.app.tabs.length <= before; i++) {
+                await sleep(200)
+                // Work roots now require an explicit choice on the new-tab path.
+                const option = document.querySelector('selector-modal .list-group-item')
+                if (option && !selectedRoot) { selectedRoot = true; option.click() }
+            }
             const fresh = panes()[panes().length - 1]
             const freshTab = ad.app.tabs[ad.app.tabs.length - 1]
             if (ad.app.tabs.length > before) { madeTabs.push(freshTab) }

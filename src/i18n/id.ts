@@ -1,5 +1,9 @@
 /** Bahasa Indonesia */
 export default {
+    'root.more': 'Profil kerja tambahan',
+    'root.choose.desc': 'Simpan beberapa folder kerja dan pilih profil saat membuka tab baru.',
+    'root.add': 'Tambah profil',
+    'root.remove': 'Hapus profil',
     'layout.title': 'Gunakan tata letak AgentDeck',
     'layout.desc': 'Matikan untuk menghilangkan bilah sisi dan lebar tetap, kembali ke tampilan asli Tabby.',
 
