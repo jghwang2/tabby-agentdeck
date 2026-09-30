@@ -312,10 +312,10 @@ export function accountCliRoots (): string[] {
         .split(path.delimiter).map(root => root.trim()).filter(Boolean))]
 }
 
-function launch (account: SavedAccount, args: string[]): ChildProcessWithoutNullStreams {
+function launch (account: SavedAccount, args: string[], extraEnv: NodeJS.ProcessEnv = {}): ChildProcessWithoutNullStreams {
     // Resolve npm's real entry point; never interpolate credentials into a shell command.
     const roots = accountCliRoots()
-    const env = accountEnv(account)
+    const env = { ...accountEnv(account), ...extraEnv }
     for (const key of Object.keys(env)) { if (key.toLowerCase() === 'path') { delete env[key] } }
     env.PATH = roots.join(path.delimiter)
     for (const root of roots) {
@@ -343,7 +343,11 @@ class CodexAccountClient {
     private pending = new Map<number, { resolve: (x: any) => void, reject: (e: Error) => void, timer: any }>()
     onNotification: (method: string, params: any) => void = () => {}
     constructor (account: SavedAccount) {
-        this.child = launch(account, ['-c', 'cli_auth_credentials_store="file"', 'app-server'])
+        // Identity/usage checks spawn this app-server every minute and kill it right after the reply.
+        // On start Codex auto-upgrades git marketplaces (ls-remote, then a full clone when HEAD moved);
+        // killed mid-upgrade, the clone never installs, stays in .staging and repeats each minute
+        // (~385MB/min to disk and from gitea, 2026-09-30). Block git network transports for this helper only.
+        this.child = launch(account, ['-c', 'cli_auth_credentials_store="file"', 'app-server'], { GIT_ALLOW_PROTOCOL: 'file' })
         let buffer = ''
         this.child.stdout.on('data', chunk => {
             buffer += chunk.toString()
