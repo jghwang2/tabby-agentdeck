@@ -2171,13 +2171,19 @@ body.agentdeck-active {
         .ad-now-reset { font-size: 11px; }
     }
 }
-// Navigation numbers belong only to the UI, never to the message transport.
-.ad-tab[data-ad-slot]::before {
-    content: attr(data-ad-slot);
-    float: left;
-    font-weight: 700;
-    opacity: .65;
-    margin-right: 8px;
+// Keep the full title row available; permanent aliases precede the status.
+.ad-meta {
+    .ad-identity {
+        flex: 0 0 auto;
+        border: 1px solid #687b9566;
+        border-radius: 4px;
+        background: #35455b66;
+        color: inherit;
+        font: inherit;
+        font-size: 11px;
+        padding: 1px 4px;
+        &[hidden] { display: none; }
+    }
 }
 // Native conversation history search; independent of the active-tab filter.
 .ad-history-search {

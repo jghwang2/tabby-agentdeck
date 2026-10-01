@@ -71,7 +71,7 @@
             while (slots().filter(slot => slot.tabIndex >= 0).length < 3) { if (!await open()) break }
             if (!made.length && slots().some(slot => slot.tabIndex < 0)) await open()
             const before = [...ad.app.tabs], reorder = ad.reorder(0, 1, 'after')
-            add('RO1', 'Reorder command is disabled', reorder.ok === false && ad.app.tabs.every((tab, i) => tab === before[i]), reorder)
+            add('RO1', 'Reorder moves first tab after second', reorder.ok === true && ad.app.tabs[1] === before[0], reorder)
             const row = document.querySelector('#agentdeck-sidebar .ad-tab'), rect = row.getBoundingClientRect()
             row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: rect.x + 10, clientY: rect.y + 10 }))
             document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: rect.x + 60, clientY: rect.y + 120 }))
@@ -82,9 +82,9 @@
             const removedSlot = slots().find(slot => ad.app.tabs[slot.tabIndex] === removable).number
             const stable = slots().filter(slot => slot.tabIndex >= 0).map(slot => ({ number: slot.number, tab: ad.app.tabs[slot.tabIndex] }))
             await ad.app.closeTab(removable, false); await sleep(300); ad.render()
-            add('RO4', 'Closing preserves survivor numbers', stable.filter(slot => slot.tab !== removable).every(slot => ad.app.tabs[ad.jump(slot.number).activeTabIndex] === slot.tab), {})
+            add('RO4', 'Closing compacts positional shortcuts', ad.app.tabs.every((tab, i) => ad.app.tabs[ad.jump(i + 1).activeTabIndex] === tab), {})
             const replacement = await open(); await sleep(200)
-            add('RO5', 'New session reuses vacant slot', ad.app.tabs[ad.jump(removedSlot).activeTabIndex] === replacement, { removedSlot })
+            add('RO5', 'New session uses last visible position', ad.app.tabs[ad.jump(ad.app.tabs.length).activeTabIndex] === replacement, { removedSlot })
             while (slots().some(slot => slot.tabIndex < 0)) { if (!await open()) break }
             add('RO9', 'Nine slots can be occupied', slots().filter(slot => slot.tabIndex >= 0).length === 9, slots())
             const count = ad.app.tabs.length

@@ -391,7 +391,7 @@ With nothing staged it does not commit — it never widens to `git commit -a`.
 | `Ctrl+V` | Paste. If the clipboard holds **only an image**, the image-paste key is handed to the app instead of text — Claude Code and Codex read the clipboard themselves. `agentdeck-paste` |
 | Right-click | Copy with a selection, paste without one. Hold (250 ms default) for the context menu |
 | `Ctrl+T` (⌘+T) | New tab — same as the sidebar `+ New tab`. Uses the work-root profile and sets `AGENTDECK_TAB`. Overlapping stock bindings are removed when `claimNewTabKey` is enabled. `agentdeck-new-tab` |
-| `Ctrl+1` … `Ctrl+9` | Select fixed slot 1–9, unchanged by filters or closing other sessions. |
+| `Ctrl+1` … `Ctrl+9` | Select the first through ninth currently visible tab. Job aliases stay fixed. |
 | `Ctrl+L` | Focus the sidebar list / same key returns to the terminal. `agentdeck-focus-list` |
 | `Ctrl+W` | Close the current tab — the **active tab** from the terminal, the **focused row** when the list has the keyboard. Only while `keyboardNav` + `keyboardCloseTab` are on; off, it flows through as the shell's delete-previous-word (`0x17`) |
 | (unbound) | `agentdeck-toggle` — sidebar / 4:3 on-off |
@@ -413,7 +413,7 @@ Paste with `Ctrl+Shift+V` / `Shift+Insert` (Tabby's own) or right-click instead.
 
 ### Driving the sidebar from the keyboard
 
-`Ctrl+1`–`Ctrl+9` select fixed reusable slots. Settings tabs are excluded. [Session communication](SESSION-COMMUNICATION.md) uses actual session IDs only.
+`Ctrl+1`–`Ctrl+9` follow visible tab order. Settings tabs are excluded. [Session communication](SESSION-COMMUNICATION.md) uses actual session IDs only.
 
 `Ctrl+L` enters the list. It exists for looking through tabs without the mouse, and the rules are these.
 

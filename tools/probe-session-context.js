@@ -2,8 +2,9 @@
 (async () => {
     const ad = window.__agentdeck
     const fs = require('fs'), path = require('path'), cp = require('child_process'), net = require('net'), os = require('os')
-    if (!process.env.TABBY_CONFIG_DIRECTORY?.includes('tabby-agentdeck-test')) throw new Error('Isolated Tabby required')
-    const root = path.join(process.env.TABBY_CONFIG_DIRECTORY, 'agentdeck-mailbox')
+    if (!process.env.TABBY_CONFIG_DIRECTORY?.includes('tabby-agentdeck-test')
+        && !['identity-final-app', 'job-alias-app'].some(name => path.resolve(process.env.TABBY_CONFIG_DIRECTORY || '') === path.resolve('D:/Project/tabby-agentdeck/.tmp',name,'cfg'))) throw new Error('Isolated Tabby required')
+    const root = ad.runtimePaths().mailbox
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-context-'))
     const plugin = fs.realpathSync(path.join(path.dirname(process.env.TABBY_CONFIG_DIRECTORY), 'ud/plugins/node_modules/tabby-agentdeck'))
     const created = []
@@ -73,15 +74,18 @@
         const reply=await cli(b,sidB,'send',{toSessionId:sidA,body:'received',requestKey:sidB,replyTo:sent.result.id})
         check('reply reaches original sender',(await cli(a,sidA,'receive')).result.some(m=>m.id===reply.result.id&&m.replyTo===sent.result.id))
         check('cannot impersonate other session',!!(await cli(a,sidB,'receive')).error)
-        const oldSlot=document.querySelector(`.ad-tab[data-ad-index="${ad.app.tabs.indexOf(b)}"]`).dataset.adSlot
+        const oldSlot=document.querySelector(`.ad-tab[data-ad-index="${ad.app.tabs.indexOf(b)}"]`).dataset.adIdentity
+        check('snapshot exposes permanent alias', (await snapshot()).context.includes(`Tab alias=${JSON.stringify(oldSlot)}:`))
         await ad.app.closeTab(b,false);await sleep(500)
-        check('closed recipient rejected',!!(await cli(a,sidA,'send',{toSessionId:sidB,body:'closed',requestKey:sidA+'-closed'})).error)
+        const closed = await cli(a,sidA,'send',{toSessionId:sidB,body:'closed',requestKey:sidA+'-closed'})
+        check('closed recipient not awakened', !!closed.error || closed.result?.wake?.reason === 'no-tab')
         snap=await snapshot()
         check('closed tab gone from current snapshot',!snap.context.includes(sidB))
         const c=await open('Context test C'),sidC='context-c-'+Date.now()
         await hook(c,sidC,'UserPromptSubmit','claude')
-        check('replacement reuses free human slot',document.querySelector(`.ad-tab[data-ad-index="${ad.app.tabs.indexOf(c)}"]`).dataset.adSlot===oldSlot)
-        check('old recipient not redirected to reused slot',!!(await cli(a,sidA,'send',{toSessionId:sidB,body:'old target',requestKey:sidA+'-reused'})).error)
+        check('replacement gets a fresh permanent letter',document.querySelector(`.ad-tab[data-ad-index="${ad.app.tabs.indexOf(c)}"]`).dataset.adIdentity!==oldSlot)
+        const oldTarget = await cli(a,sidA,'send',{toSessionId:sidB,body:'old target',requestKey:sidA+'-reused'})
+        check('old recipient not redirected', !!oldTarget.error || oldTarget.result?.wake?.reason === 'no-tab')
         check('replacement mailbox remains empty',(await cli(c,sidC,'receive')).result.length===0)
         return {pass:true,checks}
     } finally {

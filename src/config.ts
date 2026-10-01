@@ -31,6 +31,8 @@ export const LAYOUT_DEFAULTS = {
 export class AgentDeckConfigProvider extends ConfigProvider {
     defaults = {
         agentDeck: {
+            sessionIdentities: [],
+            aliasProjects: [],
             /** Empty uses the CLI/environment default. Applied at app startup. */
             accountStorageDir: '',
             claudeStorageDir: '',

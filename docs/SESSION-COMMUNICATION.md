@@ -1,16 +1,25 @@
-# Session communication and fixed navigation slots
+# Session communication and permanent tab names
 
-AgentDeck assigns human navigation slots 1–9. Closing a session leaves a hole;
-the next session uses the lowest free number. Filtering, status changes and tab
-reordering cannot change an assigned number. Ctrl+1…9 selects the fixed slot,
-even when a filter hides its row. The sidebar no longer groups/reorders rows by
-project or status and no longer supports drag-to-reorder. Settings tabs do not
-consume a slot. A split root shares its human slot; its individual AI sessions
-still have different actual session IDs. Existing external/recovered tabs beyond
-nine remain open without shortcuts; AgentDeck's new/resume controls enforce nine.
+AgentDeck assigns job-related aliases such as `게임1`, `허브1` and `에이전트덱1`
+from the initial job title and working directory. Aliases are automatic, unique,
+immutable and reserved after closing. Reservations persist in the application
+configuration. Restoring a tab preserves its identity; new tabs get the next
+unused name. The original title occupies its own row; the alias precedes the status.
+Letter badges and positional numbers are not displayed. Readability takes
+precedence over a fixed four-character limit.
+Ctrl+1…9 selects the current first through ninth visible row, including after
+filtering, closing and dragging tabs. Automatic project/status sorting remains
+disabled. A split root has one name but can contain multiple AI session IDs.
+AgentDeck's new/resume controls continue to enforce nine simultaneous tabs.
 
-Numbers are never mailbox addresses. Every prompt hook requests a live UI snapshot
-of the current slot-to-session mapping. A sender resolves the user's target once
+Discovered project names and paths are saved only in the user's local application
+configuration. They are not written into this repository or shipped as a name list.
+Unknown projects use their folder names; explicit project labels in titles can
+improve names for future tabs. Existing aliases do not change.
+
+Aliases vary by user. Never use example aliases as real addresses. Numbers are
+never mailbox addresses. Every prompt hook requests a live UI snapshot
+of the current alias-to-session mapping. A sender resolves the user's target once
 and sends to that exact session ID. Open tabs without a registered session remain
 in the snapshot as not addressable; registration and MCP connection are distinct.
 The snapshot includes the caller's exact session ID and is delivered even without
@@ -93,5 +102,7 @@ Run it with `node tools/cdp.js 9222 tools/probe-session-context.js` after starti
 the isolated instance; it refuses the real user instance.
 
 `tools/probe-group.js` and
-`tools/probe-reorder.js` exercise fixed slots in the isolated app. Unit/protocol
+`tools/probe-reorder.js` exercise positional navigation in the isolated app.
+`test/sessionIdentity.cjs` and `tools/probe-identity.js` cover automatic job aliases,
+permanent reservations, unique names and identity-preserving reordering. Unit/protocol
 tests alone do not establish that a real CLI model followed the hook instruction.

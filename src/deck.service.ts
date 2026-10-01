@@ -15,6 +15,8 @@ import { SettingsTabComponent } from 'tabby-settings'
 import { WorkStatusService } from './status.service'
 import { WorkNotifyService } from './notify.service'
 import { SessionSlots } from './sessionSlots'
+import { SessionIdentities, SessionIdentity, adaptiveAliasBase } from './sessionIdentity'
+import { newTabId } from './tabenv'
 import { MailboxWake, MAILBOX_WAKE_TEXT } from './mailboxWake'
 import { applyOutput, applyTitle, releaseLimited, stripTitleMarker } from './detect'
 import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent, profileFor, unionProfile } from './agents'
@@ -432,6 +434,43 @@ export class AgentDeckService {
     }
 
     private readonly sessionSlots = new SessionSlots<BaseTabComponent>()
+    private readonly identityIds = new WeakMap<BaseTabComponent, string>()
+
+    private identityOf (tab: BaseTabComponent): SessionIdentity {
+        const store = this.config.store.agentDeck
+        const records = store.sessionIdentities ?? (store.sessionIdentities = [])
+        const panes: any[] = typeof (tab as any).getAllTabs === 'function' ? (tab as any).getAllTabs() : [tab]
+        // Recovery creates the split root before its terminal profiles are attached.
+        // Do not overwrite a restored identity with a provisional allocation.
+        if (!panes.some(pane => pane.profile?.options)) { return { id: '', letter: '', alias: '' } }
+        let id = this.identityIds.get(tab)
+        if (!id) {
+            id = panes.map(pane => pane.profile?.options?.env?.AGENTDECK_IDENTITY).find(Boolean)
+            // A copied profile must not give two live tabs the same identity.
+            if (!id || this.app.tabs.some(other => other !== tab && this.identityIds.get(other) === id)) {
+                do { id = newTabId() } while (records.some(record => record.id === id))
+            }
+            this.identityIds.set(tab, id)
+        }
+        for (const pane of panes) {
+            if (pane.profile?.options && pane.profile.options.env?.AGENTDECK_IDENTITY !== id) {
+                pane.profile = { ...pane.profile, options: { ...pane.profile.options,
+                    env: { ...pane.profile.options.env, AGENTDECK_IDENTITY: id } } }
+            }
+        }
+        const count = records.length
+        const hadAlias = !!records.find(record => record.id === id)?.alias
+        const jobTitle = `${stripTitleMarker(tab.customTitle || tab.title || '')} ${this.status.get(tab).label || ''}`.trim()
+        const cwd = this.notify.cwdOf(tab) || this.cwdCache.get(tab)?.dir
+            || panes.map(pane => pane.profile?.options?.cwd).find(Boolean) || ''
+        const projects = store.aliasProjects ?? (store.aliasProjects = [])
+        const previousProjects = JSON.stringify(projects)
+        const base = adaptiveAliasBase(jobTitle, cwd, projects, projectRootOf(cwd) || '')
+        if (!base && !hadAlias) { return { id, letter: '', alias: '' } }
+        const record = new SessionIdentities(records).ensure(id, base)
+        if (count !== records.length || !hadAlias || JSON.stringify(projects) !== previousProjects) { this.config.save() }
+        return record
+    }
     private pendingSessionOpens = 0
 
     private syncSessionSlots (): void {
@@ -453,9 +492,9 @@ export class AgentDeckService {
             }
         }
         this.notify.publishNavigationContext(tabs.map(tab => {
-            const slot = this.sessionSlots.numberOf(tab)
+            const identity = this.identityOf(tab)
             const sessionIds = this.notify.sessionIdsOf(tab)
-            return `Human slot ${slot ?? 'unassigned'}: `
+            return `Tab alias=${JSON.stringify(identity.alias)}: `
                 + (sessionIds.length ? `session IDs ${sessionIds.join(', ')}` : 'tab open; session not registered (not addressable yet)')
                 + `; title=${JSON.stringify(String(tab.customTitle || tab.title || '').slice(0, 160))}`
                 + `; ${this.notify.mailboxConnectionState(tab)}`
@@ -995,6 +1034,7 @@ export class AgentDeckService {
                 // 재현하는 용도라, 게이트를 안 지나면 "화면에서는 막히는데 진단구로는 된다" 가 되어
                 // 회귀가 게이트를 검증할 수 없다 (2026-09-09 실측: `sortByStatus` 를 켠 채로도
                 // `ok: true` 가 나왔다). 상태순 정렬 중에는 옮겨도 다음 렌더에 제자리로 돌아간다.
+                /* Retired status sorting must not disable manual reordering.
                 if (this.config.store.agentDeck.sortByStatus) {
                     return {
                         ok: false,
@@ -1002,6 +1042,7 @@ export class AgentDeckService {
                         order: before.map((_, i) => i),
                     }
                 }
+                */
                 const ok = this.applyReorder(a, b, place)
                 this.render()
                 // 새 순서를 **옛 인덱스로** 적어 돌려준다 — `[1,0,2]` 면 0번과 1번이 자리를 바꿨다는 뜻
@@ -1126,7 +1167,7 @@ export class AgentDeckService {
                 return {
                     slot,
                     slots: Array.from({ length: JUMP_SLOTS }, (_, i) => {
-                        const target = this.sessionSlots.get(i + 1)
+                        const target = pickJumpTarget(rows, i + 1)
                         return { number: i + 1, tabIndex: target ? all.indexOf(target) : -1 }
                     }),
                     activeTabIndex: this.app.activeTab ? all.indexOf(this.app.activeTab) : -1,
@@ -4424,6 +4465,8 @@ export class AgentDeckService {
         }
         const dir = this.cwdCache.get(tab)?.dir ?? null
         return matchesSearchTokens([
+            this.identityOf(tab).letter,
+            this.identityOf(tab).alias,
             stripTitleMarker(tab.customTitle || tab.title || ''),
             this.status.get(tab).label,
             dir,
@@ -4797,8 +4840,7 @@ export class AgentDeckService {
         const statusOf = (tab: BaseTabComponent): WorkStatus => this.status.get(tab).status
         // 정렬은 복사본에만 — app.tabs 의 순서(순정 탭바)는 그대로 둔다
         this.syncSessionSlots()
-        const tabs = [...this.app.tabs].sort((a, b) =>
-            (this.sessionSlots.numberOf(a) ?? 10) - (this.sessionSlots.numberOf(b) ?? 10))
+        const tabs = [...this.app.tabs]
         // **필터는 여기서 먹인다** — 그룹핑·헤더 생략·plan 이 전부 이 결과를 딛는다.
         // `render()` 안에서만 걸러내면 진단구(`__agentdeck.groups()`)가 화면과 어긋나고,
         // 그러면 회귀 프로브가 "제품이 배정한 탭 집합 != 화면의 줄 집합"(GR2)을 거짓 실패로 읽는다.
@@ -4818,7 +4860,7 @@ export class AgentDeckService {
         // `기타` 그룹으로 모이는데, 그것까지 세면 Welcome 탭 하나 때문에 항상 2그룹이 되어
         // 단일 프로젝트에서도 헤더가 뜬다 — 생략 규칙이 사실상 무력화된다
         // (2026-09-08 배리어 실측: 같은 cwd 인데 헤더가 2개였다).
-        const withHeads = false // Fixed human slots must not be regrouped or reordered.
+        const withHeads = false // Preserve manual screen order for positional hotkeys.
         // **헤더를 안 그리기로 했으면 순서도 건드리지 않는다.**
         // `groupTabs` 는 그룹을 라벨순으로 정렬하고 `기타`(작업 폴더를 모르는 탭)를 맨 뒤로 붙인다
         // (group.ts:228-230). 헤더가 있으면 그게 보기 좋지만, 헤더가 없는 화면에서는 구분선이
@@ -5633,8 +5675,8 @@ export class AgentDeckService {
         // 얼마든지 바뀔 수 있어서, "n 번째 줄 = n 번째 탭" 이라는 가정을 두면 안 되기 때문이다
         // (회귀 프로브가 그 가정으로 다른 탭의 배지를 읽은 적이 있다). 없는 탭이면 -1.
         row.dataset.adIndex = String(this.app.tabs.indexOf(tab))
-        const slot = this.sessionSlots.numberOf(tab)
-        if (slot !== null) { row.dataset.adSlot = String(slot) }
+        const identity = this.identityOf(tab)
+        row.dataset.adIdentity = identity.alias
         // 키보드 포커스 링. **`data-ad-index` 에 얹지 않는다** — 그 속성의 뜻은 `app.tabs`
         // 인덱스 하나뿐이고 회귀 R41·R16·R19·GR2 가 그것으로 대상 줄을 찾는다. 포커스는
         // 클래스로만 말한다(`.ad-nav-focus`, styles.scss)
@@ -5663,6 +5705,7 @@ export class AgentDeckService {
             // 감싸는 줄을 따로 둔다
             '  <div class="ad-prompt"><span class="ad-label"></span></div>',
             '  <div class="ad-meta">',
+            '    <span class="ad-identity"></span>',
             '    <span class="ad-badge"></span>',
             '    <span class="ad-elapsed"></span>',
             '  </div>',
@@ -5673,6 +5716,12 @@ export class AgentDeckService {
         // textContent 로만 넣는다 — 탭 제목에 어떤 문자가 와도 마크업으로 해석되지 않게
         const titleEl = row.querySelector('.ad-title') as HTMLElement
         titleEl.textContent = title
+        titleEl.title = title
+        const identityEl = row.querySelector('.ad-identity') as HTMLElement
+        identityEl.textContent = identity.alias || '별명 준비 중'
+        identityEl.hidden = !identity.id
+        identityEl.title = '다른 탭에서 부르는 고정 별명 (작업 기준 자동 배정)'
+        identityEl.addEventListener('dblclick', ev => ev.stopPropagation())
         this.decorateAgent(titleEl, this.profileForTab(tab))
         const labelEl = row.querySelector('.ad-label')
         // 아직 프롬프트가 없어도 줄은 남겨 둔다 — 줄 수가 들쭉날쭉하면 목록이 어지럽고,
@@ -5717,7 +5766,7 @@ export class AgentDeckService {
         }
 
         // 순서 드래그의 시작점 — 임계치를 넘기기 전에는 아무 일도 하지 않으므로 클릭을 가리지 않는다
-        // Fixed slots deliberately do not register drag-to-reorder handlers.
+        row.addEventListener('pointerdown', ev => this.armRowDrag(ev, tab, row))
         row.addEventListener('click', ev => {
             if ((ev.target as HTMLElement).closest('.ad-close')) {
                 return
@@ -5999,8 +6048,7 @@ export class AgentDeckService {
         if (!this.navReady || !Number.isInteger(slot) || slot < 1 || slot > JUMP_SLOTS) {
             return
         }
-        this.syncSessionSlots()
-        const tab = this.sessionSlots.get(slot)
+        const tab = pickJumpTarget(this.navPlan().rows, slot)
         // 범위 밖이면 아무 일도 하지 않는다 (`pickJumpTarget` 주석). 닫히는 중인 탭도 거른다
         if (!tab || !this.app.tabs.includes(tab)) {
             return
@@ -6219,6 +6267,7 @@ export class AgentDeckService {
             if (Math.hypot(ev.clientX - d.from.x, ev.clientY - d.from.y) < ROW_DRAG_THRESHOLD) {
                 return
             }
+            /* Retired status sorting must not disable manual reordering.
             if (this.config.store.agentDeck.sortByStatus) {
                 this.noteReorderBlocked()
                 // 손짓은 드래그였다 — 뒤따라 오는 click(탭 선택)까지 먹지 않게 가드를 켠다.
@@ -6227,6 +6276,7 @@ export class AgentDeckService {
                 this.endRowDrag(false, undefined, 'blocked-sort')
                 return
             }
+            */
             d.moved = true
             d.row.classList.add('ad-dragging')
             // 드래그 중에는 커서를 옮기기 모양으로 — 줄마다 주는 것보다 한 곳에서 켜고 끄는 편이 안전하다
@@ -6628,8 +6678,6 @@ export class AgentDeckService {
      * 포인터 이벤트는 Angular 밖이라 `zone.run` 안에서 바꿔 변경 감지를 태운다.
      */
     private applyReorder (tab: BaseTabComponent, to: BaseTabComponent, place: DropPlace): boolean {
-        return false
-        /* Legacy reorder retained for migration reference; fixed slots never reorder.
         const tabs = this.app.tabs
         const from = tabs.indexOf(tab)
         const at = tabs.indexOf(to)
@@ -6647,7 +6695,6 @@ export class AgentDeckService {
         })
         this.diag(`reorder ${from} -> ${at} ${place} order=${order.join(',')}`)
         return true
-        */
     }
 
     /**
@@ -6672,7 +6719,6 @@ export class AgentDeckService {
         setTimeout(() => el.remove(), REORDER_NOTE_MS)
     }
 
-    /** 더블클릭 -> 작업 이름 인라인 편집 */
     private startLabelEdit (row: HTMLElement, tab: BaseTabComponent): void {
         this.editing = tab
         const holder = row.querySelector('.ad-label') as HTMLElement

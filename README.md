@@ -9,16 +9,16 @@
 
 A [Tabby](https://tabby.sh) plugin for people who keep **Claude Code, Codex and Gemini CLI open in several tabs at once**.
 A 4:3 terminal, a session deck with live status, and a preview panel for what the agents produce.
-Fixed tab numbers help you identify agents consistently and ask them to exchange work across sessions.
+Automatic job-related aliases identify agents consistently across tab moves.
 
 ![tabby-agentdeck — terminal, preview panel and session deck](docs/guide/img/00-full.png)
 
-## Fixed tab numbers and cross-session messaging
+## Permanent tab names and cross-session messaging
 
-Keep one agent implementing, another reviewing, and another investigating a bug. You can ask an agent, **“Send the findings to the agent in tab 3”** or **“Ask tab 2 to review this change.”** With session communication configured, the agent can look up the target, send a message, receive a reply, and acknowledge the work.
+Keep one agent implementing, another reviewing, and another investigating a bug. Address the target by the alias displayed in your sidebar. The agent resolves that alias from the latest live snapshot to an exact session ID before sending. Aliases vary by user; documentation examples are never actual addresses. A reply or acknowledgement confirms receipt.
 
-- **Numbers 1–9 stay assigned while tabs remain open.** Filtering, status changes, or closing another tab will not renumber them. `Ctrl+1` … `Ctrl+9` jumps to that fixed number, even if its row is filtered out. Automatic sorting and drag reordering are disabled so the numbers remain easy to follow.
-- **Vacant numbers are reused.** A newly opened tab can take a closed tab's number. Before sending, the agent resolves the current number to the exact session ID; queued messages stay addressed to the original session.
+- **Keep the original title and show the permanent alias before the status.** Project paths and explicit project labels determine names locally. Unknown projects use their folder names; discovered labels improve future names without renaming existing tabs. Names remain unique, immutable and reserved after closing. Project names and paths are saved in local application settings, never added to the source repository.
+- **Letter badges and position numbers are hidden.** `Ctrl+1` … `Ctrl+9` selects the current first through ninth visible tab. Drag tabs to reorder them without changing their names. Messages still use the exact resolved session ID.
 - **Delivery and receipt are separate.** Sending queues a message. An acknowledgement or reply confirms that the recipient has read it. An idle agent checks at its next supported hook/task boundary; sending does not automatically start it.
 
 Communication uses AgentDeck's local mailbox through an optional MCP connection or the authenticated CLI fallback. Participating sessions need the supported status hooks and registration; a visible tab alone does not mean messaging is ready. See [setup and supported behavior](https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md).
@@ -28,7 +28,7 @@ Communication uses AgentDeck's local mailbox through an optional MCP connection 
 | Key | What it does |
 |---|---|
 | `Ctrl+T` (⌘+T) | New tab in the work root |
-| `Ctrl+1` … `Ctrl+9` | Select fixed session slot 1–9 (unchanged by filtering or closing another session) |
+| `Ctrl+1` … `Ctrl+9` | Select the first through ninth currently visible tab |
 | `Ctrl+L` | Focus the session list / same key returns to the terminal. Then `↑↓` walk, `Enter` picks, `Esc` leaves |
 | `Ctrl+W` | Close the current tab (the focused row when the list has the keyboard) |
 | `Ctrl+O` | Open / close the preview panel |
@@ -54,7 +54,7 @@ Search runs locally in a background Node.js process, with a disk cache refreshed
 ## Install
 
 Inside Tabby: Settings → Plugins → search `agentdeck` → Install → restart Tabby.
-Sessions use reusable fixed slots 1–9; automatic sorting and drag reordering are disabled.
+Sessions use automatic permanent job aliases beside their original titles. Drag to reorder; numeric shortcuts follow visible order.
 The optional [session communication MCP](docs/SESSION-COMMUNICATION.md) sends and receives by actual session ID only. Human numbers never address the MCP server.
 
 Everything else — status, preview panel, diff and commit, resuming sessions, settings — is in the

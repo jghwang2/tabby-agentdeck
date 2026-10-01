@@ -47,13 +47,13 @@
         const cfg = ad.config.store.agentDeck, results = []
         const wait = () => new Promise(resolve => setTimeout(resolve, 200))
         const rows = () => [...document.querySelectorAll('#agentdeck-sidebar .ad-tab')]
-        const snapshot = () => rows().map(row => ({ slot: row.dataset.adSlot, index: row.dataset.adIndex }))
+        const snapshot = () => rows().map(row => ({ identity: row.dataset.adIdentity, index: row.dataset.adIndex }))
         const add = (id, name, pass, evidence) => results.push({ id, name, pass, evidence })
         const saved = { sortByStatus: cfg.sortByStatus, collapsedGroups: cfg.collapsedGroups }
         try {
             ad.setFilter('', null); ad.render(); await wait()
             const before = snapshot()
-            add('GR1', 'Fixed slots render in numeric order', before.every((row, i) => !i || !row.slot || Number(row.slot) > Number(before[i - 1].slot)), before)
+            add('GR1', 'Rows follow screen order without numeric badges', before.every((row, i) => Number(row.index) === i) && rows().every(row => !row.hasAttribute('data-ad-slot')), before)
             add('GR2', 'Rows identify actual Tabby tabs', before.every(row => !!ad.app.tabs[Number(row.index)]), before)
             cfg.collapsedGroups = ['stale/project', 'STALE/PROJECT']; ad.render(); await wait()
             add('GR3', 'Old group collapse cannot hide fixed slots', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
@@ -62,8 +62,9 @@
             cfg.sortByStatus = true; ad.render(); await wait()
             add('GR12', 'Status sort setting cannot renumber rows', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
             ad.setFilter('___no_matching_session___', null); await wait()
+            const activeBefore = ad.app.activeTab
             const filtered = ad.jump(1)
-            add('GR16', 'Hidden session retains its shortcut', filtered.activeTabIndex === filtered.slots[0].tabIndex, filtered)
+            add('GR16', 'No visible row means no positional jump', ad.app.activeTab === activeBefore && filtered.slots[0].tabIndex === -1, filtered)
             ad.setFilter('', null); await wait()
             add('GR14', 'Clearing filter restores original numbers', JSON.stringify(snapshot()) === JSON.stringify(before), snapshot())
         } finally { Object.assign(cfg, saved); ad.setFilter('', null); ad.render() }
