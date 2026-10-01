@@ -178,8 +178,8 @@ export class AgentDeckConfigProvider extends ConfigProvider {
              * (판정은 `update.ts` 의 `canSelfUpdate`).
              */
             autoUpdate: true,
-            /** 확인 간격 (시간). 기동마다 묻지 않는다 */
-            updateCheckIntervalHours: 6,
+            /** 이전 설정 호환용. 기동 시 검사는 시간 제한을 사용하지 않는다 */
+            updateCheckIntervalHours: 0,
             /** 마지막으로 레지스트리에 물어본 시각 (epoch ms) — 설정이 아니라 상태다 */
             lastUpdateCheck: 0,
             /** 레지스트리 주소. 사내 미러를 쓰면 여기를 바꾼다 */

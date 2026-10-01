@@ -20,7 +20,7 @@
     "watch": "webpack --progress --color --watch",
     "test": "npm run test:existing && npm run test:codex && npm run test:accounts && node test/sidebarI18n.cjs && node test/accountSession.cjs && node test/accountRefreshPolicy.cjs && node test/accountRefreshClient.cjs && npm run test:sessions && npm run test:storage && npm run test:performance && npm run test:hook-trace && npm run test:updater",
     "test:hook-trace": "node test/hookTrace.cjs && node test/mailboxDeadline.cjs",
-    "test:updater": "node test/updater.cjs",
+    "test:updater": "node test/updater.cjs && node test/updateService.cjs",
     "test:performance": "node test/performance.cjs",
     "test:storage": "tsc src/storagePaths.ts src/accounts.ts src/storageSettings.ts src/runtimeMigration.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/storagePaths.cjs && node test/storageSettings.cjs && node test/runtimePaths.cjs",
     "test:sessions": "tsc src/sessionSearch.ts src/sessionMailbox.ts src/sessionSlots.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/sessionSearch.cjs && node test/sessionCommunication.cjs && node test/mailboxBridge.cjs && node test/mailboxWake.cjs",

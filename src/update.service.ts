@@ -10,7 +10,6 @@ import * as path from 'path'
 import { diag, diagCatch, pluginVersion } from './diag'
 import { AgentDeckReloadService } from './reload.service'
 import {
-    DEFAULT_INTERVAL_HOURS,
     PACKAGE_NAME,
     UpdateOutcome,
     canSelfUpdate,
@@ -18,15 +17,12 @@ import {
     installSucceeded,
     latestUrl,
     parseLatestVersion,
-    shouldCheck,
 } from './update'
 
 /** 레지스트리 응답을 기다리는 시간 — 기동 직후라 오래 붙들면 안 된다 */
 const FETCH_TIMEOUT_MS = 6000
 /** npm 설치를 기다리는 한도 — 사내망에서 레지스트리가 느릴 수 있어 넉넉히 준다 */
 const INSTALL_TIMEOUT_MS = 5 * 60 * 1000
-/** 기동하고 이만큼 뒤에 확인한다 — 창이 뜨는 순간에 네트워크를 건드리지 않는다 */
-const STARTUP_DELAY_MS = 8000
 /** 응답 본문 상한 — 레지스트리가 아닌 무언가가 답할 때 메모리를 먹지 않게 */
 const MAX_BODY_BYTES = 512 * 1024
 
@@ -34,7 +30,7 @@ const MAX_BODY_BYTES = 512 * 1024
  * npm 레지스트리를 보고 **Tabby 를 띄운 채로** 새 버전을 깐다.
  *
  * 흐름은 넷이다 —
- *  ① 기동하고 잠시 뒤 레지스트리에 묻는다
+ *  ① 앱 준비 직후 한 번 레지스트리에 묻는다
  *  ② 새 버전이 있으면 **물어본다** (`지금 업데이트` / `나중에` / `다시 묻지 않기`)
  *  ③ 승낙하면 설치 스크립트를 임시 폴더에서 돌린다 — **Tabby 는 그대로 떠 있다**
  *  ④ 디스크 버전을 확인하고 **창만 새로 고친다**(`reload.service`) — 탭과 세션은 살아남는다
@@ -51,6 +47,9 @@ const MAX_BODY_BYTES = 512 * 1024
  */
 @Injectable({ providedIn: 'root' })
 export class AgentDeckUpdateService {
+    private pending: Promise<UpdateOutcome> | null = null
+    private readonly notifiedVersions = new Set<string>()
+    private initialized = false
     constructor (
         private app: AppService,
         private config: ConfigService,
@@ -61,6 +60,8 @@ export class AgentDeckUpdateService {
 
     init (): void {
         this.app.ready$.subscribe(() => {
+            if (this.initialized) { return }
+            this.initialized = true
             // 개발/검증용 — deck.service 가 만든 `__agentdeck` 에 붙는다 (없으면 만든다).
             // `run` 은 **설치와 리로드까지 간다**(승낙하면 창이 새로 고쳐진다) — 회귀에서
             // 부를 때는 개발 설치라 `dev-install` 에서 멈추는 것을 전제로 한다
@@ -78,17 +79,24 @@ export class AgentDeckUpdateService {
                 pluginsDir: () => this.pluginsDir(),
                 version: () => pluginVersion(),
             }
-            setTimeout(() => { void this.run('startup') }, STARTUP_DELAY_MS)
+            void this.run('startup')
         })
     }
 
     /**
      * 한 번 확인하고, 새 버전이면 물어본 뒤 설치를 건다.
      *
-     * `force` 는 설정 창의 `지금 확인` 용 — 간격 제한과 `다시 묻지 않기` 를 건너뛴다
+     * `force` 는 설정 창의 `지금 확인` 용 — 같은 버전 알림 억제와 `다시 묻지 않기` 를 건너뛴다
      * (사람이 직접 눌렀으니 그 순간만큼은 묻는 게 맞다). 기능 자체를 끈 것은 존중한다.
      */
-    async run (reason: string, force = false): Promise<UpdateOutcome> {
+    run (reason: string, force = false): Promise<UpdateOutcome> {
+        if (this.pending) { return this.pending }
+        this.pending = Promise.resolve().then(() => this.check(reason, force))
+            .finally(() => { this.pending = null })
+        return this.pending
+    }
+
+    private async check (reason: string, force: boolean): Promise<UpdateOutcome> {
         const cfg = this.config.store.agentDeck
         const current = pluginVersion()
         const marks = this.installMarks()
@@ -97,10 +105,6 @@ export class AgentDeckUpdateService {
         if (cfg.autoUpdate === false) {
             diag(`update skip=disabled reason=${reason}`)
             return 'disabled'
-        }
-        if (!force && !shouldCheck(cfg.lastUpdateCheck, Date.now(), Number(cfg.updateCheckIntervalHours) || DEFAULT_INTERVAL_HOURS)) {
-            diag(`update skip=too-soon reason=${reason}`)
-            return 'too-soon'
         }
 
         let latest: string | null = null
@@ -111,9 +115,11 @@ export class AgentDeckUpdateService {
             diagCatch('update 레지스트리 조회', e)
         }
 
-        // 물어본 것 자체를 기록한다(성공이든 아니든) — 실패할 때마다 기동마다 다시 묻지 않게
-        cfg.lastUpdateCheck = Date.now()
-        this.config.save()
+        // 성공한 조회 시각만 진단용으로 기록한다. 다음 검사를 제한하지 않는다.
+        if (latest !== null) {
+            cfg.lastUpdateCheck = Date.now()
+            this.config.save()
+        }
 
         const outcome = decide({
             enabled: true,
@@ -127,7 +133,12 @@ export class AgentDeckUpdateService {
         diag(`update check=${reason} current=${current} latest=${latest ?? '?'} outcome=${outcome}`
             + ` dev=${devInstall} marks=${JSON.stringify(marks)}`)
 
+        if ((outcome === 'dev-install' || outcome === 'update-ready')
+            && !force && this.notifiedVersions.has(latest as string)) {
+            return 'skipped'
+        }
         if (outcome === 'dev-install') {
+            this.notifiedVersions.add(latest as string)
             // 개발 중인 사람에게는 알려 줄 값이 있다 — 다만 손대지 않는다
             this.notifications.info(
                 `AgentDeck ${latest} 가 나왔다 (지금 ${current})`,
@@ -146,7 +157,10 @@ export class AgentDeckUpdateService {
             return 'skipped'
         }
 
-        return this.confirmAndInstall(current, latest as string)
+        this.notifiedVersions.add(latest as string)
+        const result = await this.confirmAndInstall(current, latest as string)
+        if (result === 'failed') { this.notifiedVersions.delete(latest as string) }
+        return result
     }
 
     /** ② 물어보고 ③ 제자리에 깐 뒤 ④ 창만 새로 고친다 */
