@@ -5,6 +5,14 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.6 — 2026-10-01
+
+- Preserve original tab titles and show permanent job aliases before status badges.
+- Discover project names locally and keep assigned aliases unique and unchanged.
+- Follow visible tab order for numeric shortcuts and preserve identities when dragging.
+- Resolve messaging targets from live alias-to-session mappings.
+- Check for updates immediately when AgentDeck starts.
+
 ## 1.2.5 — 2026-09-30
 
 - Restore full-width Windows title-bar dragging without administrator privileges.

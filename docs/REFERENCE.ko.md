@@ -9,6 +9,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.6
+
+- 기존 탭 제목을 유지하고 상태 앞에 고정 작업 별명을 표시합니다.
+- 프로젝트 이름은 사용자 환경에서 발견해 로컬에 저장하며, 배정된 별명은 변경하거나 재사용하지 않습니다.
+- 숫자 이동키는 화면 순서를 따르고 드래그로 이동해도 별명은 유지됩니다.
+- 탭 통신은 최신 별명 목록에서 실제 세션 ID를 확인해 전송합니다.
+- 시작 직후 업데이트를 한 번 확인합니다.
+
 ## 1.2.5
 
 - 일반 권한에서도 상단 제목 표시줄 전체를 드래그하여 창을 옮길 수 있습니다.
