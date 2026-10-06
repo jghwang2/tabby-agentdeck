@@ -64,14 +64,16 @@ export function jobAliasBase (title: string, cwd: string): string {
     return Array.from(word || '작업').slice(0, 12).join('')
 }
 
-/** Persist reservations, including closed tabs, so an old name never targets a new tab. */
+/** Keep names stable while open; closed tabs do not reserve numbers. */
 export class SessionIdentities {
-    constructor (readonly records: SessionIdentity[]) {}
+    constructor (readonly records: SessionIdentity[], private readonly openIds?: ReadonlySet<string>) {}
 
     ensure (id: string, base = '작업'): SessionIdentity {
         const existing = this.records.find(record => record.id === id)
         if (existing) {
-            if (!existing.alias) { existing.alias = this.nextAlias(base) }
+            if (!existing.alias || this.reserved(id).has(this.key(existing.alias))) {
+                existing.alias = this.nextAlias(base, id)
+            }
             return existing
         }
         const record = { id, letter: '', alias: this.nextAlias(base) }
@@ -81,11 +83,25 @@ export class SessionIdentities {
 
     private key (value: string): string { return value.normalize('NFKC').trim().toLocaleLowerCase() }
 
-    private nextAlias (base: string): string {
-        const reserved = new Set(this.records.flatMap(record => [this.key(record.letter), this.key(record.alias)]))
+    private reserved (exceptId?: string): Set<string> {
+        return new Set(this.records
+            .filter(record => record.id !== exceptId && (!this.openIds || this.openIds.has(record.id)))
+            .flatMap(record => [this.key(record.letter), this.key(record.alias)]))
+    }
+
+    private nextAlias (base: string, exceptId?: string): string {
+        const reserved = this.reserved(exceptId)
         for (let number = 1; number <= Number.MAX_SAFE_INTEGER; number++) {
             const alias = `${base}${number}`
-            if (!reserved.has(this.key(alias))) { return alias }
+            if (!reserved.has(this.key(alias))) {
+                // Once reused, a historical tab must allocate again on restore.
+                for (const record of this.records) {
+                    if (!this.openIds || this.openIds.has(record.id)) { continue }
+                    if (this.key(record.alias) === this.key(alias)) { record.alias = '' }
+                    if (this.key(record.letter) === this.key(alias)) { record.letter = '' }
+                }
+                return alias
+            }
         }
         throw new Error('사용 가능한 별명이 없습니다.')
     }
