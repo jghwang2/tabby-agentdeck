@@ -983,9 +983,16 @@ export class WorkNotifyService {
             } catch { socket.write(JSON.stringify({ error: 'Navigation snapshot unavailable' }) + '\n') }
             return true
         }
-        if (request?.channel !== 'agentdeck-mailbox') { return false }
+        if (!['agentdeck-mailbox', 'agentdeck-external-mailbox'].includes(request?.channel)) { return false }
         try {
             this.retireMissingMailboxPanes()
+            if (request.channel === 'agentdeck-external-mailbox') {
+                this.mailbox ??= new SessionMailbox(path.join(this.mailboxRoot, 'mailbox.json'), message =>
+                    this.mailboxWake?.(message) ?? { attempted: false, delivered: false, reason: 'no-tab' })
+                const result = this.mailbox.callExternal(request.sessionId, request.token, request.method, request.arguments)
+                socket.write(JSON.stringify({ result }) + '\n')
+                return true
+            }
             if (!this.mailbox) { throw new Error('No connected sessions') }
             const result = this.mailbox.call(request.sessionId, request.token, request.method, request.arguments)
             socket.write(JSON.stringify({ result }) + '\n')

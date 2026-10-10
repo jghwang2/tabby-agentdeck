@@ -159,7 +159,43 @@ if ($hook -and $hook.session_id) {
 }
 if (-not $targetId) { $targetId = 'default' }
 # Register this prompt/tool boundary before asking for its live navigation context.
-$mailContext = $hook -and $env:AGENTDECK_TAB -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name
+$mailContext = $hook -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name
+function Invoke-AgentDeckMailboxContext {
+    Write-AgentDeckHookTrace 'mailbox_begin'
+    $mailProcess = New-Object System.Diagnostics.Process
+    try {
+        $mailProcess.StartInfo.FileName = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+        $mailProcess.StartInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') + '" --hook "' + $targetId + '" "' + [string]$hook.hook_event_name + '"'
+        $mailProcess.StartInfo.UseShellExecute = $false
+        $mailProcess.StartInfo.CreateNoWindow = $true
+        $mailProcess.StartInfo.RedirectStandardOutput = $true
+        $mailProcess.StartInfo.RedirectStandardError = $true
+        $mailProcess.StartInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
+        $mailProcess.StartInfo.EnvironmentVariables['AGENTDECK_HOOK_DEADLINE'] = [string]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() + 1000)
+        $mailBudget = [System.Diagnostics.Stopwatch]::StartNew()
+        [void]$mailProcess.Start()
+        $mailOutput = $mailProcess.StandardOutput.ReadToEndAsync()
+        $mailError = $mailProcess.StandardError.ReadToEndAsync()
+        if (-not $mailProcess.WaitForExit([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))) {
+            try { $mailProcess.Kill() } catch { }
+            Write-HookDiag 'mailbox-timeout budget=1500ms'
+            Write-AgentDeckHookTrace 'mailbox_timeout' @{ budget_ms = 1500 }
+        } else {
+            # Process exit and redirected pipe completion are separate notifications.
+            # Drain the pipe within the remaining budget instead of dropping a valid reply.
+            $mailDrained = $mailOutput.Wait([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))
+            if ($mailProcess.ExitCode -eq 0 -and $mailDrained) {
+                $mailText = $mailOutput.Result
+                if ($mailText) { [Console]::Out.Write($mailText) }
+            }
+            Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $mailProcess.ExitCode }
+        }
+    } catch {
+        Write-AgentDeckHookTrace 'mailbox_error' @{} $_
+    } finally {
+        $mailProcess.Dispose()
+    }
+}
 # 파일명에 못 쓰는 문자 제거
 $safeId = ($targetId -replace '[^A-Za-z0-9._-]', '_')
 $file = Join-Path $dir "$safeId.json"
@@ -209,7 +245,13 @@ if ($hook -and $hook.tool_input -and $hook.tool_input.file_path) {
 # 세션은 이미 탭에 묶여 있어 sessionId 만으로 찾아간다(notify.service `resolveTab` 의 `alive`).
 # **서브에이전트 이벤트도 건너뛰지 않는다** — 하나 빠지면 개수가 영구히 어긋난다(start 를 놓치면
 # 적게, stop 을 놓치면 많게 굳는다). 이쪽도 계보 조회는 하지 않는다(아래 tabId 분기).
-if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and -not $mailContext) { Write-HookDiag 'exit running-dup'; Write-AgentDeckHookTrace 'skip' @{ reason = 'already_running' }; exit 0 }
+if ($Status -eq 'running' -and $prevStatus -eq 'running' -and -not $Label -and -not $touchedFile -and -not $Subagent -and (-not $mailContext -or -not $env:AGENTDECK_TAB)) {
+    Write-HookDiag 'exit running-dup'
+    Write-AgentDeckHookTrace 'skip' @{ reason = 'already_running' }
+    # External mail polling does not require repeating an unchanged status report.
+    if ($mailContext) { Invoke-AgentDeckMailboxContext }
+    exit 0
+}
 
 # --- 어느 탭인가: tabId (1순위) / 프로세스 계보 pids (폴백) ---
 # 사이드바가 이 보고를 어느 탭에 붙일지 정하는 근거. 예전 규칙 "처음 보고할 때의 활성 탭" 은
@@ -444,42 +486,7 @@ if (Test-Path $portFile) {
 }
 Write-HookDiag 'tcp-sent'
 Write-AgentDeckHookTrace 'tcp_end'
-if ($mailContext) {
-    Write-AgentDeckHookTrace 'mailbox_begin'
-    $mailProcess = New-Object System.Diagnostics.Process
-    try {
-        $mailProcess.StartInfo.FileName = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-        $mailProcess.StartInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'agentdeck-mailbox.mjs') + '" --hook "' + $targetId + '" "' + [string]$hook.hook_event_name + '"'
-        $mailProcess.StartInfo.UseShellExecute = $false
-        $mailProcess.StartInfo.CreateNoWindow = $true
-        $mailProcess.StartInfo.RedirectStandardOutput = $true
-        $mailProcess.StartInfo.RedirectStandardError = $true
-        $mailProcess.StartInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
-        $mailProcess.StartInfo.EnvironmentVariables['AGENTDECK_HOOK_DEADLINE'] = [string]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() + 1000)
-        $mailBudget = [System.Diagnostics.Stopwatch]::StartNew()
-        [void]$mailProcess.Start()
-        $mailOutput = $mailProcess.StandardOutput.ReadToEndAsync()
-        $mailError = $mailProcess.StandardError.ReadToEndAsync()
-        if (-not $mailProcess.WaitForExit([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))) {
-            try { $mailProcess.Kill() } catch { }
-            Write-HookDiag 'mailbox-timeout budget=1500ms'
-            Write-AgentDeckHookTrace 'mailbox_timeout' @{ budget_ms = 1500 }
-        } else {
-            # Process exit and redirected pipe completion are separate notifications.
-            # Drain the pipe within the remaining budget instead of dropping a valid reply.
-            $mailDrained = $mailOutput.Wait([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))
-            if ($mailProcess.ExitCode -eq 0 -and $mailDrained) {
-                $mailText = $mailOutput.Result
-                if ($mailText) { [Console]::Out.Write($mailText) }
-            }
-            Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $mailProcess.ExitCode }
-        }
-    } catch {
-        Write-AgentDeckHookTrace 'mailbox_error' @{} $_
-    } finally {
-        $mailProcess.Dispose()
-    }
-}
+if ($mailContext) { Invoke-AgentDeckMailboxContext }
 Write-HookDiag 'end'
 exit 0
 } finally {

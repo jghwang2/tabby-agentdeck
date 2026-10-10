@@ -41,7 +41,7 @@
         }
         throw new Error('New tab did not start')
     }
-    const envFor = tab => ({...process.env, LOCALAPPDATA:scratch, AGENTDECK_MAILBOX_ROOT:root,
+    const envFor = tab => ({...process.env, LOCALAPPDATA:scratch, AGENTDECK_MAILBOX_ROOT:root, AGENTDECK_RUNTIME_ROOT:path.dirname(root),
         AGENTDECK_TAB:paneOf(tab).profile.options.env.AGENTDECK_TAB, FORCE_COLOR:'0'})
     async function hook (tab,sid,event,agent) {
         const result=await exec('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(plugin,'hooks/agentdeck-notify.ps1'),'-Agent',agent,'-Status','running'],envFor(tab),JSON.stringify({session_id:sid,hook_event_name:event,cwd:scratch}))
@@ -71,9 +71,57 @@
         const received=await cli(b,sidB,'receive')
         check('recipient receives exact sender and message',received.result.some(m=>m.id===sent.result.id&&m.fromSessionId===sidA))
         await cli(b,sidB,'acknowledge',{messageId:sent.result.id,completed:true})
-        const reply=await cli(b,sidB,'send',{toSessionId:sidA,body:'received',requestKey:sidB,replyTo:sent.result.id})
+        const replyArgs={messageId:sent.result.id,body:'received',requestKey:sidB}
+        const reply=await cli(b,sidB,'reply',replyArgs)
+        check('reply succeeds without recipient lookup',reply.result?.toSessionId===sidA)
+        check('reply is queued without terminal wake',reply.result.wake.reason==='reply-queued'&&!reply.result.wake.attempted&&!reply.result.wake.delivered)
+        check('reply is durable before recipient hook',JSON.parse(fs.readFileSync(path.join(root,'mailbox.json'),'utf8')).messages.some(m=>m.id===reply.result.id&&m.toSessionId===sidA))
+        check('retry queues only one reply',(await cli(b,sidB,'reply',replyArgs)).result.id===reply.result.id)
+        const replyContext=await hook(a,sidA,'PostToolUse','codex')
+        check('sender hook reports queued reply',replyContext.includes('1 pending messages')&&replyContext.includes('--cli '+sidA+' reply'))
         check('reply reaches original sender',(await cli(a,sidA,'receive')).result.some(m=>m.id===reply.result.id&&m.replyTo===sent.result.id))
         check('cannot impersonate other session',!!(await cli(a,sidB,'receive')).error)
+        // Real outside process: no AgentDeck pane and no pre-registered server identity.
+        const externalEnv = {...process.env, AGENTDECK_MAILBOX_ROOT:root, AGENTDECK_RUNTIME_ROOT:path.dirname(root)}
+        delete externalEnv.AGENTDECK_TAB
+        delete externalEnv.AGENTDECK_SESSION_ID
+        const externalId = 'external-' + Date.now()
+        const outside = async (method,args) => {
+            const file=path.join(scratch,'external-args.json');if(args)fs.writeFileSync(file,'\uFEFF'+JSON.stringify(args))
+            const result=await exec('node',[path.join(plugin,'hooks/agentdeck-mailbox.mjs'),'--cli',externalId,method,...(args?[file]:[])],externalEnv)
+            return JSON.parse(result.out)
+        }
+        check('external receive before first send is rejected',!!(await outside('receive')).error)
+        const externalArgs={toSessionId:sidA,body:'external first contact',requestKey:externalId+'-first'}
+        const first=await outside('send',externalArgs)
+        check('external sends first without a pane',first.result?.fromSessionId===externalId)
+        const incoming=(await cli(a,sidA,'receive')).result.find(m=>m.id===first.result.id)
+        check('tab receives actual external sender ID',incoming?.fromSessionId===externalId)
+        const answer=await cli(a,sidA,'reply',{messageId:incoming.id,body:'answer to external ID',requestKey:externalId+'-answer'})
+        check('reply routes to external session ID',answer.result?.toSessionId===externalId&&answer.result?.wake.reason==='reply-queued')
+        const receivedOutside=(await outside('receive')).result
+        check('external process receives reply',receivedOutside.some(m=>m.id===answer.result.id&&m.body==='answer to external ID'))
+        const externalHook=await exec('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(plugin,'hooks/agentdeck-notify.ps1'),'-Agent','codex','-Status','running'],externalEnv,JSON.stringify({session_id:externalId,hook_event_name:'PostToolUse',cwd:scratch}))
+        check('actual external PowerShell hook reports pending reply',externalHook.code===0&&externalHook.out.includes('1 pending messages'))
+        const externalStatusFile=path.join(path.dirname(root),'status',externalId+'.json')
+        const externalStatusBefore=fs.readFileSync(externalStatusFile,'utf8')
+        const duplicateHook=await exec('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(plugin,'hooks/agentdeck-notify.ps1'),'-Agent','codex','-Status','running'],externalEnv,JSON.stringify({session_id:externalId,hook_event_name:'PostToolUse',cwd:scratch}))
+        check('duplicate external hook still reports pending reply',duplicateHook.code===0&&duplicateHook.out.includes('1 pending messages'))
+        check('external polling preserves unchanged status',fs.readFileSync(externalStatusFile,'utf8')===externalStatusBefore)
+        const followup=await cli(a,sidA,'send',{toSessionId:incoming.fromSessionId,body:'followup by ID only',requestKey:externalId+'-followup'})
+        check('followup requires only learned session ID',followup.result?.toSessionId===externalId&&followup.result?.wake.reason==='no-tab')
+        check('external receives both messages',(await outside('receive')).result.length===2)
+        check('external send retry is idempotent',(await outside('send',externalArgs)).result?.id===first.result.id)
+        const returning=await outside('reply',{messageId:followup.result.id,body:'external receipt confirmed',requestKey:externalId+'-return'})
+        check('external answers using received ID',returning.result?.toSessionId===sidA)
+        check('tab reads external receipt confirmation',(await cli(a,sidA,'receive')).result.some(m=>m.id===returning.result.id&&m.body==='external receipt confirmed'))
+        for(const message of (await outside('receive')).result)await outside('acknowledge',{messageId:message.id,completed:true})
+        check('external completion empties inbox',(await outside('receive')).result.length===0)
+        const stored=JSON.parse(fs.readFileSync(path.join(root,'mailbox.json'),'utf8'))
+        check('disk contains one first message and completed replies',stored.messages.filter(m=>m.id===first.result.id).length===1&&stored.messages.filter(m=>m.toSessionId===externalId).every(m=>m.completedAt))
+        check('external never appears as a UI tab',!(await snapshot()).context.includes(externalId))
+        await cli(a,sidA,'acknowledge',{messageId:incoming.id,completed:true})
+        await cli(a,sidA,'acknowledge',{messageId:returning.result.id,completed:true})
         const oldSlot=document.querySelector(`.ad-tab[data-ad-index="${ad.app.tabs.indexOf(b)}"]`).dataset.adIdentity
         check('snapshot exposes permanent alias', (await snapshot()).context.includes(`Tab alias=${JSON.stringify(oldSlot)}:`))
         await ad.app.closeTab(b,false);await sleep(500)

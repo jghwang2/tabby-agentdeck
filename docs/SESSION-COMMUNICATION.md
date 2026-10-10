@@ -32,7 +32,7 @@ copy each exact message target. Reusing a slot cannot redirect queued messages.
 
 Add a stdio MCP server named `agentdeck` to each participating CLI, with command
 `node` and one argument: the absolute installed path to
-`hooks/agentdeck-mailbox.mjs`. Start the CLI inside an AgentDeck terminal so its
+`hooks/agentdeck-mailbox.mjs`. For Tabby sessions, start the CLI inside an AgentDeck terminal so its
 MCP child inherits `AGENTDECK_TAB`. Enable AgentDeck's existing status hooks.
 Configuration remains user-controlled: installing this plugin does not rewrite
 global Claude/Codex configuration. The server advertises MCP revision 2025-11-25.
@@ -49,6 +49,11 @@ Tools:
 
 - `agentdeck_sessions`: actual IDs, names, projects and active status.
 - `agentdeck_send`: `toSessionId`, `body`, stable retry `requestKey`, optional `replyTo` message ID.
+- `agentdeck_reply`: received `messageId`, `body`, stable retry `requestKey`.
+  The server resolves the original sender's session ID from the received message
+  and queues the answer in that exact session's durable mailbox. No alias lookup
+  is needed. Replies (including `send` with `replyTo`) never inject terminal input
+  or schedule a terminal wake; the recipient reads them at its next hook.
 - `agentdeck_receive`: up to 50 incomplete messages belonging to the caller.
 - `agentdeck_acknowledge`: received `messageId`, optionally `completed: true`.
 
@@ -57,9 +62,36 @@ Repeating a send with the same sender/request key returns the original message;
 reusing that key for different contents is an error. A reply must reference a
 message received from the target. Closed or unregistered recipients retain queued
 messages but cannot receive a terminal wake prompt until addressable. Disk state
-survives reload/restart; sessions become active again only after hook registration.
+survives reload/restart; Tabby sessions become active again after hook registration.
+External sessions resume with their own saved credential on the next request.
 
 ## Notification and execution
+
+### External terminals (Windows Terminal / PowerShell)
+
+An external terminal has no `AGENTDECK_TAB`. Its first `send` introduces its actual
+AI session ID to the running AgentDeck receiver. It must send first: `receive`,
+`sessions`, `reply` and `acknowledge` cannot register an unknown external session.
+Use the same installed adapter with `--cli <your actual session ID> send <args.json>`.
+The JSON file contains `toSessionId`, `body` and a stable `requestKey`.
+Set `AGENTDECK_MAILBOX_ROOT` to the receiver's mailbox directory when using a custom
+storage location or isolated profile; the default follows `agentdeck-runtime.cjs`.
+Do not copy a Tabby pane ID or another session's credential file.
+
+After receiving the first message, reply with `messageId`, or send further messages
+directly to its `fromSessionId`. Both directions use durable session IDs, including
+when the external participant has no UI tab. `replyTo` is optional for a new message;
+neither tab names nor aliases are required after contact. External peers poll
+`receive`, or use the existing prompt/tool hooks, and explicitly acknowledge messages.
+No terminal wake is available for external peers.
+
+The receiver stores the external peer's random credential under `mailbox-external`, keyed by
+a hash of its session ID; the adapter only reads its own file. External callers do not
+need write access to AgentDeck's runtime directory. The first valid send persists registration and message
+together. Retries and process/receiver restarts reuse that credential. A conflicting
+credential cannot take over an existing session. For external stdio MCP, set
+`AGENTDECK_SESSION_ID` to the actual AI session ID before starting the adapter.
+Tabby must be running; queuing is not proof that the receiving model read the message.
 
 The existing `UserPromptSubmit` hook always supplies the live UI snapshot inside
 AgentDeck. Both prompt and `PostToolUse` hooks check pending messages after their
@@ -68,11 +100,20 @@ mailbox using MCP or the authenticated CLI fallback. The hooks never inject
 terminal input, answer approval prompts, or force an idle agent to execute.
 For a running CLI without an MCP adapter, use `node <installed hooks/agentdeck-mailbox.mjs>
 --cli <your actual session ID> receive`. The same entry point supports `sessions`,
-`send`, and `acknowledge`; mutations accept a UTF-8 JSON argument file as the last
+`send`, `reply`, and `acknowledge`; mutations accept a UTF-8 JSON argument file as the last
 argument, with the same fields as the MCP tools. Credentials are loaded internally
-from the caller's pane and must match its explicit session ID. No global CLI
+from the caller's pane or external session file and must match its explicit session ID. No global CLI
 configuration or credential file edits are needed. A queued send does not prove
 that the receiving model has read it; obtain acknowledgement or a reply.
+
+To answer without MCP, use `node <installed hooks/agentdeck-mailbox.mjs>
+--cli <your actual session ID> reply <arguments.json>` with
+`{"messageId":"<received id>","body":"<answer>","requestKey":"<stable unique reply key>"}`.
+Only messages received by the authenticated caller may be replied to, including
+already completed messages. Replying does not complete the original automatically.
+Offline senders retain replies for their exact session ID until registration resumes.
+The result has `wake: {attempted:false, delivered:false, reason:"reply-queued"}`.
+Further turns can reply to each newly received message in the same way.
 
 With mailbox wake enabled, AgentDeck can inject a fixed receive reminder into an
 idle or completed recipient's live terminal. Busy states, approval prompts, typing

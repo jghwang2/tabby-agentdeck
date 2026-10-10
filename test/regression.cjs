@@ -186,6 +186,9 @@ try {
     const nodeCopy = path.join(temp, 'second-node')
     fs.mkdirSync(nodeCopy)
     fs.copyFileSync(process.execPath, path.join(nodeCopy, 'node.exe'))
+    // This fixture checks duplicate PATH entries, not cold startup of a copied executable.
+    // Warm it before the production hook's fixed 1.5s subprocess budget begins.
+    cp.execFileSync(path.join(nodeCopy, 'node.exe'), ['--version'], { windowsHide: true, timeout: 10000 })
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH'
     env[pathKey] = [nodeCopy, path.dirname(process.execPath), env[pathKey] || ''].join(path.delimiter)
     const report = event => {
