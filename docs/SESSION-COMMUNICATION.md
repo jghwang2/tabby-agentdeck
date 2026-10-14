@@ -2,9 +2,9 @@
 
 AgentDeck assigns job-related aliases such as `게임1`, `허브1` and `에이전트덱1`
 from the initial job title and working directory. Aliases are automatic, unique,
-immutable and reserved after closing. Reservations persist in the application
-configuration. Restoring a tab preserves its identity; new tabs get the next
-unused name. The original title occupies its own row; the alias precedes the status.
+stable while open. Closing a tab releases its reservation. New tabs reuse the
+lowest free number. Reloading open tabs preserves identities and reservations
+until recovery finishes. The original title occupies its own row; the alias precedes the status.
 Letter badges and positional numbers are not displayed. Readability takes
 precedence over a fixed four-character limit.
 Ctrl+1…9 selects the current first through ninth visible row, including after
@@ -145,5 +145,5 @@ the isolated instance; it refuses the real user instance.
 `tools/probe-group.js` and
 `tools/probe-reorder.js` exercise positional navigation in the isolated app.
 `test/sessionIdentity.cjs` and `tools/probe-identity.js` cover automatic job aliases,
-permanent reservations, unique names and identity-preserving reordering. Unit/protocol
+released reservations, unique live names and identity-preserving reordering. Unit/protocol
 tests alone do not establish that a real CLI model followed the hook instruction.

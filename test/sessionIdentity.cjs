@@ -42,3 +42,29 @@ const migrated = new SessionIdentities([{id:'old',letter:'C',alias:''},{id:'name
 assert.equal(migrated.ensure('old','허브').alias, '허브2')
 assert.equal(migrated.ensure('named','게임').alias, '허브1')
 console.log('PASS: job-related automatic names, immutable aliases, 1000+ unique names, persisted reservations and migration')
+
+const reusedRecords = [
+    { id: 'closed-1', letter: '', alias: 'E1' },
+    { id: 'live-2', letter: '', alias: 'E2' },
+    { id: 'closed-3', letter: '', alias: 'E3' },
+    { id: 'live-29', letter: '', alias: 'E29' },
+]
+const reused = new SessionIdentities(reusedRecords)
+reused.reconcile(new Set(['live-2', 'live-29']))
+assert.deepEqual(reusedRecords.map(x => x.alias), ['E2', 'E29'])
+assert.equal(reused.ensure('new', 'E').alias, 'E1')
+assert.equal(reused.ensure('new', 'E').alias, 'E1')
+assert.equal(reused.ensure('another', 'E').alias, 'E3')
+reused.reconcile(new Set(['live-2', 'live-29', 'another']))
+assert.equal(reused.ensure('closed-1', 'E').alias, 'E1')
+assert.equal(reused.ensure('live-29', 'renamed').alias, 'E29')
+for (let i = 0; i < 1000; i++) {
+    reused.reconcile(new Set(['live-2', 'live-29']))
+    assert.equal(reused.ensure(`churn-${i}`, 'E').alias, 'E1')
+    assert.equal(reusedRecords.length, 3)
+}
+const restored = new SessionIdentities(JSON.parse(JSON.stringify(reusedRecords)))
+restored.reconcile(new Set(reusedRecords.map(x => x.id)))
+assert.equal(restored.ensure('live-29', 'E').alias, 'E29')
+assert.equal(restored.ensure('after-reload', 'E').alias, 'E3')
+console.log('PASS: lowest free alias reused, active names stable, retry/reopen/reload, 1000 close/open cycles bounded')

@@ -64,9 +64,15 @@ export function jobAliasBase (title: string, cwd: string): string {
     return Array.from(word || '작업').slice(0, 12).join('')
 }
 
-/** Persist reservations, including closed tabs, so an old name never targets a new tab. */
+/** Keep live aliases stable; closed tabs release their numbers. Messaging uses session IDs. */
 export class SessionIdentities {
     constructor (readonly records: SessionIdentity[]) {}
+
+    reconcile (liveIds: ReadonlySet<string>): void {
+        for (let index = this.records.length - 1; index >= 0; index--) {
+            if (!liveIds.has(this.records[index].id)) { this.records.splice(index, 1) }
+        }
+    }
 
     ensure (id: string, base = '작업'): SessionIdentity {
         const existing = this.records.find(record => record.id === id)

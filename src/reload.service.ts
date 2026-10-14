@@ -78,6 +78,7 @@ export class AgentDeckReloadService {
     init (): void {
         this.app.ready$.subscribe(() => {
             this.restore().catch(e => diagCatch('reload 복구', e))
+                .finally(() => this.deck.finishIdentityRecovery())
         })
     }
 
