@@ -101,5 +101,19 @@ const used = [...live.matchAll(/\bt\(\s*'([^']+)'/g)].map(m => m[1])
 check('템플릿이 키를 쓰고 있다 (정규식이 헛돌지 않았다)', used.length > 25, true)
 check('템플릿이 부르는 키가 표에 다 있다', [...new Set(used)].filter(k => !LANGUAGES.en[k]), [])
 
+
+// Retired sidebar/group/viewer controls are wrapped in one outer HTML comment.
+// A nested comment would close this block early and leak Korean settings.
+const hiddenStart = src.indexOf('<!-- [설정 화면에서 숨김 사이드바 목록')
+const nextVisible = src.indexOf("<h3 class=\"mt-4 mb-3\">{{t('agents.head')}}</h3>", hiddenStart)
+const hiddenBlock = hiddenStart >= 0 && nextVisible > hiddenStart
+    ? src.slice(hiddenStart, nextVisible) : ''
+check('retired settings have one HTML comment pair', hiddenBlock !== ''
+    && (hiddenBlock.match(/<!--/g) || []).length === 1
+    && (hiddenBlock.match(/-->/g) || []).length === 1
+    && hiddenBlock.trimEnd().endsWith('-->'), true)
+check('retired viewer controls do not leak into settings',
+    !live.includes('[(ngModel)]="config.store.agentDeck.viewerOpen"'), true)
+
 console.log(`\ni18n: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

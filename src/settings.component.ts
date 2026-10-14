@@ -276,7 +276,7 @@ const DOCK_KEYS: Record<string, string> = {
 <div class="text-muted mb-3">세션은 1~9 고정 번호를 사용합니다. 닫힌 자리는 재사용하며 다른 번호는 바뀌지 않습니다.
 Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순서 바꾸기는 지원하지 않습니다.</div>
 
-<!-- Legacy grouping controls are retired: fixed slots never reorder by project.
+Legacy grouping controls are retired: fixed slots never reorder by project.
 <h3 class="mt-4 mb-3">세션 그룹</h3>
 <div class="text-muted mb-3">
     사이드바의 세션을 <b>프로젝트 단위</b>로 묶고 헤더를 눌러 접는다. 끄고 켜는 값이 없다 —
@@ -302,7 +302,6 @@ Ctrl+숫자로 해당 세션을 선택합니다. 자동 정렬과 끌어서 순�
     </button>
 </div>
 
--->
 <h3 class="mt-4 mb-3">미리보기 패널</h3>
 <div class="text-muted mb-3">
     터미널 옆에서 에이전트가 만든 md · 이미지 · 표 · 코드를 그대로 본다.
