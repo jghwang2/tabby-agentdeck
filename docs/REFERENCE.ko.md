@@ -9,6 +9,11 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.7
+
+- 모든 언어에서 숨겨진 설정 항목과 주석 종료 기호가 화면에 노출되던 문제를 수정했습니다. (#1, @ZYZ666-RGB 기여)
+- 외부 터미널에서 실행 중인 에이전트도 세션 ID로 메시지를 보내고 답장할 수 있습니다.
+
 ## 1.2.6
 
 - 기존 탭 제목을 유지하고 상태 앞에 고정 작업 별명을 표시합니다.
