@@ -67,16 +67,20 @@ export function jobAliasBase (title: string, cwd: string): string {
     return Array.from(word || '작업').slice(0, 12).join('')
 }
 
-/** Keep names stable while open; closed tabs do not reserve numbers. */
+/** Keep live aliases stable; closed tabs release their numbers. Messaging uses session IDs. */
 export class SessionIdentities {
-    constructor (readonly records: SessionIdentity[], private readonly openIds?: ReadonlySet<string>) {}
+    constructor (readonly records: SessionIdentity[]) {}
+
+    reconcile (liveIds: ReadonlySet<string>): void {
+        for (let index = this.records.length - 1; index >= 0; index--) {
+            if (!liveIds.has(this.records[index].id)) { this.records.splice(index, 1) }
+        }
+    }
 
     ensure (id: string, base = '작업'): SessionIdentity {
         const existing = this.records.find(record => record.id === id)
         if (existing) {
-            if (!existing.alias || this.reserved(id).has(this.key(existing.alias))) {
-                existing.alias = this.nextAlias(base, id)
-            }
+            if (!existing.alias) { existing.alias = this.nextAlias(base) }
             return existing
         }
         const record = { id, letter: '', alias: this.nextAlias(base) }
@@ -86,25 +90,11 @@ export class SessionIdentities {
 
     private key (value: string): string { return value.normalize('NFKC').trim().toLocaleLowerCase() }
 
-    private reserved (exceptId?: string): Set<string> {
-        return new Set(this.records
-            .filter(record => record.id !== exceptId && (!this.openIds || this.openIds.has(record.id)))
-            .flatMap(record => [this.key(record.letter), this.key(record.alias)]))
-    }
-
-    private nextAlias (base: string, exceptId?: string): string {
-        const reserved = this.reserved(exceptId)
+    private nextAlias (base: string): string {
+        const reserved = new Set(this.records.flatMap(record => [this.key(record.letter), this.key(record.alias)]))
         for (let number = 1; number <= Number.MAX_SAFE_INTEGER; number++) {
             const alias = `${base}${number}`
-            if (!reserved.has(this.key(alias))) {
-                // Once reused, a historical tab must allocate again on restore.
-                for (const record of this.records) {
-                    if (!this.openIds || this.openIds.has(record.id)) { continue }
-                    if (this.key(record.alias) === this.key(alias)) { record.alias = '' }
-                    if (this.key(record.letter) === this.key(alias)) { record.letter = '' }
-                }
-                return alias
-            }
+            if (!reserved.has(this.key(alias))) { return alias }
         }
         throw new Error('사용 가능한 별명이 없습니다.')
     }

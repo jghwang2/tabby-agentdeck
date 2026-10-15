@@ -488,6 +488,13 @@ export class AgentDeckService {
         })
     }
 
+    private identityRecoveryPending = true
+
+    finishIdentityRecovery (): void {
+        this.identityRecoveryPending = false
+        this.scheduleRender()
+    }
+
     private identityOf (tab: BaseTabComponent): SessionIdentity {
         const store = this.config.store.agentDeck
         const records = store.sessionIdentities ?? (store.sessionIdentities = [])
@@ -511,28 +518,40 @@ export class AgentDeckService {
             }
         }
         const count = records.length
-        const previousAlias = records.find(record => record.id === id)?.alias
-        const hadAlias = !!previousAlias
+        const identities = new SessionIdentities(records)
+        // Startup/reload attaches restored panes asynchronously. Reserve their old
+        // aliases until all profiles are available, including tabs not rendered yet.
+        const liveIds = new Set<string>([id])
+        let profilesReady = true
+        for (const other of this.app.tabs) {
+            if (other instanceof SettingsTabComponent) { continue }
+            const children: any[] = typeof (other as any).getAllTabs === 'function' ? (other as any).getAllTabs() : [other]
+            if (!children.length || children.some(pane => !pane.profile?.options && ('session' in pane || 'frontend' in pane))) {
+                profilesReady = false
+            }
+            const known = this.identityIds.get(other)
+            if (known) { liveIds.add(known) }
+            for (const pane of children) {
+                const restored = pane.profile?.options?.env?.AGENTDECK_IDENTITY
+                if (restored) { liveIds.add(restored) }
+            }
+        }
+        if (!this.identityRecoveryPending && (this.app as any).tabRecovery?.enabled !== false && profilesReady) {
+            identities.reconcile(liveIds)
+        }
+        const hadAlias = !!records.find(record => record.id === id)?.alias
         const jobTitle = `${stripTitleMarker(tab.customTitle || tab.title || '')} ${this.status.get(tab).label || ''}`.trim()
         const cwd = this.notify.cwdOf(tab) || this.cwdCache.get(tab)?.dir
             || panes.map(pane => pane.profile?.options?.cwd).find(Boolean) || ''
         const projects = store.aliasProjects ?? (store.aliasProjects = [])
         const previousProjects = JSON.stringify(projects)
         const base = adaptiveAliasBase(jobTitle, cwd, projects, projectRootOf(cwd) || '')
-        if (!base && !hadAlias) { return { id, letter: '', alias: '' } }
-        // Include restored profile identities even before identityOf visits those tabs.
-        const openIds = new Set<string>([id])
-        for (const other of this.app.tabs) {
-            const knownId = this.identityIds.get(other)
-            if (knownId) { openIds.add(knownId); continue }
-            const children: any[] = typeof (other as any).getAllTabs === 'function' ? (other as any).getAllTabs() : [other]
-            for (const child of children) {
-                const restoredId = child.profile?.options?.env?.AGENTDECK_IDENTITY
-                if (restoredId) { openIds.add(restoredId) }
-            }
+        if (!base && !hadAlias) {
+            if (count !== records.length) { this.config.save() }
+            return { id, letter: '', alias: '' }
         }
-        const record = new SessionIdentities(records, openIds).ensure(id, base)
-        if (count !== records.length || previousAlias !== record.alias || JSON.stringify(projects) !== previousProjects) { this.config.save() }
+        const record = identities.ensure(id, base)
+        if (count !== records.length || !hadAlias || JSON.stringify(projects) !== previousProjects) { this.config.save() }
         return record
     }
     private pendingSessionOpens = 0

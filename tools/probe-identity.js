@@ -41,7 +41,8 @@
         document.querySelector('.ad-new').click()
         await wait(600)
         check('closed alias reused', names().includes(initial[2]), names())
-        check('old identity history retained', g.config.store.agentDeck.sessionIdentities.some(x => x.id === persisted[2].id))
+        check('closed identity released', !g.config.store.agentDeck.sessionIdentities.some(x => x.id === persisted[2].id))
+        check('live aliases unchanged', names().includes(initial[0]) && names().includes(initial[1]), names())
         window.localStorage.setItem('identity-probe-before', JSON.stringify({ names: names(), ptys: g.app.tabs.map(t => (t.getAllTabs?.() || [t]).map(p => p.session?.pty?.id || p.session?.ptyID || p.session?.id)), records: g.config.store.agentDeck.sessionIdentities }))
         return { checks, names: names(), reloadAvailable: !!g.devReload }
     } catch (error) { return { checks, error: String(error) } }

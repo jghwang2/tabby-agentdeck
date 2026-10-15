@@ -9,6 +9,9 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 미배포 변경
+
+- 열린 탭의 별명은 유지하고, 닫힌 탭의 번호는 새 탭이 가장 작은 번호부터 재사용합니다.
 ## 1.2.7
 
 - 모든 언어에서 숨겨진 설정 항목과 주석 종료 기호가 화면에 노출되던 문제를 수정했습니다. (#1, @ZYZ666-RGB 기여)

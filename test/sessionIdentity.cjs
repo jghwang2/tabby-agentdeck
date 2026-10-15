@@ -41,21 +41,30 @@ assert.equal(new Set(registry.records.map(x => x.alias)).size, registry.records.
 const migrated = new SessionIdentities([{id:'old',letter:'C',alias:''},{id:'named',letter:'A',alias:'허브1'}])
 assert.equal(migrated.ensure('old','허브').alias, '허브2')
 assert.equal(migrated.ensure('named','게임').alias, '허브1')
-const history = [{ id: 'closed', letter: '', alias: 'Root1' }, { id: 'live', letter: '', alias: 'Root18' }]
-const open = new Set(['live', 'new'])
-const reusable = new SessionIdentities(history, open)
-assert.equal(reusable.ensure('new', 'Root').alias, 'Root1')
-assert.equal(reusable.ensure('live', 'Root').alias, 'Root18')
-open.add('next')
-assert.equal(reusable.ensure('next', 'Root').alias, 'Root2')
-open.add('closed')
-assert.equal(reusable.ensure('new', 'Root').alias, 'Root1')
-assert.equal(reusable.ensure('closed', 'Root').alias, 'Root3')
-assert.equal(reusable.ensure('new', 'Root').alias, 'Root1')
-open.delete('new')
-open.add('replacement')
-assert.equal(reusable.ensure('replacement', 'Root').alias, 'Root1')
-const restored = new SessionIdentities(JSON.parse(JSON.stringify(history)), open)
-assert.equal(restored.ensure('replacement', 'Root').alias, 'Root1')
-assert.equal(restored.ensure('live', 'Root').alias, 'Root18')
-console.log('PASS: automatic names, stable open aliases, smallest free number reuse, restore collision and migration')
+console.log('PASS: job-related automatic names, immutable aliases, 1000+ unique names, persisted reservations and migration')
+
+const reusedRecords = [
+    { id: 'closed-1', letter: '', alias: 'E1' },
+    { id: 'live-2', letter: '', alias: 'E2' },
+    { id: 'closed-3', letter: '', alias: 'E3' },
+    { id: 'live-29', letter: '', alias: 'E29' },
+]
+const reused = new SessionIdentities(reusedRecords)
+reused.reconcile(new Set(['live-2', 'live-29']))
+assert.deepEqual(reusedRecords.map(x => x.alias), ['E2', 'E29'])
+assert.equal(reused.ensure('new', 'E').alias, 'E1')
+assert.equal(reused.ensure('new', 'E').alias, 'E1')
+assert.equal(reused.ensure('another', 'E').alias, 'E3')
+reused.reconcile(new Set(['live-2', 'live-29', 'another']))
+assert.equal(reused.ensure('closed-1', 'E').alias, 'E1')
+assert.equal(reused.ensure('live-29', 'renamed').alias, 'E29')
+for (let i = 0; i < 1000; i++) {
+    reused.reconcile(new Set(['live-2', 'live-29']))
+    assert.equal(reused.ensure(`churn-${i}`, 'E').alias, 'E1')
+    assert.equal(reusedRecords.length, 3)
+}
+const restored = new SessionIdentities(JSON.parse(JSON.stringify(reusedRecords)))
+restored.reconcile(new Set(reusedRecords.map(x => x.id)))
+assert.equal(restored.ensure('live-29', 'E').alias, 'E29')
+assert.equal(restored.ensure('after-reload', 'E').alias, 'E3')
+console.log('PASS: lowest free alias reused, active names stable, retry/reopen/reload, 1000 close/open cycles bounded')
