@@ -5,6 +5,7 @@ import * as net from 'net'
 import * as os from 'os'
 import * as path from 'path'
 import { StringDecoder } from 'string_decoder'
+import { ScheduledTasks } from './scheduledTasks'
 import { WorkStatusService } from './status.service'
 import { WorkStatus } from './api'
 import { AgentId } from './agents'
@@ -150,6 +151,8 @@ const CODEX_META_SCAN_PHASE = 4
 interface SubagentScan {
     sessionId: string
     state: SubagentState
+    scheduled: ScheduledTasks
+    work?: Promise<void>
     decoder: StringDecoder
     /** 대화기록 파일 경로. null = 아직 못 찾았다 */
     path: string | null
@@ -983,9 +986,16 @@ export class WorkNotifyService {
             } catch { socket.write(JSON.stringify({ error: 'Navigation snapshot unavailable' }) + '\n') }
             return true
         }
-        if (request?.channel !== 'agentdeck-mailbox') { return false }
+        if (!['agentdeck-mailbox', 'agentdeck-external-mailbox'].includes(request?.channel)) { return false }
         try {
             this.retireMissingMailboxPanes()
+            if (request.channel === 'agentdeck-external-mailbox') {
+                this.mailbox ??= new SessionMailbox(path.join(this.mailboxRoot, 'mailbox.json'), message =>
+                    this.mailboxWake?.(message) ?? { attempted: false, delivered: false, reason: 'no-tab' })
+                const result = this.mailbox.callExternal(request.sessionId, request.token, request.method, request.arguments)
+                socket.write(JSON.stringify({ result }) + '\n')
+                return true
+            }
             if (!this.mailbox) { throw new Error('No connected sessions') }
             const result = this.mailbox.call(request.sessionId, request.token, request.method, request.arguments)
             socket.write(JSON.stringify({ result }) + '\n')
@@ -1735,23 +1745,15 @@ export class WorkNotifyService {
      * 정본이고(훅 보고로 채워진다), 같은 것을 두 곳에서 만들면 어긋난다.
      */
     private scanSubagents (): void {
-        if (!this.subagentEnabled) {
-            // 끈 기능이 파일을 계속 읽고 있으면 안 된다. 들고 있던 상태도 버린다 — 꺼 둔 사이의
-            // 호출·종료를 못 봤으므로 남겨 두면 종료 알림을 놓친 유령만 남는다. 다시 켜면 그때
-            // 처음부터(파일 앞부터) 다시 센다
-            if (this.scans.size) {
-                this.scans.clear()
-            }
-            return
-        }
+        // Timer safety is independent of the subagent badge setting.
         this.pruneScans()
-        for (const [sid, tab] of this.sessionTab) {
+        for (const [sid, tab] of this.scanOwners()) {
             if (!this.app.tabs.includes(tab)) {
                 continue
             }
             let scan = this.scans.get(sid)
             if (!scan) {
-                scan = { sessionId: sid, state: createSubagentState(), decoder: new StringDecoder('utf8'),
+                scan = { sessionId: sid, state: createSubagentState(), scheduled: new ScheduledTasks(), decoder: new StringDecoder('utf8'),
                     path: null, lastSize: 0, busy: false, lookupAt: 0, summary: summarizeSubagents(null) }
                 this.scans.set(sid, scan)
             }
@@ -1760,7 +1762,7 @@ export class WorkNotifyService {
                 continue
             }
             if (!scan.path) {
-                void this.findTranscript(scan)
+                scan.work = this.findTranscript(scan)
                 continue
             }
             let size: number
@@ -1792,7 +1794,7 @@ export class WorkNotifyService {
             if (size === scan.lastSize) {
                 continue
             }
-            this.readGrowth(scan, size)
+            scan.work = this.readGrowth(scan, size)
         }
     }
 
@@ -1804,8 +1806,9 @@ export class WorkNotifyService {
      * `sessionTab` 에서 빠진 세션의 스캔만 남는다.
      */
     private pruneScans (): void {
+        const owners = this.scanOwners()
         for (const sid of [...this.scans.keys()]) {
-            const tab = this.sessionTab.get(sid)
+            const tab = owners.get(sid)
             if (!tab || !this.app.tabs.includes(tab)) {
                 this.scans.delete(sid)
             }
@@ -1815,6 +1818,7 @@ export class WorkNotifyService {
     /** 상태·decoder·오프셋을 한 세트로 새로 만든다 (셋이 따로 놀면 글자가 깨지거나 개수가 틀어진다) */
     private resetScan (scan: SubagentScan): void {
         scan.state = createSubagentState()
+        scan.scheduled = new ScheduledTasks()
         scan.decoder = new StringDecoder('utf8')
         scan.lastSize = 0
         scan.summary = summarizeSubagents(null)
@@ -1874,51 +1878,84 @@ export class WorkNotifyService {
      * 줄을 두 번 먹여도 결과는 같다(`subagents.ts`: 호출은 이미 본 id 를 무시하고 종료는 Set).
      * 중간에 끊긴 조각이 앞에 붙어 생기는 깨진 줄은 그쪽에서 `skipped` 로 버린다.
      */
-    private readGrowth (scan: SubagentScan, size: number): void {
-        const file = scan.path
-        if (!file) {
-            return
-        }
-        const from = scan.lastSize
-        const sid8 = scan.sessionId.slice(0, 8)
-        scan.busy = true
-        let stream: fs.ReadStream
-        try {
-            stream = fs.createReadStream(file, { start: from, end: size - 1 })
-        } catch (e: any) {
-            // 스트림을 못 만들었다. **`busy` 를 반드시 되돌린다** — 여기서 true 로 남으면 그
-            // 세션은 다시는 스캔되지 않고 개수가 조용히 멈춘 채로 굳는다(잘못된 상태를 조용히
-            // 덮는 것이 이 저장소에서 가장 경계하는 실패 모양이다)
-            scan.busy = false
-            diagCatch(`subagent 스트림 생성 sid=${sid8}`, e)
-            return
-        }
-        let settled = false
-        const finish = (e?: any): void => {
-            if (settled) {
-                return
+    private readGrowth (scan: SubagentScan, size: number): Promise<void> {
+        return new Promise(resolve => {
+            const file = scan.path
+            if (!file) {
+                resolve(); return
             }
-            settled = true
-            scan.busy = false
-            if (e) {
-                diagCatch(`subagent 대화기록 읽기 sid=${sid8}`, e)
-                return
+            const from = scan.lastSize
+            const sid8 = scan.sessionId.slice(0, 8)
+            scan.busy = true
+            let stream: fs.ReadStream
+            try {
+                stream = fs.createReadStream(file, { start: from, end: size - 1 })
+            } catch (e: any) {
+                // 스트림을 못 만들었다. **`busy` 를 반드시 되돌린다** — 여기서 true 로 남으면 그
+                // 세션은 다시는 스캔되지 않고 개수가 조용히 멈춘 채로 굳는다(잘못된 상태를 조용히
+                // 덮는 것이 이 저장소에서 가장 경계하는 실패 모양이다)
+                scan.busy = false
+                diagCatch(`subagent 스트림 생성 sid=${sid8}`, e)
+                resolve(); return
             }
-            scan.lastSize = size
-            const prev = scan.summary.running
-            scan.summary = summarizeSubagents(scan.state)
-            if (from === 0) {
-                // 첫 스캔은 늘 남긴다 — "개수가 0" 의 원인이 파일을 못 읽은 것인지 정말 없는
-                // 것인지를 나중에 이 한 줄로 가른다
-                this.diag(`subagent first-scan sid=${sid8} bytes=${size} lines=${scan.state.lines}`
-                    + ` calls=${scan.summary.calls} done=${scan.summary.done} running=${scan.summary.running}`)
-            } else if (scan.summary.running !== prev) {
-                this.diag(`subagent sid=${sid8} running=${prev} -> ${scan.summary.running} (+${size - from}B)`)
+            let settled = false
+            const finish = (e?: any): void => {
+                if (settled) {
+                    return
+                }
+                settled = true
+                scan.busy = false
+                resolve()
+                if (e) {
+                    diagCatch(`subagent 대화기록 읽기 sid=${sid8}`, e)
+                    return
+                }
+                scan.lastSize = size
+                const prev = scan.summary.running
+                scan.summary = summarizeSubagents(scan.state)
+                if (from === 0) {
+                    // 첫 스캔은 늘 남긴다 — "개수가 0" 의 원인이 파일을 못 읽은 것인지 정말 없는
+                    // 것인지를 나중에 이 한 줄로 가른다
+                    this.diag(`subagent first-scan sid=${sid8} bytes=${size} lines=${scan.state.lines}`
+                        + ` calls=${scan.summary.calls} done=${scan.summary.done} running=${scan.summary.running}`)
+                } else if (scan.summary.running !== prev) {
+                    this.diag(`subagent sid=${sid8} running=${prev} -> ${scan.summary.running} (+${size - from}B)`)
+                }
             }
+            // Buffer -> 문자열 변환은 decoder 에게 맡긴다 (멀티바이트 경계, `SubagentScan` 주석)
+            stream.on('data', (chunk: any) => {
+                const text = scan.decoder.write(chunk as Buffer)
+                feedChunk(scan.state, text)
+                scan.scheduled.feed(text)
+            })
+            stream.on('end', () => finish())
+            stream.on('error', (e: any) => finish(e))
+        })
+    }
+
+    scheduledTasksOf (tab: BaseTabComponent): { count: number; revision: string; tooltip: string; ready: boolean } {
+        const owners = this.scanOwners()
+        const scans = [...this.scans.values()].filter(scan => owners.get(scan.sessionId) === tab)
+        const tasks = scans.flatMap(scan => [...scan.scheduled.tasks.values()])
+        return { count: tasks.length, revision: scans.map(scan => `${scan.sessionId}:${scan.scheduled.revision}`).sort().join(','),
+            ready: scans.some(scan => scan.lastSize > 0) && scans.every(scan => !scan.busy),
+            tooltip: tasks.map(task => `${task.recurring ? '↻ ' : ''}${task.prompt.slice(0, 160)}`).join('\n') }
+    }
+
+    async refreshScheduledTasks (tab: BaseTabComponent): Promise<void> {
+        // First resolve a new transcript, then read its contents before closing.
+        for (let round = 0; round < 2; round++) {
+            this.scanSubagents()
+            const owners = this.scanOwners()
+            await Promise.all([...this.scans.values()]
+                .filter(scan => owners.get(scan.sessionId) === tab).map(scan => scan.work))
         }
-        // Buffer -> 문자열 변환은 decoder 에게 맡긴다 (멀티바이트 경계, `SubagentScan` 주석)
-        stream.on('data', (chunk: any) => feedChunk(scan.state, scan.decoder.write(chunk as Buffer)))
-        stream.on('end', () => finish())
-        stream.on('error', (e: any) => finish(e))
+    }
+
+    private scanOwners (): Map<string, BaseTabComponent> {
+        const owners = new Map(this.sessionTab)
+        // A split tab can host multiple independently registered sessions.
+        for (const owner of this.mailboxOwners.values()) { owners.set(owner.sessionId, owner.tab) }
+        return owners
     }
 }

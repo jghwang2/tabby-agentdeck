@@ -15,6 +15,8 @@ import { SettingsTabComponent } from 'tabby-settings'
 import { WorkStatusService } from './status.service'
 import { WorkNotifyService } from './notify.service'
 import { SessionSlots } from './sessionSlots'
+import { openTabEditDialog } from './tabEditDialog'
+import { guardScheduledClose } from './scheduledTasks'
 import { SessionIdentities, SessionIdentity, adaptiveAliasBase } from './sessionIdentity'
 import { newTabId } from './tabenv'
 import { MailboxWake, MAILBOX_WAKE_TEXT } from './mailboxWake'
@@ -435,6 +437,56 @@ export class AgentDeckService {
 
     private readonly sessionSlots = new SessionSlots<BaseTabComponent>()
     private readonly identityIds = new WeakMap<BaseTabComponent, string>()
+    private readonly scheduledOverrides = new WeakMap<BaseTabComponent, { count: number; revision: string }>()
+    private readonly closeGuarded = new WeakSet<BaseTabComponent>()
+
+    private scheduledOf (tab: BaseTabComponent): { count: number; tooltip: string; manual?: boolean } {
+        const auto = this.notify.scheduledTasksOf(tab)
+        const identity = this.identityOf(tab)
+        const manual = this.scheduledOverrides.get(tab) ?? identity.scheduledCount
+        if (manual && (!auto.ready || manual.revision === auto.revision)) {
+            return { count: manual.count, tooltip: this.ui('수동 설정 · 실제 예약은 변경되지 않습니다'), manual: true }
+        }
+        if (manual) { this.resetScheduledCount(tab) }
+        return auto
+    }
+
+    private resetScheduledCount (tab: BaseTabComponent): void {
+        this.scheduledOverrides.delete(tab)
+        delete this.identityOf(tab).scheduledCount
+        this.config.save()
+    }
+
+    private protectScheduledClose (tab: BaseTabComponent): void {
+        if (this.closeGuarded.has(tab)) { return }
+        this.closeGuarded.add(tab)
+        guardScheduledClose(tab, async () => {
+            await this.notify.refreshScheduledTasks(tab)
+            return Math.max(this.scheduledOf(tab).count, this.notify.scheduledTasksOf(tab).count)
+        }, async count => {
+            return new Promise<boolean>(resolve => {
+                const dialog = document.createElement('dialog')
+                dialog.className = 'ad-close-confirm'
+                const message = document.createElement('p')
+                message.id = 'ad-close-confirm-message-' + newTabId()
+                message.textContent = this.ui('예약된 작업 {n}건이 남아 있습니다. 탭을 닫을까요?', { n: count })
+                dialog.setAttribute('aria-labelledby', message.id)
+                const detail = document.createElement('p')
+                detail.textContent = this.ui('탭을 닫으면 세션이 종료되어 예약된 작업이 실행되지 않을 수 있습니다.')
+                const cancel = document.createElement('button')
+                cancel.className = 'ad-close-cancel'; cancel.textContent = this.ui('취소')
+                const accept = document.createElement('button')
+                accept.className = 'ad-close-accept'; accept.textContent = this.ui('탭 닫기')
+                cancel.addEventListener('click', () => dialog.close('cancel'))
+                accept.addEventListener('click', () => dialog.close('accept'))
+                dialog.addEventListener('close', () => { dialog.remove(); resolve(dialog.returnValue === 'accept') }, { once: true })
+                dialog.addEventListener('keydown', ev => ev.stopPropagation())
+                dialog.append(message, detail, cancel, accept)
+                document.body.appendChild(dialog)
+                dialog.showModal(); cancel.focus()
+            })
+        })
+    }
 
     private identityOf (tab: BaseTabComponent): SessionIdentity {
         const store = this.config.store.agentDeck
@@ -514,8 +566,9 @@ export class AgentDeckService {
         }).filter(Boolean).join('\n'))
         const newButton = this.sidebar?.querySelector('.ad-new') as HTMLButtonElement | null
         if (newButton) {
-            newButton.disabled = this.sessionSlots.full
-            if (this.sessionSlots.full) { newButton.title = this.sidebarLang === 'ko' ? '세션 9개가 열려 있습니다. 하나를 닫아 주세요.' : 'All 9 session slots are occupied. Close a session first.' }
+            // Numbered navigation slots do not limit the scrollable tab list.
+            newButton.disabled = false
+            newButton.title = this.ui('새 탭')
         }
     }
     private sidebar: HTMLElement | null = null
@@ -1974,6 +2027,7 @@ export class AgentDeckService {
      * 같은 출력을 decorator 와 둘 다 먹어도 상태 설정이 멱등이라 결과는 같다.
      */
     private watchTab (root: BaseTabComponent): void {
+        this.protectScheduledClose(root)
         const anyRoot = root as any
 
         if (!this.watched.has(root)) {
@@ -2400,6 +2454,7 @@ export class AgentDeckService {
      */
     private claimCtrlWKey (): void {
         document.addEventListener('keydown', (event: KeyboardEvent) => {
+            if (document.querySelector('.ad-tab-edit[open]')) { return }
             const cfg = this.config.store.agentDeck
             if (!this.enabled || cfg.keyboardNav === false || cfg.keyboardCloseTab === false) {
                 return
@@ -2875,7 +2930,7 @@ export class AgentDeckService {
         if (!el || typeof el.closest !== 'function') {
             return false
         }
-        return !!el.closest('#' + SIDEBAR_ID)
+        return !!el.closest('#' + SIDEBAR_ID + ', .ad-tab-edit')
     }
 
     /**
@@ -4647,7 +4702,6 @@ export class AgentDeckService {
     private async openNewTab (): Promise<void> {
         this.syncSessionSlots()
         if (this.pendingSessionOpens) { return }
-        if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
         this.pendingSessionOpens++
         try {
             const wanted = this.config.store.terminal.profile
@@ -5688,6 +5742,7 @@ export class AgentDeckService {
         // (회귀 프로브가 그 가정으로 다른 탭의 배지를 읽은 적이 있다). 없는 탭이면 -1.
         row.dataset.adIndex = String(this.app.tabs.indexOf(tab))
         const identity = this.identityOf(tab)
+        if (identity.title !== undefined) { tab.customTitle = identity.title }
         row.dataset.adIdentity = identity.alias
         // 키보드 포커스 링. **`data-ad-index` 에 얹지 않는다** — 그 속성의 뜻은 `app.tabs`
         // 인덱스 하나뿐이고 회귀 R41·R16·R19·GR2 가 그것으로 대상 줄을 찾는다. 포커스는
@@ -5729,10 +5784,14 @@ export class AgentDeckService {
         const titleEl = row.querySelector('.ad-title') as HTMLElement
         titleEl.textContent = title
         titleEl.title = title
+        titleEl.addEventListener('dblclick', ev => {
+            ev.preventDefault(); ev.stopPropagation()
+            this.startTabEdit(row, tab, 'title')
+        })
         const identityEl = row.querySelector('.ad-identity') as HTMLElement
         identityEl.textContent = identity.alias || '별명 준비 중'
         identityEl.hidden = !identity.id
-        identityEl.title = '다른 탭에서 부르는 고정 별명 (작업 기준 자동 배정)'
+        identityEl.title = identity.alias
         identityEl.addEventListener('dblclick', ev => ev.stopPropagation())
         this.decorateAgent(titleEl, this.profileForTab(tab))
         const labelEl = row.querySelector('.ad-label')
@@ -5747,6 +5806,14 @@ export class AgentDeckService {
         const reason = sidebarReason(st.reason, this.sidebarLang)
         badge.textContent = style.icon + ' ' + this.ui(style.label) + (reason ? ' · ' + reason : '')
         badge.title = reason
+        const scheduled = this.scheduledOf(tab)
+        if (scheduled.count > 0) {
+            const chip = document.createElement('span')
+            chip.className = 'ad-scheduled'
+            chip.textContent = this.ui('예약된 작업 {n}건', { n: scheduled.count })
+            chip.title = scheduled.tooltip
+            badge.insertAdjacentElement('afterend', chip)
+        }
         if (st.pinned) {
             badge.classList.add('pinned')
         }
@@ -6731,38 +6798,79 @@ export class AgentDeckService {
         setTimeout(() => el.remove(), REORDER_NOTE_MS)
     }
 
-    private startLabelEdit (row: HTMLElement, tab: BaseTabComponent): void {
-        this.editing = tab
-        const holder = row.querySelector('.ad-label') as HTMLElement
-        const input = document.createElement('input')
-        input.className = 'ad-label-input'
-        input.value = this.status.get(tab).label
-        input.placeholder = this.ui('작업 이름')
-        holder.replaceWith(input)
-        input.focus()
-        input.select()
+    private startLabelEdit (_row: HTMLElement, tab: BaseTabComponent): void {
+        this.showTabEdit(tab, 'label')
+    }
 
-        const finish = (commit: boolean) => {
-            if (this.editing !== tab) {
-                return
-            }
-            this.editing = null
-            if (commit) {
-                this.status.setLabel(tab, input.value.trim())
-            }
-            this.render()
+    private startTabEdit (_row: HTMLElement, tab: BaseTabComponent, kind: 'title' | 'alias' | 'scheduled'): void {
+        this.showTabEdit(tab, kind)
+    }
+
+    private showTabEdit (tab: BaseTabComponent, focus: 'title' | 'alias' | 'scheduled' | 'label' = 'title'): void {
+        if (!this.app.tabs.includes(tab) || document.querySelector('.ad-tab-edit[open]')) { return }
+        const identity = this.identityOf(tab)
+        const state = this.status.get(tab)
+        const scheduled = this.scheduledOf(tab)
+        const initial = {
+            title: tab.customTitle || stripTitleMarker(tab.title || ''), alias: identity.alias,
+            label: state.label, status: state.pinned ? state.status : 'auto',
+            scheduled: String(scheduled.count), automatic: !scheduled.manual,
         }
-        // 터미널로 키가 새지 않도록 이벤트를 여기서 끊는다
-        input.addEventListener('keydown', ev => {
-            ev.stopPropagation()
-            if (ev.key === 'Enter') {
-                finish(true)
-            }
-            if (ev.key === 'Escape') {
-                finish(false)
-            }
+        const statuses: WorkStatus[] = ['running', 'waiting', 'limited', 'done', 'error', 'idle']
+        let closeSubscription: { unsubscribe: () => void } | undefined
+        const dialog = openTabEditDialog({
+            initial, focus, ui: key => this.ui(key),
+            statuses: [{ value: 'auto', label: this.ui('↺ 자동 감지로') },
+                ...statuses.map(value => ({ value, label: STATUS_STYLES[value].icon + ' ' + this.ui(STATUS_STYLES[value].label) }))],
+            validateAlias: value => {
+                if (!value && value === initial.alias) { return '' }
+                if (!value) { return this.ui('별명을 입력하세요') }
+                const key = (s: string) => s.normalize('NFKC').trim().toLocaleLowerCase()
+                return this.app.tabs.some(other => other !== tab
+                    && [this.identityOf(other).alias, this.identityOf(other).letter].some(name => key(name) === key(value)))
+                    ? this.ui('이미 사용 중인 별명입니다') : ''
+            },
+            save: async draft => {
+                if (!this.app.tabs.includes(tab)) { throw new Error('Tab closed') }
+                const titleChanged = draft.title !== initial.title
+                const aliasChanged = draft.alias !== initial.alias
+                const countChanged = draft.automatic !== initial.automatic
+                    || (!draft.automatic && draft.scheduled !== initial.scheduled)
+                const previous = { title: identity.title, alias: identity.alias, scheduledCount: identity.scheduledCount }
+                try {
+                    if (titleChanged) { identity.title = draft.title }
+                    if (aliasChanged) { identity.alias = draft.alias }
+                    if (countChanged) {
+                        if (draft.automatic) { delete identity.scheduledCount }
+                        else { identity.scheduledCount = { count: Number(draft.scheduled), revision: this.notify.scheduledTasksOf(tab).revision } }
+                    }
+                    if (titleChanged || aliasChanged || countChanged) { await this.config.save() }
+                } catch (error) {
+                    if (titleChanged) { identity.title = previous.title }
+                    if (aliasChanged) { identity.alias = previous.alias }
+                    if (countChanged) { identity.scheduledCount = previous.scheduledCount }
+                    this.render()
+                    throw error
+                }
+                if (!this.app.tabs.includes(tab)) { return }
+                if (titleChanged) { tab.customTitle = draft.title; tab.setTitle(tab.title) }
+                if (countChanged) {
+                    if (identity.scheduledCount) { this.scheduledOverrides.set(tab, identity.scheduledCount) }
+                    else { this.scheduledOverrides.delete(tab) }
+                }
+                // Automatic events may arrive while editing. Only changed fields win.
+                if (draft.status !== initial.status) {
+                    if (draft.status === 'auto') { this.status.unpin(tab) }
+                    else { this.status.setManual(tab, draft.status as WorkStatus) }
+                }
+                if (draft.label !== initial.label) { this.status.setLabel(tab, draft.label) }
+                this.render()
+            },
+            closed: () => { closeSubscription?.unsubscribe(); this.render() },
         })
-        input.addEventListener('blur', () => finish(true))
+        closeSubscription = this.app.tabClosed$.subscribe(() => {
+            if (!this.app.tabs.includes(tab)) { dialog.close('cancel') }
+        })
     }
 
     /**
@@ -6843,7 +6951,6 @@ export class AgentDeckService {
      */
     private async openResumeTab (row: ResumeRow, command: string, account?: SavedAccount): Promise<BaseTabComponent | undefined> {
         this.syncSessionSlots()
-        if (this.sessionSlots.occupied + this.pendingSessionOpens >= JUMP_SLOTS) { return }
         this.pendingSessionOpens++
         try {
             const wanted = this.config.store.terminal.profile
@@ -7026,13 +7133,18 @@ export class AgentDeckService {
         const menu = document.createElement('div')
         menu.className = 'ad-menu'
 
-        const statuses: WorkStatus[] = ['running', 'waiting', 'limited', 'done', 'error', 'idle']
-        const items: Array<[string, () => void]> = statuses.map(s => {
-            const label = STATUS_STYLES[s].icon + ' ' + this.ui(STATUS_STYLES[s].label)
-            const action = () => this.status.setManual(tab, s)
-            return [label, action] as [string, () => void]
+        const edit = document.createElement('button')
+        edit.type = 'button'
+        edit.className = 'ad-menu-item ad-edit-menu'
+        edit.textContent = this.ui('편집')
+        edit.setAttribute('aria-haspopup', 'dialog')
+        edit.addEventListener('click', () => {
+            menu.remove()
+            document.removeEventListener('mousedown', close)
+            this.showTabEdit(tab)
         })
-        items.push([this.ui('↺ 자동 감지로'), () => this.status.unpin(tab)])
+        menu.append(edit)
+        const items: Array<[string, () => void]> = []
         const wakeOff = this.mailboxWakeDisabled.has(tab)
         items.push([this.sidebarLang === 'ko' ? (wakeOff ? '메일 wake 켜기' : '메일 wake 끄기')
             : (wakeOff ? 'Enable mailbox wake' : 'Disable mailbox wake'), () => {
@@ -7063,8 +7175,8 @@ export class AgentDeckService {
         }
 
         document.body.appendChild(menu)
-        menu.style.left = ev.clientX + 'px'
-        menu.style.top = Math.min(ev.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px'
+        menu.style.left = Math.max(0, Math.min(ev.clientX, window.innerWidth - menu.offsetWidth - 8)) + 'px'
+        menu.style.top = Math.max(0, Math.min(ev.clientY, window.innerHeight - menu.offsetHeight - 8)) + 'px'
 
         const close = (e: MouseEvent) => {
             if (!menu.contains(e.target as Node)) {
@@ -7073,6 +7185,9 @@ export class AgentDeckService {
             }
         }
         setTimeout(() => document.addEventListener('mousedown', close), 0)
+        menu.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { e.stopPropagation(); menu.remove(); document.removeEventListener('mousedown', close) }
+        })
     }
 
     private formatElapsed (ms: number): string {

@@ -3,6 +3,11 @@ import { SIDEBAR_LOCALES } from './sidebarLocales'
 
 // UI copy only: never pass session titles, prompts, paths or account names here.
 const EN: Record<string, string> = {
+    "상태": "Status",
+    "탭 제목": "Tab title",
+    "별명": "Alias",
+    "예약 건수": "Scheduled count",
+    "변경 내용을 저장하지 못했습니다. 다시 시도하세요.": "Could not save changes. Try again.",
     "계정 이름 (선택)": "Account name (optional)",
     "목록에서 삭제": "Remove from list",
     "이메일 주소 전체를 입력하세요.": "Enter the full email address.",
@@ -27,6 +32,14 @@ const EN: Record<string, string> = {
     '완료': 'Done', '오류': 'Error', '대기': 'Idle', '기타': 'Other',
     '지난 세션': 'Past sessions', '어제': 'Yesterday', '● 열림': '● Open',
     '탭 닫기': 'Close tab', '(제목 없음)': '(Untitled)', '작업 이름': 'Task name',
+    '편집': 'Edit', '탭 제목 바꾸기': 'Rename tab', '별명 바꾸기': 'Change alias',
+    '예약 건수 바꾸기': 'Edit scheduled count', '작업 이름 바꾸기': 'Edit task name',
+    '예약 건수 자동 집계로': 'Use automatic scheduled count', '예약된 작업 {n}건': '{n} scheduled tasks',
+    '수동 설정 · 실제 예약은 변경되지 않습니다': 'Manual display count · actual timers are unchanged',
+    '별명을 입력하세요': 'Enter an alias', '이미 사용 중인 별명입니다': 'This alias is already in use',
+    '0 이상의 정수를 입력하세요': 'Enter a non-negative integer',
+    '예약된 작업 {n}건이 남아 있습니다. 탭을 닫을까요?': '{n} scheduled tasks remain. Close this tab?',
+    '탭을 닫으면 세션이 종료되어 예약된 작업이 실행되지 않을 수 있습니다.': 'Closing ends this session and may prevent its scheduled tasks from running.',
     '닫기': 'Close', '모름': 'Unknown',
     '닫힌 Claude Code · Codex 세션 — 누르면 그 대화를 이어받는다': 'Closed Claude Code · Codex sessions — click to resume',
     '검색어와 맞는 지난 세션이 없다': 'No past sessions match your search',

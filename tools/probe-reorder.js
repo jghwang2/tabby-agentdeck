@@ -88,8 +88,9 @@
             while (slots().some(slot => slot.tabIndex < 0)) { if (!await open()) break }
             add('RO9', 'Nine slots can be occupied', slots().filter(slot => slot.tabIndex >= 0).length === 9, slots())
             const count = ad.app.tabs.length
-            document.querySelector('#agentdeck-sidebar .ad-new').click(); await sleep(500)
-            add('RO10', 'Tenth new session is refused', ad.app.tabs.length === count, { before: count, after: ad.app.tabs.length })
+            const tenth = await open(); await sleep(500)
+            add('RO10', 'Tenth tab opens beyond numbered shortcuts', !!tenth && ad.app.tabs.length === count + 1
+                && !document.querySelector('#agentdeck-sidebar .ad-new').disabled, { before: count, after: ad.app.tabs.length })
             const current = ad.app.activeTab; ad.jump(10)
             add('RO11', 'Out of range shortcut does nothing', ad.app.activeTab === current, {})
             add('RO2', 'Rows still identify actual Tabby tabs', [...document.querySelectorAll('#agentdeck-sidebar .ad-tab')].every(row => !!ad.app.tabs[Number(row.dataset.adIndex)]), {})

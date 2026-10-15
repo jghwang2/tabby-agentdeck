@@ -71,7 +71,7 @@
         ['SA2', '증분 — 덧붙이면 개수가 따라 바뀐다 (+1 / -1)'],
         ['SA3', '화면 칩이 제품 상태와 일치 (자리·텍스트·툴팁)'],
         ['SA4', '0 이면 아무것도 그리지 않는다'],
-        ['SA5', '끄면 읽기·표시 둘 다 멈추고 스캔 상태를 버린다'],
+        ['SA5', '서브에이전트 칩을 꺼도 예약 보호용 기록 스캔은 유지된다'],
         ['SA6', '크기가 줄면 처음부터 다시 센다'],
         ['SA7', 'UTF-8 멀티바이트 경계에서 잘려도 설명이 안 깨진다'],
         ['SA8', 'data-ad-index 의 뜻·.ad-list 직계 자식 구성 불변'],
@@ -669,34 +669,29 @@
             }
         }
 
-        // ============================================================ SA5 끄면 둘 다 멈춘다
-        // 끈 기능이 2초마다 파일을 계속 읽고 있으면 안 되고(읽기), 칩도 사라져야 한다(표시).
-        // 그리고 **들고 있던 스캔 상태를 버려야** 한다 — 안 버리면 꺼 둔 사이의 종료 알림을 못 본
-        // 유령 개수가 그대로 되살아난다(`scanSubagents` 주석).
+        // SA5: hiding subagent badges must not disable scheduled-task safety.
         {
             const before = mine()
             cfg.subagentCount = false
             await ad.config.save()
-            // 스캔 주기(2초)를 한 번은 넘겨야 `scans.clear()` 가 돈다
+            // The shared transcript reader stays active for timer events.
             const off = await waitFor(() => {
                 const s = sub()
                 if (!s || s.enabled !== false) { return null }
-                const dropped = (s.tabs || []).every(t => t.lastSize === 0 && t.running === 0)
-                return dropped ? s : null
+                return mine()?.lastSize >= before.lastSize ? s : null
             }, 9000)
             const chipsGone = await waitFor(() => (chipCount() === 0 ? 'yes' : null), 5000)
             const s = sub()
             const pass5 = !!off && chipsGone === 'yes'
             add('SA5', nameOf('SA5'), pass5,
                 pass5
-                    ? 'subagentCount=false 로 두자 진단구 enabled=false · 화면 칩 0개 ·'
-                        + ' 모든 탭의 lastSize 가 0 이 됐다 (스캔 상태를 버렸다)'
+                    ? 'subagentCount=false: 화면 칩 0개, 예약 보호용 기록 스캔은 유지됐다'
                     : `끈 뒤에도 남는다 (enabled=${s ? s.enabled : 'n/a'} 칩=${chipCount()}개`
                         + ` lastSize=${JSON.stringify((s && s.tabs ? s.tabs : []).map(t => t.lastSize))}`
                         + ` showElapsed=${cfg.showElapsed})`,
                 { before, off: s, chipsGone })
 
-            // 다시 켠다 — 파일 앞부터 새로 센다(그것이 제품이 말한 규칙이다). SA6 이 이 상태를 쓴다
+            // Restore the badge; SA6 then checks transcript truncation.
             cfg.subagentCount = true
             await ad.config.save()
         }

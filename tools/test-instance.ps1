@@ -29,6 +29,13 @@ $victims = Get-CimInstance Win32_Process -Filter "Name='Tabby.exe'" |
 foreach ($p in $victims) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
 if ($Kill) { Write-Output "killed=$($victims.Count)"; exit 0 }
 
+# Reject incomplete staging packages before a test window can start an updater.
+foreach ($relative in @('package.json', 'dist/index.js', 'hooks/agentdeck-notify.ps1', 'updater/agentdeck-update.ps1')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $relative))) {
+        throw "Incomplete test package: $relative. Build it with tools/stage-build.ps1."
+    }
+}
+
 Start-Sleep -Milliseconds 400
 if ([IO.Path]::GetFullPath($ud) -ne [IO.Path]::GetFullPath((Join-Path $base 'ud'))) { throw 'Unexpected test directory' }
 if (Test-Path $ud) { Remove-Item -LiteralPath $ud -Recurse -Force -ErrorAction SilentlyContinue }
@@ -70,6 +77,7 @@ language: $Language
 enablePlugins: true
 agentDeck:
   enabled: true
+  autoUpdate: false
   accountStorageDir: $base\accounts
 "@
 $conf = $conf.Replace('__CONPTY__', $(if ($ConPTY) { 'true' } else { 'false' }))

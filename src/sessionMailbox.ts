@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { randomBytes, randomUUID, timingSafeEqual } from 'crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
 import { WakeResult } from './mailboxWake'
 
 export interface MailSession { sessionId: string; name: string; cwd: string; active: boolean }
@@ -8,7 +8,7 @@ export interface MailMessage {
     id: string; fromSessionId: string; toSessionId: string; body: string
     requestKey: string; replyTo?: string; createdAt: number; readAt?: number; completedAt?: number
 }
-interface Store { version: 1; sessions: Array<MailSession & { token: string }>; messages: MailMessage[] }
+interface Store { version: 1; sessions: Array<MailSession & { token: string; external?: boolean }>; messages: MailMessage[] }
 
 /** A single owner (the Tabby hook receiver) serializes durable mailbox writes. */
 export class SessionMailbox {
@@ -57,6 +57,45 @@ export class SessionMailbox {
         if (session?.active) { session.active = false; this.save() }
     }
 
+    /** External peers introduce themselves by sending first; subsequent traffic uses the same identity. */
+    callExternal (sessionId: string, token: string, method: string, args: any = {}): unknown {
+        if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 256
+            || typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+            throw new Error('Invalid external session identity')
+        }
+        const actor = this.data.sessions.find(x => x.sessionId === sessionId)
+        if (actor && (!actor.external || actor.token !== token)) {
+            throw new Error('External session credentials are invalid')
+        }
+        if (!actor && method !== 'send') { throw new Error('Send the first message from the external session before receiving') }
+        const before = JSON.stringify(this.data)
+        const reactivating = actor && !actor.active
+        try {
+            if (actor) { actor.active = true } else {
+                const dir = path.join(path.dirname(this.file), 'mailbox-external')
+                const file = path.join(dir, createHash('sha256').update(sessionId).digest('hex') + '.json')
+                fs.mkdirSync(dir, { recursive: true })
+                if (fs.existsSync(file)) {
+                    const saved = JSON.parse(fs.readFileSync(file, 'utf8'))
+                    if (saved.sessionId !== sessionId || saved.token !== token) { throw new Error('External session credentials are invalid') }
+                } else {
+                    // Persist before the mailbox transaction, so a failed send can safely retry with the same credential.
+                    // The receiver owns runtime writes; external callers never need write access here.
+                    fs.writeFileSync(file + '.tmp', JSON.stringify({ sessionId, token }), { mode: 0o600 })
+                    fs.renameSync(file + '.tmp', file)
+                }
+                this.data.sessions.push({ sessionId, token, name: '', cwd: '', active: true, external: true })
+            }
+            // send persists the first registration and message together. Invalid sends register nothing.
+            const result = this.call(sessionId, token, method, args)
+            if (reactivating && (method === 'receive' || method === 'sessions')) { this.save() }
+            return result
+        } catch (error) {
+            this.data = JSON.parse(before)
+            throw error
+        }
+    }
+
     call (sessionId: string, token: string, method: string, args: any = {}): unknown {
         const actor = this.data.sessions.find(x => x.sessionId === sessionId)
         const candidate = Buffer.from(typeof token === 'string' ? token : '')
@@ -68,6 +107,7 @@ export class SessionMailbox {
         const allowed: Record<string, string[]> = {
             sessions: [], receive: [], send: ['toSessionId', 'body', 'requestKey', 'replyTo'],
             acknowledge: ['messageId', 'completed'],
+            reply: ['messageId', 'body', 'requestKey'],
         }
         if (!allowed[method] || Object.keys(args).some(key => !allowed[method].includes(key))) {
             throw new Error('Unknown method or argument; routing requires actual session IDs')
@@ -77,6 +117,15 @@ export class SessionMailbox {
         }
         if (method === 'receive') {
             return this.data.messages.filter(x => x.toSessionId === sessionId && !x.completedAt).slice(0, 50)
+        }
+        if (method === 'reply') {
+            const original = this.data.messages.find(x => x.id === args.messageId && x.toSessionId === sessionId)
+            if (!original) { throw new Error('Message not found in this session mailbox') }
+            // Queue through the same durable transport; never resolve a UI slot or write terminal input.
+            return this.call(sessionId, token, 'send', {
+                toSessionId: original.fromSessionId, body: args.body,
+                requestKey: args.requestKey, replyTo: original.id,
+            })
         }
         if (method === 'acknowledge') {
             const message = this.data.messages.find(x => x.id === args.messageId && x.toSessionId === sessionId)
@@ -118,6 +167,10 @@ export class SessionMailbox {
     }
 
     private sendResult (message: MailMessage): MailMessage & { wake: WakeResult } {
+        // Replies are hook-only, including retries via the legacy send + replyTo path.
+        if (message.replyTo !== undefined) {
+            return { ...message, wake: { attempted: false, delivered: false, reason: 'reply-queued' } }
+        }
         let wake: WakeResult = { attempted: false, delivered: false, reason: 'no-tab' }
         // Wake failure must never turn a committed queue write into a send failure.
         try { if (this.wake) { wake = this.wake(message) } } catch {}

@@ -1,4 +1,7 @@
-export interface SessionIdentity { id: string; letter: string; alias: string }
+export interface SessionIdentity {
+    id: string; letter: string; alias: string; title?: string
+    scheduledCount?: { count: number; revision: string }
+}
 export interface AliasProject { key: string; name: string; evidence: string }
 
 const genericDirectory = /^(?:[a-z]:|root|dev|qa|live|src|source|work|users|project|projects|server|client|bin)$/i

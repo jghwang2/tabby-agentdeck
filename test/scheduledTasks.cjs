@@ -1,0 +1,51 @@
+const assert = require('node:assert/strict')
+const fs = require('fs'), ts = require('typescript')
+require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText, file)
+const { ScheduledTasks, guardScheduledClose } = require('../src/scheduledTasks.ts')
+const line = r => JSON.stringify(r) + '\n'
+const call = (id, name, input) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } })
+const result = (id, data, error = false) => ({ type: 'user', toolUseResult: data,
+    message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: error }] } })
+const state = new ScheduledTasks()
+state.feed(line(call('one', 'CronCreate', { prompt: '한글 예약', recurring: false })))
+assert.equal(state.tasks.size, 0, 'unconfirmed calls are not timers')
+const response = line(result('one', { id: 'job1', recurring: false }))
+state.feed(response.slice(0, 35)); assert.equal(state.tasks.size, 0)
+state.feed(response.slice(35)); assert.equal(state.tasks.size, 1)
+state.feed(response); assert.equal(state.tasks.size, 1)
+state.feed(line(call('repeat', 'CronCreate', { prompt: '반복' })) + line(result('repeat', { id: 'job2' })))
+assert.equal(state.tasks.size, 2)
+state.feed(line({ type: 'system', subtype: 'scheduled_task_fire', taskId: 'job2' }))
+assert.equal(state.tasks.size, 2, 'recurring timer survives a fire')
+state.feed(line({ type: 'system', subtype: 'scheduled_task_fire', taskId: 'job1' }))
+assert.equal(state.tasks.size, 1, 'one-shot removed on fire')
+state.feed(line(call('bad', 'CronDelete', { id: 'job2' })) + line(result('bad', { id: 'job2' }, true)))
+assert.equal(state.tasks.size, 1, 'failed cancellation keeps timer')
+state.feed(line(call('delete', 'CronDelete', { id: 'job2' })) + line(result('delete', { id: 'job2' })))
+assert.equal(state.tasks.size, 0)
+state.feed(line({ type: 'user', message: { content: 'Scheduled one-shot task fake' } }))
+assert.equal(state.tasks.size, 0, 'prose cannot invent timers')
+state.feed(line(call('list', 'CronList', {})) + line(result('list', [{ id: 'remaining', recurring: false }])))
+assert.equal(state.tasks.size, 1)
+state.feed(line(call('empty', 'CronList', {})) + line(result('empty', [])))
+assert.equal(state.tasks.size, 0)
+;(async () => {
+    let n = 2, dialogs = 0, originals = 0, answer
+    const tab = { canClose: async () => { originals++; return true } }
+    guardScheduledClose(tab, async () => n, async count => {
+        assert.equal(count, n); dialogs++
+        return new Promise(resolve => { answer = resolve })
+    })
+    const pending = tab.canClose()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(await tab.canClose(), false)
+    assert.equal(dialogs, 1); answer(false); assert.equal(await pending, false)
+    const accepted = tab.canClose()
+    await new Promise(resolve => setImmediate(resolve))
+    answer(true); assert.equal(await accepted, true)
+    assert.equal(originals, 0, 'one explicit scheduled-close confirmation')
+    n = 0; assert.equal(await tab.canClose(), true); assert.equal(originals, 1)
+    console.log('PASS scheduled tasks: confirmed results, chunk/replay, one-shot, recurring, cancellation, list, close cancel/accept/reentry')
+})().catch(error => { console.error(error); process.exitCode = 1 })

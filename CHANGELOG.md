@@ -5,6 +5,11 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.7 — 2026-10-14
+
+- Keep retired settings hidden in every language; fix leaked Korean controls and a literal HTML comment terminator in the settings screen (#1, thanks @ZYZ666-RGB).
+- Support messaging and replies by session ID for agents running in external terminals.
+
 ## 1.2.6 — 2026-10-01
 
 - Preserve original tab titles and show permanent job aliases before status badges.

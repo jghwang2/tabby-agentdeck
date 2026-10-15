@@ -1,5 +1,5 @@
 export const MAILBOX_WAKE_TEXT = '[agentdeck] 새 메시지 {N}건 도착  receive 로 확인하고 acknowledge 할 것'
-export type WakeReason = 'no-tab' | 'busy-deferred' | 'typing-deferred' | 'disabled' | 'sent'
+export type WakeReason = 'no-tab' | 'busy-deferred' | 'typing-deferred' | 'disabled' | 'sent' | 'reply-queued'
 export interface WakeResult { attempted: boolean; delivered: boolean; reason: WakeReason }
 export interface WakeTarget {
     identity: object
