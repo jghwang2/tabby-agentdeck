@@ -9,9 +9,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
-## 미배포 변경
+## 1.2.8
 
 - 열린 탭의 별명은 유지하고, 닫힌 탭의 번호는 새 탭이 가장 작은 번호부터 재사용합니다.
+- 탭별 예약 작업을 표시하고 일회성 예약 실행 시 목록에서 제거합니다. 예약이 남은 탭을 닫을 때 확인합니다.
+- 우클릭 → 편집 팝업에서 탭 제목·별명·작업 이름·상태·예약 건수를 수정하고 저장하거나 취소할 수 있습니다.
+- 탭 생성 9개 제한을 없앴습니다. 숫자 이동키는 기존처럼 1~9를 사용합니다.
+- 테스트 설치 패키지에도 업데이트 스크립트를 포함하고, 필수 파일이 누락되면 실행을 차단합니다.
+
 ## 1.2.7
 
 - 모든 언어에서 숨겨진 설정 항목과 주석 종료 기호가 화면에 노출되던 문제를 수정했습니다. (#1, @ZYZ666-RGB 기여)

@@ -1,4 +1,4 @@
-param([string]$Destination = '')
+param([string]$Destination = '', [switch]$Release)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Destination) { $Destination = Join-Path $repo '.tmp/staged-plugin' }
@@ -14,7 +14,11 @@ foreach ($entry in @('package.json') + @($package.files | Where-Object { $_ -ne 
 }
 Push-Location $repo
 try {
-    & npx.cmd webpack --mode production --output-path (Join-Path $stage 'dist')
+    if ($Release) {
+        & npx.cmd webpack --mode production --env release --output-path (Join-Path $stage 'dist')
+    } else {
+        & npx.cmd webpack --mode production --output-path (Join-Path $stage 'dist')
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Staging build failed.' }
 } finally { Pop-Location }
 Write-Output "Staged package: $stage"

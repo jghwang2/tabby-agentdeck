@@ -5,6 +5,14 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.8 — 2026-10-15
+
+- Track scheduled tasks separately for each tab; remove fired one-shot tasks and confirm closing tabs with pending work.
+- Edit tab titles, aliases, task names, status and scheduled counts in one dialog with Save and Cancel.
+- Remove the nine-tab creation limit while keeping numeric navigation shortcuts 1–9.
+- Include updater scripts in staged packages and reject incomplete test installations.
+- Reuse the lowest available alias number after a tab closes while preserving open tab names through recovery.
+
 ## 1.2.7 — 2026-10-14
 
 - Keep retired settings hidden in every language; fix leaked Korean controls and a literal HTML comment terminator in the settings screen (#1, thanks @ZYZ666-RGB).
