@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentDeck 사용 설명서</title>
+<title>AgentDeck 상세 사용 설명서</title>
 <link rel="stylesheet" href="guide.css">
 <style>:root { --why-label: "왜 이렇게 만들었나"; }</style>
 </head>
@@ -17,27 +17,40 @@
     <p class="lead">
         터미널에서 에이전트 CLI(Claude Code · Codex · Gemini)를 여러 개 돌릴 때,
         <b>어느 세션이 지금 무슨 일을 하고 있고 무엇을 기다리는지</b> 한눈에 보기 위한 도구다.
-        이 문서의 모든 그림은 실제 구동 화면을 그대로 찍은 것이다.
+        설치부터 탭 편집·예약 표시·에이전트 통신·설정까지 안내한다. 일부 그림은 이전 버전의 화면이며, 조작 방법은 본문을 기준으로 한다.
     </p>
 </header>
 
 <nav class="toc">
+    <p><a href="#install">설치와 첫 실행</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/releases">패치노트</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">전체 변경 이력</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.ko.md">전체 설정 레퍼런스</a></p>
     <ol>
         <li><a href="#s1">한눈에 보기</a></li>
         <li><a href="#s2">작업 상태</a></li>
         <li><a href="#s3">세션 그룹</a></li>
         <li><a href="#s4">검색과 필터</a></li>
         <li><a href="#s5">키보드로 다루기</a></li>
-        <li><a href="#s6">순서 바꾸기</a></li>
+        <li><a href="#s6">별명·순서·탭 편집</a></li>
         <li><a href="#s7">결과물 미리보기</a></li>
         <li><a href="#s8">변경 보기와 커밋</a></li>
         <li><a href="#s9">한글 입력 보정</a></li>
         <li><a href="#s10">설정</a></li>
         <li><a href="#s11">키 목록</a></li>
         <li><a href="#s12">문제가 생기면</a></li>
+        <li><a href="#s13">예약 작업 표시</a></li>
+        <li><a href="#s14">에이전트끼리 메시지 주고받기</a></li>
+        <li><a href="#s15">지난 대화 검색·이어받기</a></li>
+        <li><a href="#s16">계정·저장 위치·추가 안내</a></li>
     </ol>
 </nav>
 
+<h2 id="install">설치와 첫 실행</h2>
+<ol>
+    <li>Tabby의 <b>설정 → 플러그인</b>에서 <code>agentdeck</code>을 찾아 설치하고 Tabby를 재시작한다.</li>
+    <li><b>설정 → AgentDeck</b>에서 작업 루트를 지정한다. 추가 작업 루트 프로필에 이름과 폴더를 저장하면 여러 프로젝트를 선택해 열 수 있다.</li>
+    <li><b>+ 새 탭</b> 또는 <kbd>Ctrl</kbd>+<kbd>T</kbd>로 탭을 연다. 작업 루트가 하나면 바로 열리고, 여러 개면 선택한다. 터미널에서 사용할 에이전트 CLI를 실행한다.</li>
+    <li>더 정확한 상태와 세션 연결을 위해 설정에서 사용하는 에이전트의 상태 통보 훅을 설치한다. 통신이 필요하면 <a href="#s14">메시지 연결 안내</a>도 확인한다.</li>
+</ol>
+<p>Windows에서 검증했다. 새 버전 안내가 나오면 업데이트 여부를 선택한다. 변경 내용은 <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">전체 변경 이력</a>에서 확인한다.</p>
 
 <h2 id="s1"><span class="n">01</span>한눈에 보기</h2>
 
@@ -86,7 +99,7 @@
 
 <figure class="side ctx">
     <img src="img/07-context.png" alt="세션 줄 우클릭 — 상태 직접 지정 메뉴">
-    <figcaption>줄을 우클릭하면 상태를 직접 정할 수 있다. <code>자동 감지로</code> 를 누르면 다시 자동 판정으로 돌아간다.</figcaption>
+    <figcaption>이전 버전의 메뉴 화면. 현재는 줄을 <b>우클릭 → 편집</b>하여 상태를 고른 뒤 저장한다. 자동 감지로 되돌리는 선택지도 제공한다.</figcaption>
 </figure>
 
 <div class="why">
@@ -167,9 +180,24 @@
 </div>
 
 
-<h2 id="s6"><span class="n">06</span>고정 세션 번호</h2>
-<p>세션은 1~9 고정 번호를 사용합니다. 빈 번호만 재사용하며 필터·다른 세션 종료에도 번호를 유지합니다. 자동 정렬·드래그 이동은 하지 않습니다.</p>
-<p><a href="../SESSION-COMMUNICATION.md">세션 통신 MCP</a>는 실제 세션 ID로만 송수신합니다.</p>
+<h2 id="s6"><span class="n">06</span>별명·순서·탭 편집</h2>
+<p>탭 제목과 별명은 별개다. 별명은 작업 프로젝트를 바탕으로 자동 배정하며 열린 동안 유지한다. 탭을 닫으면 그 번호를 새 탭이 가장 작은 번호부터 재사용한다. 원하는 이름은 편집 팝업에서 지정한다.</p>
+<p>줄을 드래그해 순서를 바꾼다. <kbd>Ctrl</kbd>+<kbd>1</kbd>~<kbd>9</kbd>는 <b>현재 보이는 순서의 1~9번째 탭</b>으로 이동하며 별명에 붙은 숫자를 뜻하지 않는다. 탭 생성에는 9개 제한이 없고, 10번째 이후는 목록을 스크롤해 선택한다.</p>
+<h3>우클릭 → 편집</h3>
+<ol>
+    <li>사이드바의 대상 줄을 우클릭하고 <b>편집</b>을 선택한다. 제목이나 작업 이름을 더블클릭해도 열린다.</li>
+    <li>아래 항목 중 필요한 값을 바꾼다. 입력 중에는 아직 적용되지 않는다.</li>
+    <li><b>저장</b>으로 함께 반영한다. <b>취소</b> 또는 <kbd>Esc</kbd>로 변경을 버린다. 중복 별명이나 잘못된 건수는 고친 뒤 다시 저장한다.</li>
+</ol>
+<table>
+    <tr><th>항목</th><th>쓰는 방법</th></tr>
+    <tr><td>탭 제목</td><td>탭을 알아볼 제목. 최대 160자.</td></tr>
+    <tr><td>별명</td><td>에이전트를 구분할 이름. 최대 40자이며 다른 열린 탭과 중복할 수 없다.</td></tr>
+    <tr><td>작업 이름</td><td>현재 하는 일의 설명. 최대 500자.</td></tr>
+    <tr><td>상태</td><td>진행중·승인대기 등의 표시를 직접 지정하거나 자동 감지를 선택한다. 표시를 바꿔도 에이전트 작업을 실행하거나 중단하지는 않는다.</td></tr>
+    <tr><td>예약 건수</td><td>자동 집계를 끄면 0~999999의 정수를 입력할 수 있다. 실제 예약을 만들거나 취소하는 기능은 아니다.</td></tr>
+</table>
+<p>제목·별명·수동 예약 건수는 리로드 후에도 유지한다. 편집 중 도착한 자동 갱신은 해당 항목을 직접 수정하지 않았다면 보존한다.</p>
 
 <h2 id="s7"><span class="n">07</span>결과물 미리보기</h2>
 
@@ -269,7 +297,7 @@
     <tr><td>서브에이전트 개수 보이기</td><td>켜짐</td><td>줄에 <code>❖3</code></td></tr>
     <tr><td>끌 때 목록 끝에서 저절로 흐르기</td><td>켜짐</td><td>드래그 자동 스크롤</td></tr>
     <tr><td>프로젝트로 묶기</td><td>켜짐</td><td>세션 그룹</td></tr>
-    <tr><td>고정 번호</td><td>1~9</td><td>빈 번호만 재사용</td></tr>
+    <tr><td>탭 별명</td><td>자동 배정</td><td>열린 탭의 이름 유지, 닫힌 번호 재사용. 우클릭 → 편집으로 변경</td></tr>
     <tr><td>경과 시간 표시</td><td>켜짐</td><td>줄 오른쪽 <code>2분</code></td></tr>
 </table>
 
@@ -330,10 +358,39 @@
 </p>
 
 
+<h2 id="s13"><span class="n">13</span>예약 작업 표시</h2>
+<p>예약이 있으면 해당 탭에 <b>예약된 작업 N건</b>이 표시된다. 자동 집계는 연결된 Claude 세션의 성공한 예약 생성·삭제·목록 조회·실행 기록을 읽는다. 일회성 예약은 실행 후 목록에서 빠지고 반복 예약은 남는다. 분할 탭에서는 그 탭에 연결된 세션만 합산한다.</p>
+<p>다른 예약 도구나 기록이 없는 예약은 자동으로 확인할 수 없다. 이때 <b>우클릭 → 편집</b>에서 자동 집계를 끄고 건수를 직접 적는다. 실제 예약 변경은 예약을 만든 에이전트나 도구에 요청해야 한다. 이후 새 예약 이벤트가 확인되면 자동 집계로 돌아온다.</p>
+<p>예약이 남은 탭을 닫으면 확인창이 뜬다. 표시 건수를 수동으로 0으로 바꿔도 실제 예약이 확인되면 닫기 확인은 유지된다. 서브에이전트 수 <code>❖N</code>와 예약 건수는 서로 다른 값이다.</p>
+
+<h2 id="s14"><span class="n">14</span>에이전트끼리 메시지 주고받기</h2>
+<ol>
+    <li>참여 세션에 상태 훅과 메시지함 등록을 준비한다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md">연결 안내</a>에 MCP 설정과 MCP 없이 쓰는 CLI 경로가 있다. 외부 터미널의 등록된 에이전트도 세션 ID로 참여할 수 있다.</li>
+    <li>화면의 별명을 보고 에이전트에게 “이 별명의 탭에 조사 결과를 보내줘”라고 요청한다. 에이전트는 최신 목록에서 정확한 세션 ID를 확인해 보낸다.</li>
+    <li>상대의 답장이나 수신 확인을 확인한다. <b>전송 대기함에 들어간 것과 상대가 읽은 것은 다르다.</b></li>
+</ol>
+<p>탭이 보인다는 것만으로 통신 준비가 끝난 것은 아니다. 수신 알림을 켜면 입력 가능한 대기·완료 탭에 안내를 넣으며, 작업·타이핑·한글 조합 중에는 기다린다. 알림 입력 성공도 수신 확인은 아니다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/MAILBOX_WAKE.md">수신 알림 설정</a>을 참고한다.</p>
+
+<h2 id="s15"><span class="n">15</span>지난 대화 검색·이어받기</h2>
+<ol>
+    <li><b>지난 세션</b>을 펼치고 전용 검색창에 함수명·오류코드·파일명·세션 ID 등을 입력한다.</li>
+    <li>저장된 Claude·Codex 질문과 답변에서 일치하는 결과를 선택해 내용을 미리 본다.</li>
+    <li><b>이어서 대화</b>로 해당 대화를 재개한다.</li>
+</ol>
+<p>현재 열린 탭 검색과는 별도다. 대소문자를 구분하지 않고 입력 문자열 그대로 찾으며, 도구 출력·시스템 안내는 제외한다. 검색은 로컬에서 실행하므로 Node.js가 PATH에 있어야 한다. MCP 연결이나 AI 요청은 필요 없다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/HISTORY-SEARCH.md">검색 범위와 저장 안내</a>.</p>
+
+<h2 id="s16"><span class="n">16</span>계정·저장 위치·추가 안내</h2>
+<h3>계정 관리</h3>
+<p>사이드바 아래 계정명을 누르면 현재 탭과 같은 서비스의 계정이 나온다. <b>+</b>에서 이름과 전체 이메일 등을 입력해 추가한다. 처음 로그인하거나 인증이 만료되면 브라우저에서 선택한 계정의 로그인과 연결 승인을 마친다. 목록에서 삭제해도 실행 중인 CLI가 로그아웃되지는 않는다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/ACCOUNTS.md">계정 전환·저장 방식 전체 안내</a>.</p>
+<h3>저장 위치와 작업 폴더</h3>
+<p><b>설정 → AgentDeck → 저장 경로</b>에서 계정·Claude·Codex 데이터 폴더를 정한다. 경로 변경은 Tabby 재시작 후 적용되며 기존 파일은 자동 이동하지 않는다. 기록을 유지하려면 세션을 종료하고 기존 데이터를 새 폴더에 복사한 뒤 재시작한다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/STORAGE_PATHS.md">저장 위치 변경 절차</a>.</p>
+<p>새 탭의 시작 폴더는 <b>작업 루트 프로필</b>에서 정한다. 프로필 삭제는 열린 탭을 닫지 않는다. Windows 창 자체는 상단 제목 표시줄로 이동한다. <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/WORK-ROOT-PROFILES.md">작업 루트와 창 이동</a>.</p>
+<p>전체 설정값은 <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.ko.md">전체 레퍼런스</a>, 버전별 변경 사항은 <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">전체 변경 이력</a>과 <a href="https://github.com/jghwang2/tabby-agentdeck/releases">GitHub Releases</a>에서 확인한다.</p>
+
 <footer>
     AgentDeck <span class="ad-version">1.2.8</span> · 이 문서의 그림은 모두 실제 구동 화면을 캡처한 것이다.<br>
     설정 항목 전체와 개발 배경은 저장소의
-    <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/README.ko.md"><code>README.ko.md</code></a> 를,
+    <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.ko.md">전체 레퍼런스</a>를,
     검증 항목은 <code>docs/REGRESSION.md</code> 를 참고할 것.
 </footer>
 

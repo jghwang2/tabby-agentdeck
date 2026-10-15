@@ -5,7 +5,7 @@
 [![CI](https://github.com/jghwang2/tabby-agentdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jghwang2/tabby-agentdeck/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/tabby-agentdeck)](LICENSE)
 
-**[Website](https://jghwang2.github.io/tabby-agentdeck/) · [User guide](https://jghwang2.github.io/tabby-agentdeck/guide/) · [Full reference](docs/REFERENCE.md) · [한국어](README.ko.md)**
+**[Website](https://jghwang2.github.io/tabby-agentdeck/) · [Detailed user guide](https://jghwang2.github.io/tabby-agentdeck/guide/) · [Full reference](https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.md) · [Release notes](https://github.com/jghwang2/tabby-agentdeck/releases) · [All changes](https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md) · [한국어](https://github.com/jghwang2/tabby-agentdeck/blob/main/README.ko.md)**
 
 A [Tabby](https://tabby.sh) plugin for people who keep **Claude Code, Codex and Gemini CLI open in several tabs at once**.
 A 4:3 terminal, a session deck with live status, and a preview panel for what the agents produce.

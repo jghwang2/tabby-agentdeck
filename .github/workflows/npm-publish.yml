@@ -30,6 +30,9 @@ jobs:
         run: node -e "const v = require('./package.json').version; const tag = process.env.GITHUB_REF_NAME; if (!/^v\d+\.\d+\.\d+$/.test(tag) || tag !== 'v' + v) { console.error('Release tag must equal v' + v + ', got ' + tag); process.exit(1); }"
       - run: npm ci --ignore-scripts
       - run: node tools/sync-version.js --check
+      - run: node --test test/releaseNotes.test.js
+      - name: Validate current release notes before publishing
+        run: node tools/release-notes.js
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -69,3 +72,28 @@ jobs:
       # `Permission denied (publickey)` 로 죽는다 (2026-09-14 run 34798914763 실측).
       - name: Publish verified archive with OIDC
         run: npm publish ./package/tabby-agentdeck-*.tgz --access public --tag latest --ignore-scripts
+
+  release-notes:
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Create release notes from the published version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          node tools/release-notes.js "$version" "$RUNNER_TEMP/release-notes.md"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release already exists; keeping its published notes."
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "AgentDeck $version" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi

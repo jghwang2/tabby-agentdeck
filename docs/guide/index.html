@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentDeck User Guide</title>
+<title>AgentDeck Detailed User Guide</title>
 <meta name="description" content="AgentDeck user guide - run Claude Code, Codex and Gemini CLI side by side in Tabby and see at a glance which session is working and which one is waiting for you.">
 <link rel="stylesheet" href="guide.css">
 <style>:root { --why-label: "Why it works this way"; }</style>
@@ -18,27 +18,40 @@
     <p class="lead">
         A tool for running several agent CLIs (Claude Code · Codex · Gemini) in one terminal
         and seeing, at a glance, <b>which session is doing what and which one is waiting for you</b>.
-        Every screenshot in this guide is a capture of the real thing.
+        From installation to tab editing, scheduled work, messaging and settings. Some screenshots show earlier versions; follow the current instructions in the text.
     </p>
 </header>
 
 <nav class="toc">
+    <p><a href="#install">Install and get started</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/releases">Release notes</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">All changes</a> · <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.md">Full settings reference</a></p>
     <ol>
         <li><a href="#s1">At a glance</a></li>
         <li><a href="#s2">Session status</a></li>
         <li><a href="#s3">Session groups</a></li>
         <li><a href="#s4">Search and filter</a></li>
         <li><a href="#s5">Keyboard control</a></li>
-        <li><a href="#s6">Reordering</a></li>
+        <li><a href="#s6">Aliases, order and tab editing</a></li>
         <li><a href="#s7">Output preview</a></li>
         <li><a href="#s8">Diff view and commit</a></li>
         <li><a href="#s9">Input fixes</a></li>
         <li><a href="#s10">Settings</a></li>
         <li><a href="#s11">Key reference</a></li>
         <li><a href="#s12">When something breaks</a></li>
+        <li><a href="#s13">Scheduled work</a></li>
+        <li><a href="#s14">Messaging between agents</a></li>
+        <li><a href="#s15">Search and resume past conversations</a></li>
+        <li><a href="#s16">Accounts, storage and further reading</a></li>
     </ol>
 </nav>
 
+<h2 id="install">Install and get started</h2>
+<ol>
+    <li>In Tabby, open <b>Settings → Plugins</b>, find <code>agentdeck</code>, install it and restart Tabby.</li>
+    <li>Set your work root in <b>Settings → AgentDeck</b>. Add named work root profiles to choose between projects when opening a tab.</li>
+    <li>Use <b>+ New tab</b> or <kbd>Ctrl</kbd>+<kbd>T</kbd>. A single work root opens immediately; multiple roots show a chooser. Run your agent CLI in the terminal.</li>
+    <li>Install the status hook for the agent you use for more accurate status and session linking. For messaging, also follow the <a href="#s14">connection instructions</a>.</li>
+</ol>
+<p>Verified on Windows. When an update is offered, choose whether to install it. Read the <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">complete change history</a> before updating.</p>
 
 <h2 id="s1"><span class="n">01</span>At a glance</h2>
 
@@ -87,7 +100,7 @@
 
 <figure class="side ctx">
     <img src="img/07-context.png" alt="Right-click on a session row - the status menu">
-    <figcaption>Right-click a row to set the status yourself. <code>back to auto</code> hands it back to detection.</figcaption>
+    <figcaption>This screenshot shows an earlier menu. In the current version, use <b>right-click → Edit</b>, select a status and save. You can also return to automatic detection.</figcaption>
 </figure>
 
 <div class="why">
@@ -171,9 +184,24 @@
 </div>
 
 
-<h2 id="s6"><span class="n">06</span>Fixed session slots</h2>
-<p>Sessions use slots 1–9. Vacant slots are reused; filtering and closing other sessions never renumber them. Automatic sorting and drag reordering are disabled.</p>
-<p><a href="../SESSION-COMMUNICATION.md">Session communication MCP</a> uses actual session IDs only.</p>
+<h2 id="s6"><span class="n">06</span>Aliases, order and tab editing</h2>
+<p>Titles and aliases are separate. Aliases are assigned from the working project and stay stable while a tab is open. Closing a tab releases its number; new tabs reuse the lowest free number. Set your own alias in the edit dialog.</p>
+<p>Drag rows to reorder tabs. <kbd>Ctrl</kbd>+<kbd>1</kbd> through <kbd>9</kbd> selects the <b>first through ninth currently visible tab</b>, not the number in its alias. There is no nine-tab creation limit. Scroll the list to reach later tabs.</p>
+<h3>Right-click → Edit</h3>
+<ol>
+    <li>Right-click the target sidebar row and choose <b>Edit</b>. Double-clicking its title or task name opens the same dialog.</li>
+    <li>Change the fields you need. Changes remain a draft until saved.</li>
+    <li>Choose <b>Save</b> to apply them together, or <b>Cancel</b> / <kbd>Esc</kbd> to discard them. Correct duplicate aliases or invalid counts before saving again.</li>
+</ol>
+<table>
+    <tr><th>Field</th><th>How to use it</th></tr>
+    <tr><td>Tab title</td><td>A title to identify the tab, up to 160 characters.</td></tr>
+    <tr><td>Alias</td><td>A name for the agent, up to 40 characters. It must not duplicate another open tab.</td></tr>
+    <tr><td>Task name</td><td>A description of the current work, up to 500 characters.</td></tr>
+    <tr><td>Status</td><td>Choose a manual display status or automatic detection. This does not start or stop the agent.</td></tr>
+    <tr><td>Scheduled count</td><td>Disable automatic counting to enter an integer from 0 to 999999. This does not create or cancel actual tasks.</td></tr>
+</table>
+<p>Titles, aliases and manual scheduled counts survive a reload. Automatic updates arriving during editing are preserved for fields you did not change.</p>
 
 <h2 id="s7"><span class="n">07</span>Output preview</h2>
 
@@ -274,7 +302,7 @@
     <tr><td>show subagent count</td><td>on</td><td><code>❖3</code> on the row</td></tr>
     <tr><td>auto-scroll while dragging</td><td>on</td><td>the list scrolls at the edges</td></tr>
     <tr><td>group by project</td><td>on</td><td>session groups</td></tr>
-    <tr><td>sort by status</td><td>off</td><td>most urgent first (blocks manual reordering)</td></tr>
+    <tr><td>tab alias</td><td>automatic</td><td>Stable while open; closed numbers are reused. Change it with right-click → Edit</td></tr>
     <tr><td>show elapsed time</td><td>on</td><td><code>2m</code> at the right of a row</td></tr>
 </table>
 
@@ -338,10 +366,39 @@
 </p>
 
 
+<h2 id="s13"><span class="n">13</span>Scheduled work</h2>
+<p>A tab with pending work shows its scheduled task count. Automatic counting reads successful task creation, deletion, list and firing events from connected Claude sessions. One-shot tasks leave the list after firing; repeating tasks remain. Split tabs combine only their own connected sessions.</p>
+<p>Other schedulers and tasks without recorded events cannot be counted automatically. Use <b>right-click → Edit</b>, disable automatic counting and enter a manual count. Change actual tasks through the agent or tool that created them. A subsequent scheduling event returns the display to automatic counting.</p>
+<p>Closing a tab with pending tasks asks for confirmation. Setting a manual count of zero does not remove that protection when actual tasks are known. The subagent count <code>❖N</code> is separate from the scheduled task count.</p>
+
+<h2 id="s14"><span class="n">14</span>Messaging between agents</h2>
+<ol>
+    <li>Set up status hooks and mailbox registration for participating sessions. The <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md">connection guide</a> covers optional MCP and the authenticated CLI fallback. Registered agents in external terminals can participate by session ID too.</li>
+    <li>Ask an agent to send its findings to the alias shown in your sidebar. It resolves the alias from the latest live list to an exact session ID.</li>
+    <li>Look for a reply or acknowledgement. <b>A queued message does not mean the recipient has read it.</b></li>
+</ol>
+<p>A visible tab is not proof of messaging readiness. With message notifications enabled, an idle or completed tab receives a notice when ready for input; work, typing and IME composition defer it. Inserting the notice is not acknowledgement. See <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/MAILBOX_WAKE.md">notification behavior and settings</a>.</p>
+
+<h2 id="s15"><span class="n">15</span>Search and resume past conversations</h2>
+<ol>
+    <li>Expand <b>Past sessions</b> and enter a function name, error code, file name or session ID in its search box.</li>
+    <li>Select a matching saved Claude or Codex conversation to preview the questions and answers.</li>
+    <li>Choose <b>Resume conversation</b> to continue it.</li>
+</ol>
+<p>This search is separate from the active-tab filter. It matches literal text without case sensitivity and excludes tool output and system instructions. Search runs locally and requires Node.js on PATH; it uses no MCP connection or AI request. See <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/HISTORY-SEARCH.md">search scope and storage</a>.</p>
+
+<h2 id="s16"><span class="n">16</span>Accounts, storage and further reading</h2>
+<h3>Accounts</h3>
+<p>Click the account name below the sidebar to list accounts for the current tab's service. Use <b>+</b> to add account details including its full email address. For first login or expired authentication, complete browser login and connection approval for the selected account. Removing an account from the list does not log out a running CLI. See <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/ACCOUNTS.md">account switching and storage details (Korean)</a>.</p>
+<h3>Storage and work roots</h3>
+<p>Use <b>Settings → AgentDeck → Storage paths</b> to choose account, Claude and Codex data folders. Changes take effect after restarting Tabby; existing files are not moved automatically. To preserve records, close sessions, copy existing data to the new folders and restart. See <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/STORAGE_PATHS.md">storage migration steps (Korean)</a>.</p>
+<p><b>Work root profiles</b> choose where new tabs start. Removing a profile does not close open tabs. Move the Windows application by dragging its top title bar. See <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/WORK-ROOT-PROFILES.md">work roots and window movement (Korean)</a>.</p>
+<p>Consult the <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.md">full reference</a> for configuration values, and <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md">all changes</a> or <a href="https://github.com/jghwang2/tabby-agentdeck/releases">GitHub Releases</a> for version history.</p>
+
 <footer>
     AgentDeck <span class="ad-version">1.2.8</span> · every screenshot here is a capture of the running app.<br>
     The full settings table and the reasoning behind the design are in the repository's
-    <a href="https://github.com/jghwang2/tabby-agentdeck#readme"><code>README.md</code></a>;
+    <a href="https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.md">full reference</a>;
     the verification checklist is in <code>docs/REGRESSION.md</code>.
 </footer>
 

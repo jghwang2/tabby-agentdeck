@@ -5,6 +5,7 @@
     --dim: #8c95a5; --accent: #56b6c2; --warn: #e5c07b; --ok: #98c379; --err: #e06c75;
 }
 * { box-sizing: border-box; }
+a { color: var(--accent); }
 body {
     margin: 0; background: var(--bg); color: var(--fg);
     font: 15px/1.75 "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
@@ -86,3 +87,12 @@ footer {
 }
 .lang a { color: var(--accent); text-decoration: none; }
 .lang a:hover { text-decoration: underline; }
+
+@media (max-width: 700px) {
+    .wrap { padding-left: 18px; padding-right: 18px; }
+    nav.toc ol { columns: 1; }
+    figure.side { display: block; }
+    figure.side figcaption { margin-top: 10px; }
+    table { display: block; overflow-x: auto; }
+    p, td, figcaption { overflow-wrap: anywhere; }
+}

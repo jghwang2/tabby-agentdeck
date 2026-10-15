@@ -21,6 +21,9 @@ a { color: var(--accent); }
 }
 .topbar nav a { margin-left: 18px; text-decoration: none; }
 .topbar nav a:hover { text-decoration: underline; }
+.topbar { gap: 16px; flex-wrap: wrap; }
+.topbar nav { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.topbar nav a { margin-left: 0; }
 .brand { font-weight: 600; color: var(--fg); letter-spacing: -.2px; }
 
 .hero { padding: 44px 0 8px; }

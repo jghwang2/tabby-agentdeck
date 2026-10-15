@@ -1,5 +1,28 @@
 # npm 배포
 
+## 패치노트와 상세 설명서 게시
+
+- `CHANGELOG.md`가 전체 버전 이력의 원본이다. 새 버전을 배포하기 전에 해당 버전의 날짜와 변경 목록을 작성한다.
+- `v*` 태그 배포는 변경 목록 누락을 먼저 검사하고, npm 발행 성공 후 **GitHub Releases**에 해당 버전 내용을 자동 게시한다. 기존 Release가 있으면 덮어쓰지 않는다. 수동 main 배포는 Release를 만들지 않는다.
+- 상세 사용법은 `docs/guide/index.html`과 `docs/guide/ko.html`, 전체 설정은 `docs/REFERENCE.md`와 `docs/REFERENCE.ko.md`에 함께 반영한다. `main` 푸시 후 GitHub Pages에서 설명서를 제공한다.
+- GitHub·npm 첫 화면의 README와 웹사이트 상단에서 설명서·패치노트·전체 변경 이력으로 연결한다. npm README의 변경은 다음 패키지 발행 때 반영한다. 문서만 고치려고 기존 npm 버전을 재발행하지 않는다.
+
+게시 본문을 로컬 파일로 먼저 확인한다(이 명령은 외부 게시를 하지 않는다):
+
+```powershell
+node tools/release-notes.js 1.2.8 .tmp/release-notes/1.2.8.md
+```
+
+이미 npm에 배포됐지만 GitHub Release가 없는 버전은 원격 태그와 npm 버전을 확인한 뒤 위 파일로 별도 게시한다. 과거 버전에는 `--latest=false`를 붙여 최신 표시를 바꾸지 않는다. 이 작업을 위해 npm 발행을 다시 실행하지 않는다.
+
+```powershell
+gh release create v1.2.8 --verify-tag --title 'AgentDeck 1.2.8' --notes-file .tmp/release-notes/1.2.8.md
+```
+
+Release 게시 단계만 실패했다면 Actions에서 실패한 작업만 재실행한다. npm 발행이 이미 성공한 상태에서 전체 워크플로를 재실행하면 동일 버전 재발행으로 실패한다.
+
+## 패키지 배포
+
 기본 배포는 버전 태그를 GitHub에 푸시하는 방식이다.
 
 ```powershell

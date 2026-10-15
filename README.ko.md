@@ -5,7 +5,7 @@
 [![CI](https://github.com/jghwang2/tabby-agentdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jghwang2/tabby-agentdeck/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/tabby-agentdeck)](LICENSE)
 
-**[웹사이트](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [전체 레퍼런스](docs/REFERENCE.ko.md) · [English](README.md)**
+**[웹사이트](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [상세 사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [전체 레퍼런스](https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/REFERENCE.ko.md) · [패치노트](https://github.com/jghwang2/tabby-agentdeck/releases) · [전체 변경 이력](https://github.com/jghwang2/tabby-agentdeck/blob/main/CHANGELOG.md) · [English](https://github.com/jghwang2/tabby-agentdeck/blob/main/README.md)**
 
 **Claude Code · Codex · Gemini CLI 를 탭 여러 개에 띄워 두고 쓰는 사람**을 위한 [Tabby](https://tabby.sh) 플러그인.
 4:3 터미널, 상태가 실시간으로 보이는 세션 목록, 에이전트 결과물 미리보기 패널.
