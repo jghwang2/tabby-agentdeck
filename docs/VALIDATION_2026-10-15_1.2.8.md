@@ -22,3 +22,11 @@ Integrated the current main branch (`46e3650`) before validating the release. It
 Evidence is stored locally under `.tmp/release-128-*.json`, `.tmp/release-128-unit.log`, and `.tmp/tabby-agentdeck-test-release-128-regression/report/regression.json`.
 
 The preceding feature build was already applied to the live application with three sessions preserved. The desktop was locked during final release preparation, so the 1.2.8 release artifact was validated in isolated instances; no additional live application reload was performed at that point.
+
+## Publication and live application
+
+- Release commit: `d4456bef41cb6d268920a85c0e15224a2c376c2a`; annotated tag: `v1.2.8`. Main and the working branch were pushed together with the tag.
+- [npm publication workflow](https://github.com/jghwang2/tabby-agentdeck/actions/runs/38697087273) and main CI passed. npm initially reported processing; registry metadata subsequently confirmed `latest = 1.2.8`.
+- Downloading the published npm archive confirmed the runtime bundle has the exact SHA256 above, includes the updater script, and has no source map.
+- After the desktop unlocked, the tested release was installed and reloaded. All four then-open tabs retained their aliases, custom titles, permanent identities, session IDs and running PTYs. Three idle session bindings were restored only after matching the pre-reload identity and PTY snapshot.
+- Live proof: `.tmp/live-release-final.json`; backup: `.tmp/live-before-release-package-20261015-161929`. The comparison treats an unset custom title and an empty string as the same absence of a manual title; original before/after snapshots were retained.
