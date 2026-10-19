@@ -639,7 +639,6 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     /** 지금 그릴 언어 — Tabby 의 `설정 > 응용 프로그램 > 언어` 를 따라간다 */
     private lang: Lang = 'en'
     private localeSub: Subscription | null = null
-    private hooksRefreshTimer: ReturnType<typeof setInterval> | null = null
 
     constructor (
         public config: ConfigService,
@@ -697,8 +696,6 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
      * 풀어 둔 채 나가면 남의 탭이 우리 때문에 넓어진다.
      */
     ngAfterViewInit (): void {
-        // 설정 파일은 다른 창이나 설치 도구에서도 바뀐다. 생성 시점의 판정을 고정하지 않는다.
-        this.hooksRefreshTimer = setInterval(() => this.refreshHooks(), 2000)
         const body = this.host.nativeElement.closest('settings-tab-body') as HTMLElement | null
         if (!body) {
             return // Tabby 가 구조를 바꿨다 — 600px 그대로 쓰면 될 뿐 깨지지는 않는다
@@ -710,10 +707,6 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
 
     ngOnDestroy (): void {
         this.storageModel.flush()
-        if (this.hooksRefreshTimer) {
-            clearInterval(this.hooksRefreshTimer)
-            this.hooksRefreshTimer = null
-        }
         if (this.widened) {
             this.widened.style.maxWidth = this.prevMaxWidth
             this.widened = null

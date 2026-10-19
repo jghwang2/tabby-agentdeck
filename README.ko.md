@@ -23,6 +23,8 @@
 
 통신은 로컬 메시지함을 사용하며, 선택적으로 연결하는 MCP 또는 인증된 CLI 경로로 이용한다. 참여 세션에 지원되는 상태 훅과 등록이 필요하므로, 탭이 보인다고 바로 통신 가능한 것은 아니다. [연결 방법과 지원 동작](https://github.com/jghwang2/tabby-agentdeck/blob/main/docs/SESSION-COMMUNICATION.md)을 참고한다.
 
+메시지가 없으면 기본적으로 최신 탭 목록·본인 정보·짧은 대상 확인 규칙과 `Mailbox: 0 pending`만 전달한다. 답장·CLI 사용법은 메시지가 있거나 등록 안내가 필요할 때 붙인다. 매 질문마다 전체 안내를 받으려면 Claude/Codex를 시작하기 전에 `$env:AGENTDECK_CONTEXT = 'full'`을 설정한다. 기본값은 `minimal`이다.
+
 ## 단축키
 
 | 키 | 동작 |

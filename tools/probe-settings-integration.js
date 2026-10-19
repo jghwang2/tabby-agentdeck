@@ -1,5 +1,6 @@
-// Read-only installation check; corrupt only the sandbox component cache, never user settings.
+// Read-only installation checks in a dedicated app; user settings are never changed.
 (async () => {
+    if (!process.env.TABBY_CONFIG_DIRECTORY?.includes('hooks-on-open-ui')) throw new Error('Dedicated isolated app required')
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
     if (!document.querySelector('agentdeck-settings-tab')) {
         document.querySelector('button[title="설정"]').click()
@@ -7,28 +8,53 @@
         ;[...document.querySelectorAll('a,button')].find(x => x.textContent.trim() === 'AgentDeck').click()
         await wait(500)
     }
-    const el = document.querySelector('agentdeck-settings-tab')
     const checks = []
-    const rows = [...el.querySelectorAll('.form-line')].filter(x => /Claude integration|Codex integration|Claude 연동|Codex 연동/.test(x.innerText))
-    const installed = () => /Connected|연동됨/.test(rows[0]?.innerText || '')
-    checks.push({ name: 'installed Claude detected', pass: installed() })
+    const rows = () => [...document.querySelectorAll('agentdeck-settings-tab .form-line')].filter(x => /Claude integration|Codex integration|Claude 연동|Codex 연동/.test(x.innerText))
+    const installed = () => rows().map(row => /Connected|연동됨/.test(row.innerText))
+    const check = (name, pass, evidence) => { checks.push({ name, pass: !!pass, evidence }); if (!pass) throw new Error(name) }
     const fs = require('fs'), path = require('path')
-    const settings = path.join(require('os').homedir(), '.claude', 'settings.json')
+    const config = window.__agentdeck.config.store.agentDeck
+    const claude = config.claudeStorageDir || process.env.CLAUDE_CONFIG_DIR || path.join(require('os').homedir(), '.claude')
+    const codex = config.codexStorageDir || process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex')
+    const targets = new Set([path.join(claude, 'settings.json'), path.join(codex, 'hooks.json'), path.join(codex, 'config.toml')].map(x => path.resolve(x).toLowerCase()))
     const read = fs.readFileSync
-    try {
-        fs.readFileSync = function (file, ...args) {
-            return String(file) === settings ? '{}' : read.call(this, file, ...args)
-        }
-        await wait(2600)
-        checks.push({ name: 'external removal detected', pass: !installed() })
-    } finally { fs.readFileSync = read }
-    await wait(2600)
-    checks.push({ name: 'installation restored without reopening', pass: installed() })
-    checks.push({ name: 'both integration rows', pass: rows.length === 2 })
-    for (const row of rows) {
-        const button = row.querySelector('button')
-        const style = getComputedStyle(button)
-        checks.push({ name: 'button stays one line', pass: style.flexShrink === '0' && style.whiteSpace === 'nowrap' && button.scrollWidth <= button.clientWidth + 1 })
+    let reads = 0, empty = false
+    const reopen = async () => {
+        const other = [...document.querySelectorAll('a.nav-link')].find(x => ['응용 프로그램', 'Application'].includes(x.textContent.trim()))
+        other.click(); await wait(250)
+        check('component destroyed on leaving', !document.querySelector('agentdeck-settings-tab'))
+        ;[...document.querySelectorAll('a.nav-link')].find(x => x.textContent.trim() === 'AgentDeck').click()
+        await wait(350)
     }
-    return JSON.stringify({ pass: checks.every(x => x.pass), checks })
+    try {
+        check('both integrations initially detected', installed().length === 2 && installed().every(Boolean), installed())
+        fs.readFileSync = function (file, ...args) {
+            if (targets.has(path.resolve(String(file)).toLowerCase())) {
+                reads++
+                if (empty) return String(file).endsWith('.toml') ? '' : '{}'
+            }
+            return read.call(this, file, ...args)
+        }
+        await wait(6200)
+        check('no periodic settings reads over three former intervals', reads === 0, reads)
+        empty = true
+        await wait(2300)
+        check('external change waits until reopening', installed().every(Boolean) && reads === 0)
+        await reopen()
+        check('reopening rereads configuration', reads > 0, reads)
+        check('reopening reflects removed integrations', installed().length === 2 && installed().every(x => !x), installed())
+        empty = false
+        await reopen()
+        check('reopening reflects restored integrations', installed().every(Boolean), installed())
+        const lastReads = reads
+        await wait(2300)
+        check('reopening did not start a new polling timer', reads === lastReads, { reads, lastReads })
+        for (const row of rows()) {
+            const button = row.querySelector('button'), style = getComputedStyle(button)
+            check('button stays one line', style.flexShrink === '0' && style.whiteSpace === 'nowrap' && button.scrollWidth <= button.clientWidth + 1)
+        }
+        return { pass: true, checks }
+    } catch (error) {
+        return { pass: false, checks, error: error.stack }
+    } finally { fs.readFileSync = read }
 })()

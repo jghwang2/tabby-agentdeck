@@ -28,6 +28,24 @@ receiver is reported as unavailable. If a split contains several sessions, ask
 which one rather than choosing the last active session. A row's context menu can
 copy each exact message target. Reusing a slot cannot redirect queued messages.
 
+## Prompt context size
+
+`AGENTDECK_CONTEXT=minimal` is the default. With a registered, empty mailbox,
+prompt hooks include the fresh tab snapshot, caller identity, a short targeting
+guard and `Mailbox: 0 pending`. Reply and CLI usage instructions appear only
+when messages are pending or registration needs attention. Empty tool hooks
+remain silent. No one-time session marker is required, so resume and context
+compaction do not suppress instructions when a message arrives later.
+
+Set `AGENTDECK_CONTEXT=full` in the CLI's environment before starting Claude or
+Codex to retain the previous full instructions on every prompt. For example,
+in PowerShell: `$env:AGENTDECK_CONTEXT = 'full'`. Unset or unrecognized values
+use minimal mode. The setting affects hook context only; it does not disable
+message delivery, acknowledgements or CLI/MCP commands.
+
+Windows hooks emit UTF-8 bytes directly, preserving Korean titles and emoji
+even when Windows PowerShell's console output encoding is CP949.
+
 ## MCP connection
 
 Add a stdio MCP server named `agentdeck` to each participating CLI, with command

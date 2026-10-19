@@ -74,7 +74,7 @@ async function run () {
         const code = await timeout(new Promise(resolve => child.on('exit', resolve)))
         return {code, stdout}
     }
-    const plainEnv = {...process.env, AGENTDECK_MAILBOX_ROOT:root, AGENTDECK_TAB:'plain-pane'}
+    const plainEnv = {...process.env, AGENTDECK_MAILBOX_ROOT:root, AGENTDECK_TAB:'plain-pane', AGENTDECK_CONTEXT:'full'}
     const withoutMcp = await invoke(['--hook','actual-plain','UserPromptSubmit'], plainEnv)
     assert.equal(withoutMcp.code,0)
     assert.match(JSON.parse(withoutMcp.stdout).hookSpecificOutput.additionalContext,/Human slot 2: tab open/)

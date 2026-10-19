@@ -5,6 +5,10 @@
 
 ## 전수 실행 (한 명령)
 
+연동 상태 조회 주기(2026-10-19): 전용 `hooks-on-open-ui` 격리 앱에서 `tools/probe-settings-integration.js`를 실행한다. 설정창을 열어 둔 상태에서 6.2초 동안 설정 파일 재조회 0회, Claude·Codex 설정 외부 변경 후 재개방 시 표시 갱신, 재개방 후에도 반복 타이머 없음과 버튼 레이아웃을 확인한다. 설치·제거 버튼 직후의 즉시 갱신은 유지한다.
+
+메시지 문맥·인코딩 검증(2026-10-19): `node test/mailboxContext.cjs`는 빈 메시지함의 기본 간결 출력, 전체 안내 선택, 메시지 도착·미등록·조회 실패, 빈 도구 훅 무출력과 Windows PowerShell의 CP949 출력 조건에서 한글·이모지 보존을 검사한다. 격리 앱 경로에 `mailbox-context-ui`를 포함하고 인접한 `mailbox-context-stage` 산출물을 사용하여 `node tools/cdp.js <port> tools/probe-mailbox-context.js`로 실제 탭 제목·송수신·멱등 답장·완료 후 간결 출력 복귀를 확인한다. 실제 수신 확인 전에는 전송 완료를 수신 완료로 표시하지 않아야 한다.
+
 빠른 한글 입력 검증(2026-10-19): `npm run test:ime`는 실제 xterm 조합 헬퍼의 타이머가 밀린 상황에서 확정 직후 키가 한글을 잃는지 검사한다. 전용 격리 앱 경로에 `ime-20261019`를 포함하고 `node tools/cdp.js <port> tools/probe-ime-commit.js`로 일반 셸·Claude·Codex 프로필의 45개 입력·실제 PTY 수신 검사를 수행한다. DOM 조합 이벤트 검증이며 물리 키보드/Windows IME 자체를 자동 조작한 검사가 아니다. 느린 입력·연속 조합 직후 Enter·Shift+Enter·50회 연속 확정과 IME 진행 중 동작도 유지되어야 한다.
 
 메모리 정리 추가 검증(2026-10-16): `node test/memoryCleanup.cjs`로 오래된 훅 이력·종료된 탭 참조·매칭 실패 로그·불필요한 대화기록 누적·활동 추적 만료 기록을 검사한다. 격리 앱 경로에 `memory-cleanup`을 넣고 `node tools/cdp.js <port> tools/probe-memory-cleanup.js`로 실제 폴링과 화면을 검증한다. 이력 정리 후에도 오래된 보고가 탭을 탈취하지 않고, 현재 배지·예약 작업·터미널이 유지되어야 한다. 훅 없는 세션과 새 세션은 대화기록 폴백을 계속 사용할 수 있어야 한다.

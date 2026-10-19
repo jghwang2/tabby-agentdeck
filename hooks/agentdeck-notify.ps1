@@ -195,7 +195,14 @@ function Invoke-AgentDeckMailboxContext {
             $mailDrained = $mailOutput.Wait([Math]::Max(0, 1500 - [int]$mailBudget.ElapsedMilliseconds))
             if ($mailProcess.ExitCode -eq 0 -and $mailDrained) {
                 $mailText = $mailOutput.Result
-                if ($mailText) { [Console]::Out.Write($mailText) }
+                if ($mailText) {
+                    # Node and hook consumers use UTF-8; Console.Out can still use CP949 on PS 5.1.
+                    # Write bytes directly so Korean titles and emoji survive both CLI wrappers.
+                    $mailBytes = [Text.Encoding]::UTF8.GetBytes($mailText)
+                    $mailStdout = [Console]::OpenStandardOutput()
+                    $mailStdout.Write($mailBytes, 0, $mailBytes.Length)
+                    $mailStdout.Flush()
+                }
             }
             Write-AgentDeckHookTrace 'mailbox_end' @{ exit_code = $mailProcess.ExitCode }
         }

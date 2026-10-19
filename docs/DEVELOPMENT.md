@@ -4,6 +4,23 @@
 
 ## 개발
 
+### 연동 상태 확인 주기 (2026-10-19)
+
+- 설정창의 2초 반복 훅 검사를 제거했다. 기존 시작 시 설치 안내 검사와 설정 컴포넌트 생성 시 검사, 설치·제거 버튼 처리 직후 검사는 유지한다. 설정창이 열린 동안 외부에서 변경한 설정은 다음에 AgentDeck 설정을 열 때 읽는다.
+- `tools/probe-settings-integration.js`는 전용 `hooks-on-open-ui` 격리 앱에서 Claude·Codex 설정 읽기를 관측한다. 6.2초 동안 재조회 0회, 외부 변경 후 기존 표시 유지, 설정 이동·복귀 시 양쪽 설치/미설치 반영, 재개방 후 타이머 미생성, 버튼 레이아웃까지 11건 통과했다. 실제 사용자 설정은 쓰지 않고 읽기 결과만 일시 대체한다.
+- 타입 검사·전체 단위 검사·릴리스 staging 빌드 통과. 산출물: `.wt/mailbox-context/.tmp/hooks-on-open-stage`, 기능 검증: `.wt/mailbox-context/.tmp/hooks-on-open-ui.json`, 단위 검사: `.wt/mailbox-context/.tmp/hooks-on-open-tests.log`.
+- 전수 회귀 168 통과 / 실패 0 / 건너뜀 8(`.wt/mailbox-context/.tmp/tabby-agentdeck-test-hooks-on-open-regression/report/regression.json`). 동일 산출물 SHA256 `D71D89782A8678CD0D97A390E56D2336330F3070A5901CCC9AAF07F55EC13121`을 실사용에 반영하고 세션 보존 리로드를 수행했다. 네 탭의 영구 식별자·동일 PTY를 확인했으며 새 훅이 아직 없던 세 연결은 직전 탭·PTY 대조 후 복구했다(`.tmp/hooks-on-open-live-verified.json`). 백업: `.tmp/hooks-on-open-live-backup-20261019`.
+
+### 빈 메시지함 문맥 축소와 한글 제목 출력 (2026-10-19)
+
+- `AGENTDECK_CONTEXT`는 기본 `minimal`이며 등록된 빈 메시지함의 프롬프트에는 최신 탭 목록, 본인 식별자, 짧은 대상 확인 규칙, `Mailbox: 0 pending`만 전달한다. 메시지가 있거나 미등록 상태면 필요한 안내를 유지한다. `full`은 기존 매 질문 전체 안내를 보존한다. 세션 최초 실행 표식을 저장하지 않으므로 재개·문맥 압축 후에도 메시지가 도착하면 안내가 나온다.
+- 한글 깨짐은 Node의 UTF-8 출력을 정상 해석한 뒤 `[Console]::Out.Write`가 Windows PowerShell 5.1의 CP949로 재인코딩하는 경로에서 재현했다. UTF-8 바이트를 표준출력 스트림에 직접 기록해 콘솔 코드페이지와 분리했다. Claude 설정·Codex 설정 변경은 필요 없다.
+- `test/mailboxContext.cjs`는 기본값·명시 설정·잘못된 값·빈 도구 훅·메시지 있음·미등록·외부 터미널·조회 실패와 실제 PowerShell 훅의 CP949→UTF-8 왕복을 검사한다. 수정 전 한글/이모지 손상을 재현했고 수정 후 Claude·Codex 래퍼 모두 통과했다.
+- 격리 앱 `tools/probe-mailbox-context.js`는 실제 탭 제목·메시지함·Claude/Codex 각각의 PowerShell 훅·CLI 송수신·답장 재시도·완료 상태 저장 16건을 통과했다. 동일 탭 구성의 전체 안내 2,537자 → 간결한 안내 756자(약 70% 감소). 토큰 수를 직접 측정한 결과는 아니다.
+- 전체 단위 검사·타입 검사·staging 빌드 통과. 전수 회귀 176건 중 168 통과 / 실패 0 / 건너뜀 8이다. 건너뜀은 별도 완료한 빌드·단위 검사와 OS 클립보드·실제 Claude 세션·측정 조건 관련 항목이다. 증거: `.wt/mailbox-context/.tmp/mailbox-context-ui-both.json`, `.wt/mailbox-context/.tmp/mailbox-tests.log`, `.wt/mailbox-context/.tmp/tabby-agentdeck-test-mailbox-context-regression/report/regression.json`.
+- 검증한 동일 훅 2개를 Claude가 참조하는 설치 폴더와 Codex가 참조하는 개발 폴더에 적용했다. 두 경로에서 격리 회귀를 다시 통과했으며, 실사용 수신기의 네 세션 ID와 한글 제목을 보존하고 2,793자 → 1,100자로 줄었다(`.tmp/mailbox-live-verified.json`). 실사용 호출 검증은 현재 Codex 세션의 정체성을 유지하여 수행했고 Claude 고유 진입은 격리 앱에서 검증했다. 기존 설치본 백업은 `.tmp/mailbox-context-live-backup-20261019`다.
+- staging: `.wt/mailbox-context/.tmp/mailbox-context-stage`. 훅은 매번 새 프로세스로 실행하므로 다음 호출부터 적용된다. 렌더러 변경이 없어 앱 리로드 없이 훅만 교체했으며 기존 터미널을 재시작하지 않았다. 공개 배포·커밋은 별도 사용자 지시 전까지 수행하지 않았다.
+
 ### 빠른 한글 확정 뒤 입력 누락 (2026-10-19)
 
 - 격리 앱의 순정 xterm에서 `compositionupdate` → textarea 값 갱신 → `compositionend` 직후 Enter/공백/방향키를 같은 이벤트 턴에 보내면 한글 대신 빈 문자열이 전송된다. 30ms 기다린 Enter는 `한`, CR 순서로 정상 전송된다. 실제 OS 키보드 연타를 녹화한 결과가 아니라 DOM 조합 이벤트로 재현한 타이밍 결함이다.
