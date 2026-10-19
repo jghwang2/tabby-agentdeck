@@ -6,6 +6,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { StringDecoder } from 'string_decoder'
 import { ScheduledTasks } from './scheduledTasks'
+import { AgentEvent, AgentLifecycle, AGENT_IDLE_TIMEOUT_MS, AGENT_RECONCILE_MS, validAgentKey } from './agentLifecycle'
 import { WorkStatusService } from './status.service'
 import { WorkStatus } from './api'
 import { AgentId } from './agents'
@@ -29,6 +30,7 @@ import {
 
 /** 훅이 남기는 파일 하나의 내용 */
 interface NotifyFile {
+    agentActivity?: AgentEvent
     sessionId: string
     /**
      * 보고한 CLI (`claude` / `codex` / `gemini`) — 훅 스크립트의 `-Agent`.
@@ -121,6 +123,10 @@ const SUBAGENT_SCAN_EVERY = 5
  * 넘치면 오래된 것부터 버린다 — 버려도 '전체' 로 바꾸면 그 파일은 여전히 보인다.
  */
 const TOUCHED_MAX = 400
+// Dedupe history is not session state. Reject expired reports before routing so
+// removing their history cannot bind an old status file to a newly opened tab.
+const HOOK_HISTORY_TTL_MS = 24 * 60 * 60 * 1000
+const BIND_LOG_MAX = 1024
 /**
  * 그 주기 안에서 **몇 번째** 폴링에 볼지. `refreshPids`(0번째)와 겹치지 않게 어긋나 둔다 —
  * 같은 tick 에 몰면 pty 조회와 파일 읽기가 한 프레임에 같이 걸린다.
@@ -433,6 +439,8 @@ export class WorkNotifyService {
      * 원천에서 나오면 "4개라면서 5줄" 같은 화면이 나온다 — 사용자가 어긋남을 본 바로 그 모양이다.
      */
     private liveAgents = new WeakMap<BaseTabComponent, Map<string, LiveAgent>>()
+    private agentLifecycles = new Map<string, AgentLifecycle>()
+    private nextAgentReconcile = 0
     /**
      * 서브에이전트 훅 보고를 **한 번이라도 받은** 탭. 이 표에 있으면 개수를 훅으로만 센다.
      *
@@ -562,6 +570,10 @@ export class WorkNotifyService {
         const g = window as any
         g.__agentdeck = g.__agentdeck ?? {}
         g.__agentdeck.runtimePaths = () => ({ root: this.root, status: this.dir, meta: this.metaDir, mailbox: this.mailboxRoot })
+        g.__agentdeck.agentLifecycles = () => ({ idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
+            reconcileMs: AGENT_RECONCILE_MS, sessions: [...this.agentLifecycles].map(([sessionId, state]) => ({
+                sessionId, agents: state.active(),
+            })) })
         g.__agentdeck.tabIds = () => [...this.tabIds].map(([tab, ids]) => ({
             title: (tab as any).title ?? '', ids,
         }))
@@ -1023,7 +1035,9 @@ export class WorkNotifyService {
     private poll (): void {
         // tabId 표는 동기라 매번, 셸 PID 표는 pty 에 물어야 해서 2초마다 — 탭 안에서 셸을 다시 띄우거나 분할하면 바뀐다
         this.refreshTabIds()
+        if (Date.now() >= this.nextAgentReconcile) { this.reconcileAgentFiles() }
         if (++this.pollCount % 5 === 0) {
+            this.pruneHookHistory()
             void this.refreshPids()
         }
         // 대화기록 증분 스캔은 2초에 한 번, pid 조회와 다른 tick 에 (상수 주석 참고)
@@ -1086,6 +1100,13 @@ export class WorkNotifyService {
         if (!data || !data.sessionId) {
             return
         }
+        if (!Number.isFinite(data.ts) || data.ts <= Date.now() - HOOK_HISTORY_TTL_MS) {
+            return
+        }
+        if (data.agentActivity) {
+            this.applyAgentEvent(data)
+            if (!data.file) { return }
+        }
         const hasStatus = !!data.status
         const hasLabel = typeof data.label === 'string' && !!data.label.trim()
         const hasFile = typeof data.file === 'string' && !!data.file.trim()
@@ -1132,6 +1153,15 @@ export class WorkNotifyService {
         // 빈 목록도 뜻이 있다: "마지막 하나가 끝났다". 그래서 `hasAgents` 는 길이가 아니라
         // 키의 유무로 판정한다
         if (hasAgents) {
+            // Hooks own this badge from now on; release the unused transcript
+            // history, including already completed calls and pending text.
+            for (const [sid, owner] of this.scanOwners()) {
+                const scan = this.scans.get(sid)
+                if (owner === tab && scan) {
+                    scan.state = createSubagentState()
+                    scan.summary = summarizeSubagents(null)
+                }
+            }
             const raw = Array.isArray(data.agents) ? data.agents : [data.agents!]
             const live = new Map<string, LiveAgent>()
             for (const a of raw) {
@@ -1263,6 +1293,7 @@ export class WorkNotifyService {
             // 도는 중이던 서브에이전트도 앞 세션 것이다. 그 세션의 `SubagentStop` 은 이제 이
             // 탭으로 오지 않으므로(세션이 바뀌었다) 남겨 두면 영원히 안 지워지는 유령이 된다
             this.liveAgents.delete(tab)
+            this.agentHookSeen.delete(tab)
         }
         const prevTab = this.sessionTab.get(sessionId)
         if (prevTab && prevTab !== tab && this.tabSession.get(prevTab) === sessionId) {
@@ -1271,6 +1302,7 @@ export class WorkNotifyService {
         }
         this.sessionTab.set(sessionId, tab)
         this.tabSession.set(tab, sessionId)
+        this.nextAgentReconcile = 0
         this.lastBindLog.delete(sessionId)
         this.diag(`bind sid=${sessionId.slice(0, 8)} via=${how} tab=${this.tabName(tab)}`
             + (prevOwner && prevOwner !== sessionId ? ` (took over from ${prevOwner.slice(0, 8)})` : ''))
@@ -1281,8 +1313,30 @@ export class WorkNotifyService {
         if (this.lastBindLog.get(sessionId) === msg) {
             return
         }
+        this.lastBindLog.delete(sessionId)
         this.lastBindLog.set(sessionId, msg)
+        while (this.lastBindLog.size > BIND_LOG_MAX) {
+            this.lastBindLog.delete(this.lastBindLog.keys().next().value!)
+        }
         this.diag(`bind sid=${sessionId.slice(0, 8)} ${msg}`)
+    }
+
+    private pruneHookHistory (): void {
+        const cutoff = Date.now() - HOOK_HISTORY_TTL_MS
+        for (const [sid, ts] of this.applied) {
+            if (!Number.isFinite(ts) || ts <= cutoff) { this.applied.delete(sid) }
+        }
+        // Closing a split root can report its children rather than the root.
+        // Reconcile against the live roots as well as handling tabClosed$.
+        const alive = new Set(this.app.tabs)
+        for (const [sid, tab] of this.sessionTab) {
+            if (!alive.has(tab)) { this.sessionTab.delete(sid) }
+        }
+        for (const map of [this.tabSession, this.tabPids, this.tabIds]) {
+            for (const tab of map.keys()) {
+                if (!alive.has(tab)) { map.delete(tab) }
+            }
+        }
     }
 
     // ---------- 서브에이전트 개수 (대화기록 증분 스캔) ----------
@@ -1657,6 +1711,14 @@ export class WorkNotifyService {
             return null
         }
         const sid = this.tabSession.get(tab)
+        const tracked = [...this.scanOwners()].filter(([id, owner]) => owner === tab && this.agentLifecycles.has(id))
+        if (tracked.length) {
+            const active = tracked.flatMap(([id]) => this.agentLifecycles.get(id)!.active())
+            if (!active.length) { return null }
+            const summary = summarizeLiveAgents(active.map(e => ({ id: e.id, type: e.type, at: e.ts })))
+            return { sessionId: sid || tracked[0][0], running: active.length, items: [],
+                tooltip: formatLiveAgentTooltip(summary) + '\n마지막 훅 수신 후 15분 동안 활동이 없으면 집계에서 제외됩니다.' }
+        }
         // **훅을 받는 탭은 훅만 본다** (`agentHookSeen`). 대화기록 훑기는 그 세션의 옛 호출까지
         // 다시 세는 폴백이라, 훅이 "지금 0개" 라고 말한 뒤에 그것이 끼어들면 유령 숫자가 뜬다
         if (this.agentHookSeen.has(tab)) {
@@ -1925,7 +1987,10 @@ export class WorkNotifyService {
             // Buffer -> 문자열 변환은 decoder 에게 맡긴다 (멀티바이트 경계, `SubagentScan` 주석)
             stream.on('data', (chunk: any) => {
                 const text = scan.decoder.write(chunk as Buffer)
-                feedChunk(scan.state, text)
+                const owner = this.scanOwners().get(scan.sessionId)
+                if (!owner || !this.agentHookSeen.has(owner)) {
+                    feedChunk(scan.state, text)
+                }
                 scan.scheduled.feed(text)
             })
             stream.on('end', () => finish())
@@ -1957,5 +2022,44 @@ export class WorkNotifyService {
         // A split tab can host multiple independently registered sessions.
         for (const owner of this.mailboxOwners.values()) { owners.set(owner.sessionId, owner.tab) }
         return owners
+    }
+
+    /** Independent agent records survive a missed TCP packet and renderer reload. */
+    private applyAgentEvent (data: NotifyFile): void {
+        if (!validAgentKey(data.sessionId) || !data.agentActivity) { return }
+        const tab = this.scanOwners().get(data.sessionId)
+            || (data.tabId ? this.resolveTab(data.sessionId, data.tabId, data.pids) : null)
+        if (!tab || !this.app.tabs.includes(tab)) { return }
+        const state = this.agentLifecycles.get(data.sessionId)
+        const candidate = state || new AgentLifecycle()
+        if (!candidate.accept(data.agentActivity)) { return }
+        if (!state) {
+            this.agentLifecycles.set(data.sessionId, candidate)
+            const scan = this.scans.get(data.sessionId)
+            if (scan) { scan.state = createSubagentState(); scan.summary = summarizeSubagents(null) }
+        }
+        this.agentHookSeen.add(tab)
+    }
+
+    /** Slow recovery scan. Parent activity never refreshes a child's timestamp. */
+    private reconcileAgentFiles (): void {
+        this.nextAgentReconcile = Date.now() + AGENT_RECONCILE_MS
+        const owners = this.scanOwners()
+        for (const sid of this.agentLifecycles.keys()) {
+            if (!owners.has(sid)) { this.agentLifecycles.delete(sid) }
+        }
+        for (const [sid, tab] of owners) {
+            if (!validAgentKey(sid) || !this.app.tabs.includes(tab)) { continue }
+            const dir = path.join(this.root, 'agents', sid)
+            try {
+                for (const name of fs.readdirSync(dir)) {
+                    if (!name.endsWith('.json') || !validAgentKey(name.slice(0, -5))) { continue }
+                    try {
+                        const data = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')) as NotifyFile
+                        if (data.sessionId === sid && data.agentActivity?.id === name.slice(0, -5)) { this.applyAgentEvent(data) }
+                    } catch { /* A failed read is not a stop; retry on the next scan. */ }
+                }
+            } catch { /* Older hooks do not have a per-agent directory. */ }
+        }
     }
 }
