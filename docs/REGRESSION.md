@@ -5,6 +5,8 @@
 
 ## 전수 실행 (한 명령)
 
+빠른 한글 입력 검증(2026-10-19): `npm run test:ime`는 실제 xterm 조합 헬퍼의 타이머가 밀린 상황에서 확정 직후 키가 한글을 잃는지 검사한다. 전용 격리 앱 경로에 `ime-20261019`를 포함하고 `node tools/cdp.js <port> tools/probe-ime-commit.js`로 일반 셸·Claude·Codex 프로필의 45개 입력·실제 PTY 수신 검사를 수행한다. DOM 조합 이벤트 검증이며 물리 키보드/Windows IME 자체를 자동 조작한 검사가 아니다. 느린 입력·연속 조합 직후 Enter·Shift+Enter·50회 연속 확정과 IME 진행 중 동작도 유지되어야 한다.
+
 메모리 정리 추가 검증(2026-10-16): `node test/memoryCleanup.cjs`로 오래된 훅 이력·종료된 탭 참조·매칭 실패 로그·불필요한 대화기록 누적·활동 추적 만료 기록을 검사한다. 격리 앱 경로에 `memory-cleanup`을 넣고 `node tools/cdp.js <port> tools/probe-memory-cleanup.js`로 실제 폴링과 화면을 검증한다. 이력 정리 후에도 오래된 보고가 탭을 탈취하지 않고, 현재 배지·예약 작업·터미널이 유지되어야 한다. 훅 없는 세션과 새 세션은 대화기록 폴백을 계속 사용할 수 있어야 한다.
 
 서브에이전트 활동 추적(2026-10-16): 격리 앱에서 `node tools/cdp.js <port> tools/probe-agent-lifecycle.js`를 실행한다. 실제 훅 프로세스의 동시 시작, 2차 생성, 종료 후 도구 훅 재개, 중복 제거, 탭별 동일 ID 분리, TCP 유실 복구, 서비스 상태 복원, 15분 무활동 경계(제어한 시계), 역순 이벤트, 손상 기록, 부모 상태 보존, 30초 대조 주기를 확인한다. `test/agentHook.cjs`는 실제 PowerShell 훅의 병렬 파일 쓰기를 검증한다.

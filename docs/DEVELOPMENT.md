@@ -4,6 +4,17 @@
 
 ## 개발
 
+### 빠른 한글 확정 뒤 입력 누락 (2026-10-19)
+
+- 격리 앱의 순정 xterm에서 `compositionupdate` → textarea 값 갱신 → `compositionend` 직후 Enter/공백/방향키를 같은 이벤트 턴에 보내면 한글 대신 빈 문자열이 전송된다. 30ms 기다린 Enter는 `한`, CR 순서로 정상 전송된다. 실제 OS 키보드 연타를 녹화한 결과가 아니라 DOM 조합 이벤트로 재현한 타이밍 결함이다.
+- 원인은 xterm CompositionHelper의 범위 끝 갱신과 확정 전송이 모두 0ms 타이머인 데 있다. 다음 keydown이 먼저 오면 예약된 전송을 취소하고 낡은 범위로 동기 확정한다. 이미 일부 길이가 기록되어 있어도 마지막 수정분이 빠질 수 있다.
+- `src/imeCommit.ts`는 조합이 끝났고 확정 전송만 대기 중인 경우에 한해 실제 textarea 길이를 동기 확정 범위 끝으로 보정한다. 여러 음절이 타이머 실행 전에 확정되면 최초 미전송 범위 시작도 보존한다. 앞 음절이 이미 전송됐으면 다음 확정 때 시작점을 새로 잡아 중복을 막는다. 전송은 원래 xterm keydown이 수행한다. 조합 중, IME 키(229), 한/영 및 수정키는 그대로 두며 `imeOrderGuard: false`면 원래 동작이다. 일반 셸을 포함한 Windows 터미널에 적용한다.
+- `node test/imeCommit.cjs`는 설치된 `tabby-terminal` 번들의 실제 CompositionHelper를 추출해 원본의 누락부터 재현하고, 빠른 키·부분 범위·수정키·연속 조합·중복 방지·설정 해제·중복 설치를 검사한다. `npm test`의 `test:ime`에 등록했다.
+- 격리 앱의 `tools/probe-ime-commit.js`는 일반 셸 → Claude → Codex 순서로 프로필을 적용하고 실제 PTY 수신 바이트를 화면의 16진수 출력과 비교한다. 빠른 Enter/공백/방향키, 느린 입력, 연속 조합 직후 Enter, Shift+Enter 및 프로필마다 50회 연속 확정을 포함한 45건 통과(`.tmp/ime-commit-ui-final-v2.json`). 최초 검사의 일반 셸 Shift+Enter 실패는 이미 Codex로 식별한 동일 PTY의 프로필 기억 때문이었다. 새 셸부터 검사하도록 순서를 수정했으며 제품의 에이전트 판별은 변경하지 않았다.
+- 검증 산출물은 `.tmp/commit-ime-final-stage/dist/index.js`, SHA256 `1EC16B86502107BD601844DF512691FD8D64B2D96E379B77510B324DCDEE1A03`이다. 배포 전 검토·커밋 요청에 따라 실사용 설치 및 npm 배포는 별도 단계로 남긴다.
+- 최종 코드의 전체 `npm test`·타입 검사·staging 빌드 통과. 동일 산출물 전수 회귀는 169 통과 / 실패 0 / 건너뜀 7이다(`.tmp/ime-20261019-final-regression/report/regression.json`). 건너뜀에는 별도로 완료한 빌드·단위 검사와 OS 이미지 클립보드, 실제 Claude 세션, 측정 조건 관련 항목이 포함된다. 검사에 사용한 격리 앱은 종료했다.
+- 기존 스크롤·리로드·이력 정리 수정은 `1572b14`로 커밋했다. 전체 단위 검사·타입 검사, 격리 휠 11건·이력 정리 18건·리로드 6건을 통과했다. 휠 프로브는 실제 마우스 이동 보고가 섞여 실패하던 측정을 휠 보고만 비교하도록 바로잡았다(`.tmp/commit-wheel-ui-retry.json`, `.tmp/commit-memory-ui.json`, `.tmp/commit-reload-after.json`).
+
 ### 장시간 실행 시 세션 이력 정리 (2026-10-16)
 
 - 훅 중복 처리 이력은 24시간 뒤 정리하며, 같은 만료 기준을 보고 수신에도 적용한다. 정리 후 오래된 상태 파일이나 지연된 TCP 보고가 새 탭을 차지하지 못하게 한다. 표시 중인 탭 상태나 실행 중인 작업을 시간만으로 삭제하지 않는다.

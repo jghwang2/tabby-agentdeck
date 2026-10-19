@@ -10,6 +10,7 @@ import { installCursorVisibilityFix } from './cursorVisibility'
 import { identifyScreenAgent, isLiveCodexScreen, TerminalAgentTracker } from './screenAgent'
 import { installCodexWheel } from './codexWheel'
 import { installCodexKeys } from './codexKeys'
+import { installImeCommitGuard } from './imeCommit'
 import { AppService, ConfigService, BaseTabComponent, HostWindowService, HotkeysService, PlatformService, ProfilesService } from 'tabby-core'
 import { SettingsTabComponent } from 'tabby-settings'
 import { WorkStatusService } from './status.service'
@@ -2176,6 +2177,8 @@ export class AgentDeckService {
     }
 
     private installCodexCursorFix (pane: BaseTabComponent): void {
+        installImeCommitGuard((pane as any).frontend,
+            () => process.platform === 'win32' && this.config.store.agentDeck.imeOrderGuard !== false)
         installCodexKeys((pane as any).frontend,
             () => process.platform === 'win32' && this.profileForPane(pane)?.id === 'codex',
             data => this.sendToPane(pane as any, 'codex-question-key', () => (pane as any).sendInput(data)))
