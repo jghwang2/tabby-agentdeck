@@ -5,7 +5,13 @@
 
 ## 전수 실행 (한 명령)
 
+메모리 정리 추가 검증(2026-10-16): `node test/memoryCleanup.cjs`로 오래된 훅 이력·종료된 탭 참조·매칭 실패 로그·불필요한 대화기록 누적·활동 추적 만료 기록을 검사한다. 격리 앱 경로에 `memory-cleanup`을 넣고 `node tools/cdp.js <port> tools/probe-memory-cleanup.js`로 실제 폴링과 화면을 검증한다. 이력 정리 후에도 오래된 보고가 탭을 탈취하지 않고, 현재 배지·예약 작업·터미널이 유지되어야 한다. 훅 없는 세션과 새 세션은 대화기록 폴백을 계속 사용할 수 있어야 한다.
+
 서브에이전트 활동 추적(2026-10-16): 격리 앱에서 `node tools/cdp.js <port> tools/probe-agent-lifecycle.js`를 실행한다. 실제 훅 프로세스의 동시 시작, 2차 생성, 종료 후 도구 훅 재개, 중복 제거, 탭별 동일 ID 분리, TCP 유실 복구, 서비스 상태 복원, 15분 무활동 경계(제어한 시계), 역순 이벤트, 손상 기록, 부모 상태 보존, 30초 대조 주기를 확인한다. `test/agentHook.cjs`는 실제 PowerShell 훅의 병렬 파일 쓰기를 검증한다.
+
+휠 속도 추가 검증(2026-10-16): 전용 격리 앱 경로에 `wheel-ui`를 포함해 실행한 뒤 `node tools/cdp.js <port> tools/probe-codex-wheel.js`를 실행한다. 일반 터미널과 이전 Codex 기록 보기의 같은 입력 이동량(17px 행에서 7줄), 현재 전체 화면 Codex의 휠 1회당 SGR 보고 3개·실제 3줄 이동, 반대 방향 복귀, Claude의 보고 1개 유지, 입력 문장 보존을 확인한다. 결과는 `.tmp/wheel-ui-final.json`에 기록했다.
+
+리로드 후 휠 검증: `node test/reloadTerminalState.cjs`로 분할 탭·정확한 PTY 매칭·종료한 PTY 제외·SGR 인코딩을 검사한다. `node tools/cdp.js <port> tools/probe-wheel-reload.js`를 두 번 실행한다. 첫 호출이 마우스 PTY 픽스처를 시작하고 세션 보존 리로드를 수행하며, 두 번째가 동일 PTY·alternate 화면·mouse/paste/focus 모드·SGR 인코딩 보존과 실제 휠 이동을 검사한다. 모델 호출 없이 실제 터미널 왕복을 확인한다.
 
 추가 검증(2026-10-15): 격리 앱에서 `node tools/cdp.js <port> tools/probe-tab-edit.js`를 실행한다. 편집 팝업, 수동 제목의 자동 변경 방지, 별명 중복 거부, 예약 생성·일회 발화·반복·취소, 수동 건수, 닫기 취소·수락, Ctrl+W, 저장값, 테스트 업데이트 격리를 검사한다. `SA5`는 이제 서브에이전트 칩을 꺼도 예약 보호용 기록 읽기가 유지되는지 검사한다.
 

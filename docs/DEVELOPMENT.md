@@ -4,6 +4,16 @@
 
 ## 개발
 
+### 장시간 실행 시 세션 이력 정리 (2026-10-16)
+
+- 훅 중복 처리 이력은 24시간 뒤 정리하며, 같은 만료 기준을 보고 수신에도 적용한다. 정리 후 오래된 상태 파일이나 지연된 TCP 보고가 새 탭을 차지하지 못하게 한다. 표시 중인 탭 상태나 실행 중인 작업을 시간만으로 삭제하지 않는다.
+- 매칭 실패 로그의 중복 방지 표는 최근 1,024개만 유지한다. 닫힘 이벤트를 놓친 분할 루트는 실제 탭 목록과 대조해 세션·PID·패널 표의 강한 참조를 해제한다.
+- 훅을 받은 탭은 사용하지 않는 대화기록 집계를 해제하고 이후에도 다시 쌓지 않는다. 예약 작업 스캔은 계속한다. 훅 없는 세션은 기존 대화기록 집계를 유지하며, 같은 탭에 새 세션이 들어오면 이전 훅 집계 여부도 초기화한다.
+- 활동 추적 표의 종료·무활동 기록도 15분 경계에서 해제한다. 만료된 디스크 기록은 훅을 쓰는 세션이라는 사실만 확인하며, 메모리에 다시 쌓거나 옛 대화기록 집계로 되돌아가지 않는다.
+- `node test/memoryCleanup.cjs`는 대량 이력 정리·재전송·탭 종료·예약 보호·세션 교체를 검사하며 `npm run test:performance`에 포함된다. 격리 앱 경로에 `memory-cleanup`을 넣고 `node tools/cdp.js <port> tools/probe-memory-cleanup.js`로 실제 파일 폴링·배지 DOM·주기 정리·예약 집계·터미널 생존을 확인한다. 장시간 실제 메모리 증가율을 측정하는 검사는 아니므로 Tabby 본체의 누수 해결로 해석하지 않는다.
+- 통합 산출물: `.wt/memory-cleanup/.tmp/memory-integrated/dist/index.js`, SHA256 `41FCBD453900717E83A6830CCF43644646C5ADF65EE7D4E5DE3311747D3BB255`. 전체 단위 검사·타입 검사, 메모리 UI 18건, 실제 활동 훅 UI 13건 통과. 전수 회귀 원본은 `.wt/memory-cleanup/.tmp/tabby-agentdeck-test-memory-regression/report/regression.json`이며 167 통과 / 앱 종료 1 실패 / 9 건너뜀이다. 실패한 마지막 프로필 재기동 단계는 동일 산출물·동일 저장 설정으로 다시 기동하여 CDP 연결과 올바른 루트 프로필 복원을 확인했다(`.wt/memory-cleanup/.tmp/memory-integrated-profile-retry.json`). 최초 종료 원인은 미확정이며 원본 실패 기록은 보존한다.
+- 실사용 반영은 아직 하지 않았다. 다른 탭에서 실사용 리로드 후 마우스 입력 복구를 진행 중이므로 중복 리로드하지 않았다. 반영 시 위 동일 산출물을 사용하고, 현재 공유 소스 및 설치본이 더 변경되지 않았는지 대조한 뒤 탭·PTY·세션과 마우스 입력의 유지까지 확인한다. 적용 전 설치본 해시는 `D530F2D75E2B2151613AC430787D7CD50B03DE5B8E0C1AC441A86FB50B73F3D3`이다.
+
 ### 서브에이전트 활동 추적 (2026-10-16)
 
 - `session_id`와 `agent_id`의 조합으로 관리한다. `SubagentStart`뿐 아니라 자식의 `PostToolUse` 등 기존 훅도 마지막 활동 시각을 갱신하므로 후속 생성과 재개를 복구한다. 종료 훅은 집계에서 제외하고, 이후 더 최신 활동 훅이 오면 다시 포함한다.
@@ -12,6 +22,18 @@
 - 최신 훅 기록이 있는 세션은 이전 전체 목록 스냅샷이나 대화기록으로 되살리지 않는다. 이전 훅만 사용하는 환경의 기존 집계 경로는 유지한다. 기록이 깨졌거나 조회에 실패했다고 진행 중인 항목을 즉시 제거하지 않는다.
 - 검증: `node test/agentLifecycle.cjs`, `node test/agentHook.cjs`, 격리 앱의 `tools/probe-agent-lifecycle.js`. 15분 경계는 제어한 시계로 검증하며, 실제 15분을 기다린 것으로 보고하지 않는다.
 - 적용 완료(2026-10-16): 휠·메모리 정리 변경을 함께 보존한 산출물 SHA256 `41FCBD453900717E83A6830CCF43644646C5ADF65EE7D4E5DE3311747D3BB255`로 전체 회귀 169 통과 / 실패 0 / 건너뜀 7, 활동 추적 13건·메모리 14건·휠 11건을 통과했다. 동일 패키지를 설치하고 세션 유지 리로드 후 터미널 6개의 탭 식별자·세션 ID·PTY를 확인했다. 새 훅이 없던 3개 연결은 정확한 기존 탭·PTY 대조 후 복원했다. 실사용 부모 세션 2개에서 실제 서브에이전트 활동 기록도 수신했다. 증거는 `.tmp/agent-lifecycle-live-verified.json`, 백업은 `.tmp/agent-lifecycle-live-backup-20261016-193706`이다.
+
+### Codex 휠 속도 (2026-10-16)
+
+- 실사용 Tabby 1.0.235의 전체 화면·마우스 보고 모드에서 같은 `deltaY=-120` 입력은 Codex 1줄, Claude 3줄을 이동했다. xterm은 두 CLI에 같은 SGR 휠 보고 1개를 보냈으며 CLI의 처리량이 달랐다(`.tmp/wheel-live-measure-before.json`).
+- `src/codexWheel.ts`는 Codex의 마우스 보고 모드에서 xterm 좌표·프로토콜 인코더를 그대로 사용해 휠 보고를 3개 보낸다. 방향키나 기록 보기 단축키를 섞지 않는다. Claude와 수정키 입력은 기존 처리를 유지한다.
+- 이전 Codex 기록 보기 경로는 고정 40px/줄 대신 설치된 xterm의 `getLinesScrolled`를 사용한다. 17px 글꼴 행 기준 같은 입력이 기존 3줄에서 터미널과 같은 7줄로 바뀌며 감도·줄/페이지 단위·트랙패드 잔여량도 따른다.
+- 검증: `node test/wheel.cjs`, `npm run test:codex`, `npm run typecheck`. 격리 앱 `wheel-ui`에서 `node tools/cdp.js <port> tools/probe-codex-wheel.js`로 실제 PTY 픽스처의 기록 위치 변화, 양방향 이동, 입력 문장 보존, SGR 보고 3개와 Claude 경로 보고 1개를 확인한다. 픽스처는 모델 호출을 하지 않는다.
+- 적용 산출물: `.tmp/wheel-final/dist/index.js`, SHA256 `D530F2D75E2B2151613AC430787D7CD50B03DE5B8E0C1AC441A86FB50B73F3D3`. 기능 검사 11건 통과. 전수 회귀 176건 중 167 통과 / 2 실패 / 7 건너뜀이었고 실패한 RL6·RL7은 동일 산출물에서 해당 프로브 7건을 재실행해 모두 통과했다(`.tmp/wheel-repair-retry.json`). 원래 실패 보고도 보존한다.
+- 실사용 번들 반영·리로드 및 5개 탭의 별명·세션·동일 PTY 보존을 확인했다(`.tmp/wheel-live-verified.json`). 리로드 직후 기존 Codex 3개 탭의 마우스 모드가 `any`에서 `none`으로 바뀌는 별도 복원 문제가 관찰됐다. 기존 화면에서 최종 휠 이동량을 확인하려면 리로드 전 모드 복원이 필요하다. 세션을 재시작해 이 문제를 숨기지 않는다.
+- 후속 원인: Tabby의 `saveState()`는 `excludeAltBuffer: true, excludeModes: true`로 저장한다. 살아 있는 PTY를 재연결할 때 Codex는 마우스 모드를 다시 출력하지 않으므로 휠이 터미널 화면 기록으로 빠진다. `reloadTerminalState.ts`는 동일 PTY의 복구 토큰에 전체 화면·입력 모드와 별도 SGR 인코딩을 보존한다. 분할 탭도 PTY ID로 대조한다.
+- 격리 검증: `node test/reloadTerminalState.cjs`; `tools/probe-wheel-reload.js`를 같은 격리 앱에 두 번 실행해 실제 리로드 전후를 비교한다. 동일 PTY, alternate 화면, mouse/paste/focus 모드, SGR 인코딩, 실제 PTY 휠 3줄 이동을 확인했다(`.tmp/wheel-reload-after-retry.json`). 첫 500ms 고정 대기는 화면 반영보다 빨라 실패해 실제 위치 변화까지 최대 6초 기다리도록 변경했다. 실사용에서는 기존 Codex 3개 탭의 마우스 입력을 임시 복원하고 이동을 확인했으나, 재발 방지 수정본의 반영·리로드는 Windows 잠금 해제 후 진행해야 한다.
+- 후속 검증 완료: `.tmp/wheel-reload-stage/dist/index.js` SHA256 `5A8903FECD2707ADD8AAFCBA8B098F85A32E56482AA6A9C3565E11910440459D`로 전체 회귀 173 통과 / 실패 0 / 건너뜀 6, 휠 UI 11건, 리로드 UI 6건을 통과했다(리로드 UI는 2회 연속 통과). 19:45 실사용 Codex 3개 탭도 동일 PTY를 대조해 alternate/any/SGR 모드로 복원했다(`.tmp/wheel-live-screen-restored.json`). 재발 방지 번들은 아직 실사용에 복사하지 않았다. 첫 적용 시에는 구버전 리로더의 토큰 생성에 검증된 보존 함수를 연결하는 `.tmp/wheel-live-reload-modefix.js`를 사용해야 첫 전환에서도 모드가 사라지지 않는다. 적용 전 새 스냅샷과 설치 해시를 다시 확인한다.
 
 ### 예약 표시·탭 편집 (2026-10-15)
 

@@ -123,6 +123,10 @@ const SUBAGENT_SCAN_EVERY = 5
  * 넘치면 오래된 것부터 버린다 — 버려도 '전체' 로 바꾸면 그 파일은 여전히 보인다.
  */
 const TOUCHED_MAX = 400
+// Dedupe history is not session state. Reject expired reports before routing so
+// removing their history cannot bind an old status file to a newly opened tab.
+const HOOK_HISTORY_TTL_MS = 24 * 60 * 60 * 1000
+const BIND_LOG_MAX = 1024
 /**
  * 그 주기 안에서 **몇 번째** 폴링에 볼지. `refreshPids`(0번째)와 겹치지 않게 어긋나 둔다 —
  * 같은 tick 에 몰면 pty 조회와 파일 읽기가 한 프레임에 같이 걸린다.
@@ -1033,6 +1037,7 @@ export class WorkNotifyService {
         this.refreshTabIds()
         if (Date.now() >= this.nextAgentReconcile) { this.reconcileAgentFiles() }
         if (++this.pollCount % 5 === 0) {
+            this.pruneHookHistory()
             void this.refreshPids()
         }
         // 대화기록 증분 스캔은 2초에 한 번, pid 조회와 다른 tick 에 (상수 주석 참고)
@@ -1095,6 +1100,9 @@ export class WorkNotifyService {
         if (!data || !data.sessionId) {
             return
         }
+        if (!Number.isFinite(data.ts) || data.ts <= Date.now() - HOOK_HISTORY_TTL_MS) {
+            return
+        }
         if (data.agentActivity) {
             this.applyAgentEvent(data)
             if (!data.file) { return }
@@ -1145,6 +1153,15 @@ export class WorkNotifyService {
         // 빈 목록도 뜻이 있다: "마지막 하나가 끝났다". 그래서 `hasAgents` 는 길이가 아니라
         // 키의 유무로 판정한다
         if (hasAgents) {
+            // Hooks own this badge from now on; release the unused transcript
+            // history, including already completed calls and pending text.
+            for (const [sid, owner] of this.scanOwners()) {
+                const scan = this.scans.get(sid)
+                if (owner === tab && scan) {
+                    scan.state = createSubagentState()
+                    scan.summary = summarizeSubagents(null)
+                }
+            }
             const raw = Array.isArray(data.agents) ? data.agents : [data.agents!]
             const live = new Map<string, LiveAgent>()
             for (const a of raw) {
@@ -1296,8 +1313,30 @@ export class WorkNotifyService {
         if (this.lastBindLog.get(sessionId) === msg) {
             return
         }
+        this.lastBindLog.delete(sessionId)
         this.lastBindLog.set(sessionId, msg)
+        while (this.lastBindLog.size > BIND_LOG_MAX) {
+            this.lastBindLog.delete(this.lastBindLog.keys().next().value!)
+        }
         this.diag(`bind sid=${sessionId.slice(0, 8)} ${msg}`)
+    }
+
+    private pruneHookHistory (): void {
+        const cutoff = Date.now() - HOOK_HISTORY_TTL_MS
+        for (const [sid, ts] of this.applied) {
+            if (!Number.isFinite(ts) || ts <= cutoff) { this.applied.delete(sid) }
+        }
+        // Closing a split root can report its children rather than the root.
+        // Reconcile against the live roots as well as handling tabClosed$.
+        const alive = new Set(this.app.tabs)
+        for (const [sid, tab] of this.sessionTab) {
+            if (!alive.has(tab)) { this.sessionTab.delete(sid) }
+        }
+        for (const map of [this.tabSession, this.tabPids, this.tabIds]) {
+            for (const tab of map.keys()) {
+                if (!alive.has(tab)) { map.delete(tab) }
+            }
+        }
     }
 
     // ---------- 서브에이전트 개수 (대화기록 증분 스캔) ----------
@@ -1948,7 +1987,10 @@ export class WorkNotifyService {
             // Buffer -> 문자열 변환은 decoder 에게 맡긴다 (멀티바이트 경계, `SubagentScan` 주석)
             stream.on('data', (chunk: any) => {
                 const text = scan.decoder.write(chunk as Buffer)
-                feedChunk(scan.state, text)
+                const owner = this.scanOwners().get(scan.sessionId)
+                if (!owner || !this.agentHookSeen.has(owner)) {
+                    feedChunk(scan.state, text)
+                }
                 scan.scheduled.feed(text)
             })
             stream.on('end', () => finish())
