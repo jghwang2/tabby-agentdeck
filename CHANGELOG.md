@@ -5,6 +5,24 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.9 — 2026-10-19
+
+- Preserve committed Korean text when a fast Enter, space or cursor key arrives before the IME commit timer, including consecutive syllables.
+- Improve Codex mouse-wheel speed and follow terminal scroll sensitivity in the transcript view.
+- Preserve fullscreen terminal state and mouse, paste and focus modes when reloading a live session.
+- Release expired session history, closed-tab references and unused transcript tracking to reduce retained memory.
+- Recover missing or resumed subagent activity, avoid duplicate counts and reconcile activity after missed notifications or reloads. Exclude agents from the display after 15 minutes without activity reports; new activity restores them.
+- Expand the user guides and automatically publish release notes after npm publication.
+
+**한국어**
+
+- 한글을 빠르게 입력한 뒤 공백·Enter·방향키를 누르면 확정한 글자가 누락되던 문제를 수정했습니다. 여러 음절을 연달아 확정하는 경우도 보완했습니다.
+- Codex의 마우스 휠 스크롤 속도를 개선하고, 대화 기록 보기에서 터미널의 스크롤 감도를 따르도록 했습니다.
+- 화면을 다시 불러온 뒤에도 전체 화면과 마우스·붙여넣기·포커스 입력 모드가 유지되도록 수정했습니다.
+- 오래된 세션 이력과 종료된 탭 정보를 정리해 불필요한 메모리 누적을 줄였습니다.
+- 서브에이전트 활동 표시의 누락·중복을 수정하고 알림 누락이나 리로드 후 자동 복구를 보강했습니다. 15분 동안 활동 알림이 없으면 표시에서 제외하고, 다시 활동하면 복귀합니다.
+- 사용 설명서를 보강하고 npm 배포 후 패치노트가 자동 게시되도록 개선했습니다.
+
 ## 1.2.8 — 2026-10-15
 
 - Track scheduled tasks separately for each tab; remove fired one-shot tasks and confirm closing tabs with pending work.
