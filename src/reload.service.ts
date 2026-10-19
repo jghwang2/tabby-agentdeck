@@ -4,6 +4,7 @@ import { AppService, BaseTabComponent, NotificationsService } from 'tabby-core'
 import { diag, diagCatch } from './diag'
 import { AgentDeckService } from './deck.service'
 import { PerformanceTrace } from './performance'
+import { preserveReloadTerminalState } from './reloadTerminalState'
 
 /**
  * 복구 짐을 두는 localStorage 키.
@@ -107,6 +108,7 @@ export class AgentDeckReloadService {
                     const token = await tr.getFullRecoveryToken(tab, { includeState: true })
                     trace.mark('token', `index=${tokens.length}`)
                     if (token) {
+                        preserveReloadTerminalState(token, (tab as any).getAllTabs?.() ?? [tab])
                         if (tab === this.app.activeTab) {
                             activeIndex = tokens.length
                         }

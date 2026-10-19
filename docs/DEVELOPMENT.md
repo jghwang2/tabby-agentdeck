@@ -4,6 +4,18 @@
 
 ## 개발
 
+### Codex 휠 속도 (2026-10-16)
+
+- 실사용 Tabby 1.0.235의 전체 화면·마우스 보고 모드에서 같은 `deltaY=-120` 입력은 Codex 1줄, Claude 3줄을 이동했다. xterm은 두 CLI에 같은 SGR 휠 보고 1개를 보냈으며 CLI의 처리량이 달랐다(`.tmp/wheel-live-measure-before.json`).
+- `src/codexWheel.ts`는 Codex의 마우스 보고 모드에서 xterm 좌표·프로토콜 인코더를 그대로 사용해 휠 보고를 3개 보낸다. 방향키나 기록 보기 단축키를 섞지 않는다. Claude와 수정키 입력은 기존 처리를 유지한다.
+- 이전 Codex 기록 보기 경로는 고정 40px/줄 대신 설치된 xterm의 `getLinesScrolled`를 사용한다. 17px 글꼴 행 기준 같은 입력이 기존 3줄에서 터미널과 같은 7줄로 바뀌며 감도·줄/페이지 단위·트랙패드 잔여량도 따른다.
+- 검증: `node test/wheel.cjs`, `npm run test:codex`, `npm run typecheck`. 격리 앱 `wheel-ui`에서 `node tools/cdp.js <port> tools/probe-codex-wheel.js`로 실제 PTY 픽스처의 기록 위치 변화, 양방향 이동, 입력 문장 보존, SGR 보고 3개와 Claude 경로 보고 1개를 확인한다. 픽스처는 모델 호출을 하지 않는다.
+- 적용 산출물: `.tmp/wheel-final/dist/index.js`, SHA256 `D530F2D75E2B2151613AC430787D7CD50B03DE5B8E0C1AC441A86FB50B73F3D3`. 기능 검사 11건 통과. 전수 회귀 176건 중 167 통과 / 2 실패 / 7 건너뜀이었고 실패한 RL6·RL7은 동일 산출물에서 해당 프로브 7건을 재실행해 모두 통과했다(`.tmp/wheel-repair-retry.json`). 원래 실패 보고도 보존한다.
+- 실사용 번들 반영·리로드 및 5개 탭의 별명·세션·동일 PTY 보존을 확인했다(`.tmp/wheel-live-verified.json`). 리로드 직후 기존 Codex 3개 탭의 마우스 모드가 `any`에서 `none`으로 바뀌는 별도 복원 문제가 관찰됐다. 기존 화면에서 최종 휠 이동량을 확인하려면 리로드 전 모드 복원이 필요하다. 세션을 재시작해 이 문제를 숨기지 않는다.
+- 후속 원인: Tabby의 `saveState()`는 `excludeAltBuffer: true, excludeModes: true`로 저장한다. 살아 있는 PTY를 재연결할 때 Codex는 마우스 모드를 다시 출력하지 않으므로 휠이 터미널 화면 기록으로 빠진다. `reloadTerminalState.ts`는 동일 PTY의 복구 토큰에 전체 화면·입력 모드와 별도 SGR 인코딩을 보존한다. 분할 탭도 PTY ID로 대조한다.
+- 격리 검증: `node test/reloadTerminalState.cjs`; `tools/probe-wheel-reload.js`를 같은 격리 앱에 두 번 실행해 실제 리로드 전후를 비교한다. 동일 PTY, alternate 화면, mouse/paste/focus 모드, SGR 인코딩, 실제 PTY 휠 3줄 이동을 확인했다(`.tmp/wheel-reload-after-retry.json`). 첫 500ms 고정 대기는 화면 반영보다 빨라 실패해 실제 위치 변화까지 최대 6초 기다리도록 변경했다. 실사용에서는 기존 Codex 3개 탭의 마우스 입력을 임시 복원하고 이동을 확인했으나, 재발 방지 수정본의 반영·리로드는 Windows 잠금 해제 후 진행해야 한다.
+- 후속 검증 완료: `.tmp/wheel-reload-stage/dist/index.js` SHA256 `5A8903FECD2707ADD8AAFCBA8B098F85A32E56482AA6A9C3565E11910440459D`로 전체 회귀 173 통과 / 실패 0 / 건너뜀 6, 휠 UI 11건, 리로드 UI 6건을 통과했다(리로드 UI는 2회 연속 통과). 19:45 실사용 Codex 3개 탭도 동일 PTY를 대조해 alternate/any/SGR 모드로 복원했다(`.tmp/wheel-live-screen-restored.json`). 재발 방지 번들은 아직 실사용에 복사하지 않았다. 첫 적용 시에는 구버전 리로더의 토큰 생성에 검증된 보존 함수를 연결하는 `.tmp/wheel-live-reload-modefix.js`를 사용해야 첫 전환에서도 모드가 사라지지 않는다. 적용 전 새 스냅샷과 설치 해시를 다시 확인한다.
+
 ### 예약 표시·탭 편집 (2026-10-15)
 
 - 우클릭 `편집`은 상태, 제목, 별명, 예약 건수, 작업 이름을 한 번에 수정하는 팝업을 연다. `저장`으로 반영하고 `취소`·Esc는 변경을 버린다. 제목·작업 이름 더블클릭도 같은 팝업의 해당 입력칸으로 이동한다. 제목·별명·수동 예약 건수는 탭의 영구 식별자에 저장하며 리로드 후 유지한다.

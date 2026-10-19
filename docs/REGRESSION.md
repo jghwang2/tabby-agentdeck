@@ -5,6 +5,10 @@
 
 ## 전수 실행 (한 명령)
 
+휠 속도 추가 검증(2026-10-16): 전용 격리 앱 경로에 `wheel-ui`를 포함해 실행한 뒤 `node tools/cdp.js <port> tools/probe-codex-wheel.js`를 실행한다. 일반 터미널과 이전 Codex 기록 보기의 같은 입력 이동량(17px 행에서 7줄), 현재 전체 화면 Codex의 휠 1회당 SGR 보고 3개·실제 3줄 이동, 반대 방향 복귀, Claude의 보고 1개 유지, 입력 문장 보존을 확인한다. 결과는 `.tmp/wheel-ui-final.json`에 기록했다.
+
+리로드 후 휠 검증: `node test/reloadTerminalState.cjs`로 분할 탭·정확한 PTY 매칭·종료한 PTY 제외·SGR 인코딩을 검사한다. `node tools/cdp.js <port> tools/probe-wheel-reload.js`를 두 번 실행한다. 첫 호출이 마우스 PTY 픽스처를 시작하고 세션 보존 리로드를 수행하며, 두 번째가 동일 PTY·alternate 화면·mouse/paste/focus 모드·SGR 인코딩 보존과 실제 휠 이동을 검사한다. 모델 호출 없이 실제 터미널 왕복을 확인한다.
+
 추가 검증(2026-10-15): 격리 앱에서 `node tools/cdp.js <port> tools/probe-tab-edit.js`를 실행한다. 편집 팝업, 수동 제목의 자동 변경 방지, 별명 중복 거부, 예약 생성·일회 발화·반복·취소, 수동 건수, 닫기 취소·수락, Ctrl+W, 저장값, 테스트 업데이트 격리를 검사한다. `SA5`는 이제 서브에이전트 칩을 꺼도 예약 보호용 기록 읽기가 유지되는지 검사한다.
 
 `tools/probe-tab-dialog.js`는 팝업의 저장·취소·Esc, 입력/포커스 이동만으로 미반영, 전체 필드 검증, 다른 탭 분리, 편집 중 실시간 이벤트 보존, 저장 실패 복구·재시도, 한글 조합 Enter, 팝업 안 Ctrl+W, 자동 집계 저장, 대상 탭 종료 정리를 검사한다.
