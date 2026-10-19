@@ -295,4 +295,5 @@ check('훅 툴팁: 종류별 줄', formatLiveAgentTooltip(liveSum).split('\n')[1
 check('훅 툴팁: 0개면 빈 문자열', formatLiveAgentTooltip(summarizeLiveAgents([])), '')
 
 console.log(`\n총 ${pass + fail}건 · 통과 ${pass} · 실패 ${fail}`)
+require('./agentLifecycle.cjs')
 process.exit(fail ? 1 : 0)

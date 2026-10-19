@@ -158,6 +158,15 @@ if ($hook -and $hook.session_id) {
     if ($recent) { $targetId = [System.IO.Path]::GetFileNameWithoutExtension($recent.Name) }
 }
 if (-not $targetId) { $targetId = 'default' }
+# Child activity must not overwrite the parent's status, mailbox, or another child's list.
+# PostToolUse carries agent_id too, including agents created/resumed after the first batch.
+if ($Agent -eq 'claude' -and $hook -and $hook.agent_id) {
+    try {
+        . (Join-Path $PSScriptRoot 'agentdeck-agent.ps1')
+        Write-AgentDeckAgentEvent $hook $runtimeRoot $targetId ([string]$env:AGENTDECK_TAB)
+    } catch { Write-AgentDeckHookTrace 'agent_event_error' @{} $_ }
+    exit 0
+}
 # Register this prompt/tool boundary before asking for its live navigation context.
 $mailContext = $hook -and @('UserPromptSubmit', 'PostToolUse') -contains [string]$hook.hook_event_name
 function Invoke-AgentDeckMailboxContext {

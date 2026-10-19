@@ -64,8 +64,17 @@
         add('RL5', ad.app.tabs.length === count + 1 && starting && ad.app.activeTab === starting,
             { before: count, after: ad.app.tabs.length, focused: ad.app.activeTab === starting })
         const terminal = (starting?.getAllTabs?.() || [starting])[0]
+        // A loaded machine can take longer than 1200ms to start PowerShell.
+        // Observe the actual fixture response before sending the failure command.
+        const ready = () => {
+            const b = terminal.frontend.xterm.buffer.active
+            return Array.from({ length: b.length }, (_, i) => b.getLine(i)?.translateToString(true).trim())
+                .includes('RESUME_FIXTURE_READY')
+        }
+        for (let i = 0; i < 150 && !ready(); i++) await sleep(100)
+        if (!ready()) throw Error('Resume fixture shell did not become ready')
         terminal.sendInput('Write-Output "thread-store conflict: thread already has an active writer"\r')
-        await sleep(700)
+        for (let i = 0; i < 100 && deck.resumeStarting.has(sid); i++) await sleep(100)
         add('RL6', !deck.resumeStarting.has(sid), 'Startup failure releases reservation')
         await deck.activateResume({ ...row }, false)
         add('RL7', ad.app.tabs.length === count + 2, 'A failed startup can be retried')
