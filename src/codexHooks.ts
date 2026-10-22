@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
 
-const MARK = 'agentdeck-codex-notify.ps1'
+const MARK = 'agentdeck-codex-notify'
 // https://learn.chatgpt.com/docs/hooks — no Claude-only Notification/StopFailure events.
 export const CODEX_EVENTS = ['UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'Interrupt', 'SessionEnd']
 
@@ -116,7 +116,7 @@ export function stripCodexHooks (settings: any): any {
 
 export function mergeCodexHooks (settings: any, script: string): any {
     const next = stripCodexHooks(settings)
-    const command = `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${script}"`
+    const command = `node "${script.replace(/\.ps1$/i, '.mjs')}"`
     for (const event of CODEX_EVENTS) {
         next.hooks[event] = [...(next.hooks[event] ?? []), {
             hooks: [{ type: 'command', command, timeout: 3 }],
@@ -143,7 +143,7 @@ function readCodexHooks (): any {
 
 export function setCodexHooks (enabled: boolean): void {
     const file = codexHooksPath()
-    const script = path.join(__dirname, '..', 'hooks', MARK)
+    const script = path.join(__dirname, '..', 'hooks', MARK + '.mjs')
     if (enabled && !fs.existsSync(script)) { throw new Error(`Missing hook: ${script}`) }
     const current = readCodexHooks()
     const next = enabled ? mergeCodexHooks(current, script) : stripCodexHooks(current)

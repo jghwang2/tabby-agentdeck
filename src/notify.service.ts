@@ -558,9 +558,21 @@ export class WorkNotifyService {
 
     private hookDispatcher: any
 
+    private createHookDispatcher (): any {
+        return new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'), {
+            report: (payload: any) => this.apply(payload),
+            request: (payload: any) => new Promise((resolve, reject) => {
+                const socket = { write: (line: string) => {
+                    try { resolve(JSON.parse(line)) } catch (error) { reject(error) }
+                } } as any
+                if (!this.acceptMailbox(JSON.stringify(payload), socket)) reject(new Error('Unknown hook request'))
+            }),
+        })
+    }
+
     configureStorageRoots (): void {
         this.root = runtimeRoot()
-        this.hookDispatcher = new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'))
+        this.hookDispatcher = this.createHookDispatcher()
         this.dir = path.join(this.root, 'status')
         this.metaDir = path.join(this.root, 'meta')
         this.portFile = path.join(this.root, 'port')
@@ -998,7 +1010,7 @@ export class WorkNotifyService {
         try { request = JSON.parse(line) } catch { return false }
         if (request?.channel === 'agentdeck-hook') {
             try {
-                this.hookDispatcher ??= new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'))
+                this.hookDispatcher ??= this.createHookDispatcher()
                 this.hookDispatcher.submit(request).then(reply => {
                     if (!socket.destroyed) socket.write(JSON.stringify(reply) + '\n')
                 }).catch(error => {

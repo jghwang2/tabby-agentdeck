@@ -1,8 +1,11 @@
 // Receiver-owned durable inbox. Only this process starts the business workers.
-const fs = require('node:fs'), path = require('node:path'), { spawn } = require('node:child_process')
+const fs = require('node:fs'), path = require('node:path'), net = require('node:net'), { spawn } = require('node:child_process')
+const { stateEvent } = require('./state.cjs')
+const { createMetaProcessor } = require('./meta.cjs')
+const { hookContext } = require('./context.cjs')
 const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
 class HookDispatcher {
-    constructor (root, workerRoot = __dirname) {
+    constructor (root, workerRoot = __dirname, services = {}) {
         this.root = root
         this.workerRoot = workerRoot
         this.inbox = path.join(root, 'hook-inbox')
@@ -11,6 +14,12 @@ class HookDispatcher {
         this.tail = Promise.resolve()
         this.sessions = new Map()
         this.nextScan = 0
+        this.nextPrune = 0
+        this.pruning = false
+        this.services = services
+        this.metaProcessors = new Map()
+        this.jobs = []
+        this.jobTimer = null
     }
     valid (event) {
         return event?.channel === 'agentdeck-hook' && validId(event.id)
@@ -27,6 +36,9 @@ class HookDispatcher {
         const pending = this.accept(event).catch(() => {})
         const context = event.kind === 'notify' && !event.hook.agent_id
             && ['UserPromptSubmit', 'PostToolUse'].includes(event.hook.hook_event_name)
+        // Let an immediately runnable reducer register the session before reading
+        // its mailbox. A blocked legacy ancestry worker still cannot hold context.
+        await Promise.resolve()
         const output = context ? await this.run(event, true).catch(() => '') : ''
         // External callers lack a tab ID: retain the origin process until its
         // ancestry has been observed. Replayed events still require identity.
@@ -46,13 +58,20 @@ class HookDispatcher {
         const file = path.join(this.inbox, event.id + '.json')
         const tmp = file + '.receiver.tmp'
         fs.writeFileSync(tmp, JSON.stringify(event)); fs.renameSync(tmp, file)
-        const key = event.hook.session_id || event.options?.SessionId || 'manual'
+        const session = event.hook.session_id || event.options?.SessionId || 'manual'
+        // These workers write disjoint files. Keep ordering per record, not per
+        // parent: a child's tool burst must not hold up its parent's Stop.
+        const child = event.kind === 'notify' && (event.options?.Agent || 'claude') === 'claude' && event.hook.agent_id
+        const key = JSON.stringify([session, event.kind, child ? 'child' : 'parent', child || ''])
         const previous = this.sessions.get(key) || Promise.resolve()
+        const queuedAt = Date.now()
         const result = previous.catch(() => {}).then(async () => {
             // Arrival order can differ from event order after reconnect. The worker
             // also preserves child event timestamps; parent snapshots reject old events.
+            const startedAt = Date.now()
             const output = await this.run(event)
-            const reply = { id: event.id, accepted: true, output }
+            const reply = { id: event.id, accepted: true, output,
+                timing: { queueMs: startedAt - queuedAt, workerMs: Date.now() - startedAt, eventAgeMs: Date.now() - event.ts } }
             fs.mkdirSync(this.receipts, { recursive: true })
             const receiptTmp = receipt + '.tmp'
             fs.writeFileSync(receiptTmp, JSON.stringify(reply)); fs.renameSync(receiptTmp, receipt)
@@ -82,13 +101,127 @@ class HookDispatcher {
                 }
                 this.accept(event).catch(() => {})
             }
-            for (const name of fs.readdirSync(this.receipts)) {
-                const file = path.join(this.receipts, name)
-                if (fs.statSync(file).mtimeMs < Date.now() - 86400000) fs.unlinkSync(file)
-            }
         } catch { /* Absent inbox is normal; next tick retries disk failures. */ }
+        this.prune()
     }
-    run (event, contextOnly = false) {
+    prune () {
+        if (this.pruning || Date.now() < this.nextPrune) return
+        this.nextPrune = Date.now() + 60000
+        this.pruning = true
+        // Never synchronously stat a day's receipts on the terminal UI thread.
+        ;(async () => {
+            const names = await fs.promises.readdir(this.receipts)
+            for (const name of names) {
+                try {
+                    const file = path.join(this.receipts, name)
+                    if ((await fs.promises.stat(file)).mtimeMs < Date.now() - 86400000) await fs.promises.unlink(file)
+                } catch { /* A concurrent cleanup may already have removed it. */ }
+            }
+        })().catch(() => {}).finally(() => { this.pruning = false })
+    }
+    runningHeartbeat (event) {
+        const h = event.hook, o = event.options || {}, agent = o.Agent || 'claude'
+        // A narrow fast path for an already-known tab. Transitions, edits,
+        // children and external-process identity still use the existing worker.
+        if (event.kind !== 'notify' || h.hook_event_name !== 'PostToolUse' || h.agent_id
+            || o.Subagent || o.Label || h.tool_input?.file_path || !event.env?.AGENTDECK_TAB
+            || (agent !== 'claude' && agent !== 'codex') || (o.Status && o.Status !== 'running')) return null
+        if (agent === 'claude' && o.Status !== 'running') return null
+        const file = path.join(this.root, 'status', h.session_id + '.json')
+        let prev
+        try { prev = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
+        if (prev.status !== 'running' || prev.agent !== agent || prev.tabId !== event.env.AGENTDECK_TAB
+            || prev.cwd !== h.cwd || prev.ts >= event.ts) return null
+        const payload = { sessionId: h.session_id, ts: event.ts, agent, identityRequired: true,
+            status: 'running', tabId: event.env.AGENTDECK_TAB }
+        if (h.cwd) payload.cwd = h.cwd
+        if (Array.isArray(prev.agents) && prev.agents.length) payload.agents = prev.agents
+        const tmp = file + '.' + event.id + '.tmp'
+        try {
+            fs.writeFileSync(tmp, JSON.stringify(payload)); fs.renameSync(tmp, file)
+        } catch (error) {
+            try { fs.unlinkSync(tmp) } catch {}
+            throw error
+        }
+        return payload
+    }
+    report (payload) {
+        if (this.services.report) return Promise.resolve(this.services.report(payload))
+        return new Promise(resolve => {
+            let socket
+            const finish = () => { clearTimeout(timer); socket?.destroy(); resolve() }
+            const timer = setTimeout(finish, 200)
+            try {
+                const port = Number(fs.readFileSync(path.join(this.root, 'port'), 'utf8'))
+                socket = net.createConnection({ host: '127.0.0.1', port }, () => socket.end(JSON.stringify(payload) + '\n'))
+                socket.on('error', finish); socket.on('close', finish)
+            } catch { finish() }
+        })
+    }
+    async run (event, contextOnly = false) {
+        if (contextOnly) return this.schedule(() => hookContext(event, this.root, this.workerRoot,
+            payload => this.services.request ? this.services.request(payload) : this.request(payload)))
+        if (event.kind === 'statusline') return this.schedule(() => {
+            const key = event.env?.CLAUDE_CONFIG_DIR || ''
+            let processor = this.metaProcessors.get(key)
+            if (!processor) {
+                processor = createMetaProcessor(this.root, { ...process.env, CLAUDE_CONFIG_DIR: key })
+                this.metaProcessors.set(key, processor)
+            }
+            processor.writeSnapshot(Buffer.from(JSON.stringify(event.hook)), event.ts)
+            return ''
+        })
+        const result = await this.schedule(() => {
+            const reduced = stateEvent(this.root, event)
+            if (reduced.payload && this.services.report) this.services.report(reduced.payload)
+            return reduced
+        })
+        if (result.handled) {
+            if (result.payload && !this.services.report) await this.report(result.payload)
+            return ''
+        }
+        return this.runLegacy(event)
+    }
+    schedule (work) {
+        return new Promise((resolve, reject) => {
+            this.jobs.push({ work, resolve, reject })
+            if (this.jobTimer === null) this.jobTimer = setTimeout(() => this.drainJobs(), 0)
+        })
+    }
+    drainJobs () {
+        this.jobTimer = null
+        const start = performance.now()
+        do {
+            const job = this.jobs.shift()
+            try { job.resolve(job.work()) } catch (error) { job.reject(error) }
+        } while (this.jobs.length && performance.now() - start < 4)
+        if (this.jobs.length) this.jobTimer = setTimeout(() => this.drainJobs(), 0)
+    }
+    request (payload) {
+        return new Promise((resolve, reject) => {
+            let socket, text = '', settled = false
+            const finish = (error, value) => {
+                if (settled) return
+                settled = true; clearTimeout(timer); socket?.destroy()
+                error ? reject(error) : resolve(value)
+            }
+            const timer = setTimeout(() => finish(new Error('Context deadline')), 1000)
+            try {
+                const port = Number(fs.readFileSync(path.join(this.root, 'port'), 'utf8'))
+                socket = net.createConnection({ host: '127.0.0.1', port }, () => socket.write(JSON.stringify(payload) + '\n'))
+                socket.setEncoding('utf8')
+                socket.on('error', error => finish(error))
+                socket.on('end', () => finish(new Error('Context connection closed')))
+                socket.on('data', chunk => {
+                    text += chunk
+                    if (text.length > 4194304) return finish(new Error('Context response too large'))
+                    if (!text.includes('\n')) return
+                    try { finish(null, JSON.parse(text.split('\n')[0])) } catch (error) { finish(error) }
+                })
+            } catch (error) { finish(error) }
+        })
+    }
+    runLegacy (event, contextOnly = false) {
         const env = { ...process.env, AGENTDECK_RUNTIME_ROOT: this.root,
             AGENTDECK_MAILBOX_ROOT: path.join(this.root, 'mailbox'),
             AGENTDECK_EVENT_TS: String(event.ts), AGENTDECK_ORIGIN_PID: String(event.pid || 0),

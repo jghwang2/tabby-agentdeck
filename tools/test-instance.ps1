@@ -95,6 +95,9 @@ $spec = 'file:' + $root.Replace([char]92, '/')
     Set-Content -Path (Join-Path $pluginDir 'package.json') -Encoding UTF8
 
 $env:TABBY_CONFIG_DIRECTORY = $cfg
+$env:CLAUDE_CONFIG_DIR = Join-Path $base 'claude-home'
+$env:CODEX_HOME = Join-Path $base 'codex-home'
+New-Item -ItemType Directory -Force -Path $env:CLAUDE_CONFIG_DIR, $env:CODEX_HOME | Out-Null
 $env:AGENTDECK_ACCOUNTS_FILE = Join-Path $base 'accounts\accounts.json'
 $env:AGENTDECK_RUNTIME_ROOT = ''
 $env:AGENTDECK_MAILBOX_ROOT = ''

@@ -56,7 +56,7 @@ export function claudeSettingsPath (): string {
 
 /** 훅 스크립트의 실제 경로. dist/index.js 기준으로 한 단계 위가 패키지 뿌리다 */
 export function notifyScriptPath (): string {
-    return path.join(__dirname, '..', 'hooks', 'agentdeck-notify.ps1')
+    return path.join(__dirname, '..', 'hooks', 'agentdeck-notify.mjs')
 }
 
 /** 이 환경에서 훅을 걸 수 있나 — 통보 스크립트가 PowerShell 이라 Windows 전용이다 */
@@ -101,7 +101,7 @@ export function mergeHooks (settings: any, script: string): any {
     const next = { ...(settings ?? {}) }
     next.hooks = { ...(next.hooks ?? {}) }
     for (const p of PLAN) {
-        const command = `powershell -NoProfile -ExecutionPolicy Bypass -File "${script}" ${p.args}`
+        const command = `node "${script.replace(/\.ps1$/i, '.mjs')}" ${p.args}`
         next.hooks[p.event] = [
             ...withoutOurs(next.hooks[p.event]),
             { matcher: '*', hooks: [{ type: 'command', command, timeout: 5 }] },
