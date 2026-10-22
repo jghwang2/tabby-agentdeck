@@ -1,10 +1,13 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript')
-const scope = { exports: {} }
-vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/imeCommit.ts', 'utf8'), {
+const guardCode = ts.transpileModule(fs.readFileSync('src/imeCommit.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2019 },
-}).outputText, { exports: scope.exports })
-const { installImeCommitGuard } = scope.exports
+}).outputText
+function makeGuard(timers) {
+    const scope = { exports: {}, setTimeout: f => timers.push(f) }
+    vm.runInNewContext(guardCode, scope)
+    return scope.exports.installImeCommitGuard
+}
 
 // Exercise the installed terminal's real CompositionHelper, including its timers.
 const bundle = fs.readFileSync('node_modules/tabby-terminal/dist/index.js', 'utf8')
@@ -14,6 +17,7 @@ const start = bundle.lastIndexOf('var ', anchor), end = bundle.indexOf('\n};', a
 const code = bundle.slice(start, end), name = code.match(/^var (\S+) = class/)[1]
 function fixture (fixed = true) {
     const timers = [], sent = [], ta = { value: '' }
+    const installImeCommitGuard = makeGuard(timers)
     const Helper = vm.runInNewContext(code + '\n' + name, { setTimeout: f => timers.push(f), b: { DEL: '\x7f' } })
     const helper = new Helper(ta, { classList: { add () {}, remove () {} } },
         { buffer: { isCursorInViewport: false } }, {}, { triggerDataEvent: s => sent.push(s) }, {})
@@ -27,7 +31,7 @@ function fixture (fixed = true) {
         if (settleUpdate) drain()
         helper.compositionend()
     }
-    return { helper, ta, sent, frontend, drain, compose }
+    return { helper, ta, sent, frontend, drain, compose, install: installImeCommitGuard }
 }
 const broken = fixture(false)
 broken.compose('한'); broken.helper.keydown({ keyCode: 13 }); broken.ta.value = ''; broken.drain()
@@ -71,12 +75,31 @@ const normal = fixture()
 normal.compose('문', true); normal.drain(); normal.helper.keydown({ keyCode: 13 }); normal.drain()
 assert.deepEqual(normal.sent, ['문'], 'settled input is not duplicated')
 const off = fixture(false)
-installImeCommitGuard(off.frontend, () => false)
+off.install(off.frontend, () => false)
 off.compose('한'); off.helper.keydown({ keyCode: 13 }); off.drain()
 assert.equal(off.sent.join(''), '', 'disabled guard retains original behavior')
 const once = fixture()
 const wrapped = once.helper.keydown
-installImeCommitGuard(once.frontend, () => true)
+once.install(once.frontend, () => true)
 assert.equal(once.helper.keydown, wrapped, 'frontend reattachment must not double wrap')
-installImeCommitGuard({}, () => true)
+once.install({}, () => true)
+for (const keyCode of [13,32,37,36,35,8]) {
+    const f=fixture()
+    f.helper.keydown({keyCode:229})
+    f.helper.compositionstart(); f.helper.compositionupdate({data:'한'}); f.ta.value='한'
+    f.helper.keydown({keyCode})
+    f.helper.compositionend(); f.drain()
+    assert.equal(f.sent.join(''),'한','active commit and late end send once: '+keyCode)
+}
+const initial=fixture()
+initial.helper.keydown({keyCode:229}); initial.compose('한'); initial.helper.keydown({keyCode:32}); initial.drain()
+assert.deepEqual(initial.sent,['한'],'initial Process fallback cannot resend a committed syllable')
+const cancelled=fixture()
+cancelled.compose('관'); cancelled.helper.keydown({keyCode:13}); cancelled.ta.value=''
+cancelled.compose('련'); cancelled.drain()
+assert.deepEqual(cancelled.sent,['관','련'],'cancelled deferred callback cannot consume a later commit')
+for (const [before,after,expected] of [['','a','a'],['ab','a','\x7f'],['a','b','b']]) {
+    const f=fixture(); f.ta.value=before; f.helper.keydown({keyCode:229}); f.ta.value=after; f.drain()
+    assert.equal(f.sent.join(''),expected,'non-composition textarea fallback preserved')
+}
 console.log('PASS real xterm fast IME: reproduced loss, fast keys, partial range, IME/modifiers, active and consecutive composition, settled input, disabled guard and idempotence')

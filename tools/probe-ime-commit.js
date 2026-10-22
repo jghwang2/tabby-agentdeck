@@ -1,5 +1,5 @@
 (async () => {
-    if (!process.env.TABBY_CONFIG_DIRECTORY?.includes('ime-20261019')) throw Error('isolated IME test instance required')
+    if (!process.env.TABBY_CONFIG_DIRECTORY?.includes('ime-202610')) throw Error('isolated IME test instance required')
     const ad = window.__agentdeck, wait = ms => new Promise(r => setTimeout(r, ms))
     const results = []
     const check = (name, pass, detail) => results.push({name, pass:!!pass, detail})
@@ -28,12 +28,31 @@
         for (const agent of ['unknown','claude','codex']) {
             ad.pinAgent(pane, agent === 'unknown' ? null : agent)
             await wait(500)
-            for (const scenario of ['fast-enter','fast-space','fast-arrow','slow-enter','consecutive','consecutive-enter','shift-enter']) {
+            for (const scenario of ['fast-enter','fast-space','fast-arrow','slow-enter','consecutive','consecutive-enter','shift-enter',
+                'active-space','active-late-end','initial-process','cancelled-timer','sentence']) {
                 await wait(30)
                 ta.value = ''; helper._compositionPosition.start = 0; helper._compositionPosition.end = 0
                 const data = [], sub = x.onData(s => data.push(s))
                 let expected = ''
-                if (scenario === 'consecutive' || scenario === 'consecutive-enter') {
+                if (scenario === 'sentence') {
+                    expected = '옛날에 에이전트 덱 한글씹힘 관련 작업을 한 적이 있어 지금 얼마나 라고 쳤더니 한글씹힘이 또 일어나네'
+                    for (const ch of expected) {
+                        key('Process',229)
+                        commit(ch)
+                    }
+                    key('Enter',13); expected += '\r'
+                } else if (scenario === 'cancelled-timer') {
+                    commit('관'); key('Enter',13); commit('련')
+                    expected = '관\r련'
+                } else if (['active-space','active-late-end','initial-process'].includes(scenario)) {
+                    key('Process',229)
+                    comp('compositionstart'); comp('compositionupdate','한'); ta.value='한'
+                    if (scenario === 'initial-process') comp('compositionend','한')
+                    key(' ',32)
+                    ta.dispatchEvent(new KeyboardEvent('keypress',{key:' ',charCode:32,which:32,bubbles:true,cancelable:true}))
+                    if (scenario === 'active-late-end') comp('compositionend','한')
+                    expected = '한 '
+                } else if (scenario === 'consecutive' || scenario === 'consecutive-enter') {
                     commit('한'); commit('글'); expected = '한글'
                     if (scenario === 'consecutive-enter') { key('Enter',13); expected += '\r' }
                 } else {

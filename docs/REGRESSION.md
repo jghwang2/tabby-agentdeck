@@ -5,6 +5,8 @@
 
 ## 전수 실행 (한 명령)
 
+한글 입력 추가 검증(2026-10-22): 격리 경로에 `ime-202610`을 포함해 `tools/probe-ime-commit.js`를 실행한다. 기존 빠른 확정 검사에 더해 조합 중 공백, 동기 확정 뒤 늦은 종료, 최초 Process 키의 예약 처리, 취소한 타이머와 다음 조합, 문장 연속 입력을 일반 셸·Claude·Codex 경로에서 검사한다. 화면의 실제 PTY 수신 바이트와 전송 문자열이 모두 일치해야 한다. DOM 이벤트 타이밍 재현이며 실제 Windows IME 물리 타이핑 검증과 구분한다.
+
 연동 상태 조회 주기(2026-10-19): 전용 `hooks-on-open-ui` 격리 앱에서 `tools/probe-settings-integration.js`를 실행한다. 설정창을 열어 둔 상태에서 6.2초 동안 설정 파일 재조회 0회, Claude·Codex 설정 외부 변경 후 재개방 시 표시 갱신, 재개방 후에도 반복 타이머 없음과 버튼 레이아웃을 확인한다. 설치·제거 버튼 직후의 즉시 갱신은 유지한다.
 
 메시지 문맥·인코딩 검증(2026-10-19): `node test/mailboxContext.cjs`는 빈 메시지함의 기본 간결 출력, 전체 안내 선택, 메시지 도착·미등록·조회 실패, 빈 도구 훅 무출력과 Windows PowerShell의 CP949 출력 조건에서 한글·이모지 보존을 검사한다. 격리 앱 경로에 `mailbox-context-ui`를 포함하고 인접한 `mailbox-context-stage` 산출물을 사용하여 `node tools/cdp.js <port> tools/probe-mailbox-context.js`로 실제 탭 제목·송수신·멱등 답장·완료 후 간결 출력 복귀를 확인한다. 실제 수신 확인 전에는 전송 완료를 수신 완료로 표시하지 않아야 한다.
