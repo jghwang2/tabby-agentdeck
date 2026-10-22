@@ -5,7 +5,7 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
-## 1.2.10 — Unreleased
+## 1.2.10 — 2026-10-22
 
 - Add a setting to enable or disable cross-session communication without disabling agent status reporting.
 - Reduce default hook context to a short on-demand mailbox command; emit no communication context when disabled.

@@ -11,7 +11,7 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
-## 1.2.10 (배포 준비)
+## 1.2.10
 
 - 상태 보고는 유지하면서 탭간 통신을 켜고 끌 수 있습니다.
 - 기본 훅 안내를 짧은 메시지 조회 명령으로 줄였습니다. 통신을 끄면 안내를 출력하지 않습니다.
