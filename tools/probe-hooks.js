@@ -113,6 +113,8 @@
     let realStatusDir = null
     let realFile = null
     let tcpServer = null
+    let receiverServer = null
+    let receiver = null
     let hookPath = null
     let hooksDir = null
     let targetTab = null
@@ -137,6 +139,7 @@
         const env = Object.assign({}, process.env, { LOCALAPPDATA: opt.lad || isoLad })
         env.AGENTDECK_RUNTIME_ROOT = nodePath.join(opt.lad || isoLad, 'tabby-agentdeck')
         env.AGENTDECK_MAILBOX_ROOT = nodePath.join(opt.lad || isoLad, 'tabby-agentdeck')
+        env.AGENTDECK_CONTEXT = 'full'
         if (opt.tabId) { env.AGENTDECK_TAB = opt.tabId } else { delete env.AGENTDECK_TAB }
         let p = null
         try {
@@ -190,6 +193,7 @@
     /** 훅 한 번 + 그 결과 읽기 — 케이스마다 같은 두 줄을 되풀이하지 않게 */
     const fire = async (sid, opt) => {
         const run = await runHook(Object.assign({ tabId: chosenId }, opt))
+        await receiver.tail
         return { run, got: readIso(sid) }
     }
 
@@ -233,6 +237,7 @@
         }
         try { ad.render() } catch { /* 무시 */ }
 
+        if (receiverServer) { receiverServer.close(); receiverServer = null }
         // ③ 내가 띄운 TCP 리스너
         if (tcpServer) {
             try {
@@ -369,6 +374,25 @@
         isoLad = nodePath.join(isoRoot, 'localappdata')
         isoStatusDir = nodePath.join(isoLad, 'tabby-agentdeck', 'status')
         nodeFs.mkdirSync(isoStatusDir, { recursive: true })
+        const workerRoot = nodePath.join(hooksDir, '../receiver')
+        const { HookDispatcher } = require(nodePath.join(workerRoot, 'dispatcher.cjs'))
+        receiver = new HookDispatcher(nodePath.dirname(isoStatusDir), workerRoot)
+        receiverServer = nodeNet.createServer(sock => {
+            let buffer = ''
+            sock.setEncoding('utf8'); sock.on('error', () => {})
+            sock.on('data', data => {
+                buffer += data
+                while (buffer.includes('\n')) {
+                    const at = buffer.indexOf('\n'), request = jsonOf(buffer.slice(0, at)); buffer = buffer.slice(at + 1)
+                    if (request?.channel === 'agentdeck-hook') receiver.submit(request).then(reply => {
+                        if (!sock.destroyed) sock.write(JSON.stringify(reply) + '\n')
+                    })
+                    else if (request?.channel) sock.write(JSON.stringify({ error: 'Isolated mailbox unavailable' }) + '\n')
+                }
+            })
+        })
+        await new Promise(resolve => receiverServer.listen(0, '127.0.0.1', resolve))
+        nodeFs.writeFileSync(nodePath.join(nodePath.dirname(isoStatusDir), 'port'), String(receiverServer.address().port))
         // 제품과 **같은 식**으로 실제 상태 폴더를 구한다 (모듈 주석의 근거). HK8 만 쓴다
         realStatusDir = ad.runtimePaths().status
 
@@ -376,7 +400,7 @@
         let vocab = []
         let hookText = ''
         try {
-            hookText = nodeFs.readFileSync(hookPath, 'utf8')
+            hookText = nodeFs.readFileSync(nodePath.join(workerRoot, 'agentdeck-notify.ps1'), 'utf8')
             // **`$Status` 에 붙은 것만** 읽는다. 훅에는 ValidateSet 이 여럿이고(`-Agent`·`-Subagent`) 첫 번째는
             // `-Agent`(claude/codex/gemini)라, 첫 매치를 쓰면 `limited` 가 어휘 밖으로 판정돼 HK2 가 거짓 실패했다(2026-09-14)
             const m = /\[ValidateSet\(([^)]*)\)\]\s*\[string\]\$Status\b/i.exec(hookText)
@@ -721,7 +745,12 @@
                         buf += d
                         let nl
                         while ((nl = buf.indexOf('\n')) >= 0) {
-                            lines.push(buf.slice(0, nl))
+                            const line = buf.slice(0, nl), request = jsonOf(line)
+                            if (request?.channel === 'agentdeck-hook') receiver.submit(request).then(reply => {
+                                if (!sock.destroyed) sock.write(JSON.stringify(reply) + '\n')
+                            })
+                            else if (request?.channel) sock.write(JSON.stringify({ error: 'Isolated mailbox unavailable' }) + '\n')
+                            else lines.push(line)
                             buf = buf.slice(nl + 1)
                         }
                     })

@@ -39,6 +39,7 @@ export class AgentDeckConfigProvider extends ConfigProvider {
             codexStorageDir: '',
             /** 레이아웃/사이드바 전체 on-off */
             enabled: true,
+            communicationEnabled: true,
             mailboxWake: {
                 enabled: true,
                 typingGuardMs: 3000,

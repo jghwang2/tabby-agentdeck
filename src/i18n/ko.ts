@@ -4,6 +4,8 @@ export default {
     'root.choose.desc': '작업 폴더를 여러 개 저장할 수 있습니다. 새 탭을 열 때 사용할 프로필을 선택합니다.',
     'root.add': '프로필 추가',
     'root.remove': '프로필 삭제',
+    'communication.title': '탭간 통신',
+    'communication.desc': '끄면 메시지 송수신과 훅의 탭 목록·통신 안내를 중단합니다. 기존 메시지는 보관되며 다시 켜면 확인할 수 있습니다.',
     'layout.title': '레이아웃 사용',
     'layout.desc': '끄면 사이드바와 고정폭 레이아웃이 사라지고 Tabby 순정 화면으로 돌아간다.',
 

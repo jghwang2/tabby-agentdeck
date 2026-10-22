@@ -1,5 +1,7 @@
 /** Dansk */
 export default {
+    'communication.title': "Kommunikation mellem faner",
+    'communication.desc': "Slå beskeder og fanekontekst i hooks fra. Eksisterende beskeder bevares og er tilgængelige, når funktionen slås til igen.",
     'root.more': 'Flere arbejdsprofiler',
     'root.choose.desc': 'Gem flere arbejdsmapper, og vælg en profil, når du åbner en ny fane.',
     'root.add': 'Tilføj profil',

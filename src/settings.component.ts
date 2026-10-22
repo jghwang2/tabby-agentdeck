@@ -85,6 +85,14 @@ const DOCK_KEYS: Record<string, string> = {
 
 <div class="form-line">
     <div class="header">
+        <div class="title">{{t('communication.title')}}</div>
+        <div class="description">{{t('communication.desc')}}</div>
+    </div>
+    <toggle [(ngModel)]="config.store.agentDeck.communicationEnabled" (ngModelChange)="config.save()"></toggle>
+</div>
+
+<div class="form-line">
+    <div class="header">
         <div class="title">{{t('layout.title')}}</div>
         <div class="description">{{t('layout.desc')}}</div>
     </div>

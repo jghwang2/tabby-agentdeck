@@ -1,5 +1,7 @@
 /** Svenska */
 export default {
+    'communication.title': "Kommunikation mellan flikar",
+    'communication.desc': "Stäng av meddelanden och flikkontext i hooks. Befintliga meddelanden sparas och blir tillgängliga när funktionen slås på igen.",
     'root.more': 'Fler arbetsprofiler',
     'root.choose.desc': 'Spara flera arbetsmappar och välj en profil när du öppnar en ny flik.',
     'root.add': 'Lägg till profil',

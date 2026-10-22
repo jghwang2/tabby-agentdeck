@@ -1,5 +1,7 @@
 /** Afrikaans */
 export default {
+    'communication.title': "Kommunikasie tussen oortjies",
+    'communication.desc': "Skakel boodskappe en oortjiekonteks in hake af. Bestaande boodskappe bly bewaar en is weer beskikbaar wanneer dit aangeskakel word.",
     'root.more': 'Bykomende werkprofiele',
     'root.choose.desc': 'Stoor verskeie werkvouers en kies ’n profiel wanneer jy ’n nuwe oortjie oopmaak.',
     'root.add': 'Voeg profiel by',

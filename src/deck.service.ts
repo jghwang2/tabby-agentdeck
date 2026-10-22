@@ -396,7 +396,7 @@ export class AgentDeckService {
         const status = this.status.get(tab).status
         return {
             identity: pane,
-            enabled: settings.enabled !== false && !this.mailboxWakeDisabled.has(tab),
+            enabled: this.config.store.agentDeck.communicationEnabled !== false && settings.enabled !== false && !this.mailboxWakeDisabled.has(tab),
             idle: status === 'idle' || status === 'done',
             lastInput: this.mailboxLastInput.get(pane) ?? 0,
             composing: this.mailboxComposing.has(pane) || readCompositionState(this.compositionHelper(pane)) === 'composing',

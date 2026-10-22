@@ -11,6 +11,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.10 (배포 준비)
+
+- 상태 보고는 유지하면서 탭간 통신을 켜고 끌 수 있습니다.
+- 기본 훅 안내를 짧은 메시지 조회 명령으로 줄였습니다. 통신을 끄면 안내를 출력하지 않습니다.
+- 훅 내부 처리를 수신기로 옮겨 이벤트를 보관·재처리하고 중복과 오래된 상태 덮어쓰기를 방지합니다.
+- 기존 Claude·Codex 훅 등록 명령과 사용자의 Claude 상태줄 명령은 유지합니다.
+- 설정창에서 훅 등록 상태를 반복 검사하지 않습니다.
+
 ## 1.2.9
 
 - 한글을 빠르게 입력한 뒤 공백·Enter·방향키를 누르면 확정한 글자가 누락되던 문제를 수정했습니다. 여러 음절을 연달아 확정하는 경우도 보완했습니다.

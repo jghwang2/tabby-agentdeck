@@ -16,13 +16,13 @@ assert.equal(paths.runtimeRoot(), hook.runtimeRoot())
 paths.configureStoragePaths({ accountStorageDir: path.join(root, 'chosen') })
 const env = { ...process.env, ...paths.runtimeEnvironment() }
 const json = { session_id: 'runtime-fixture', hook_event_name: 'UserPromptSubmit', cwd: root }
-const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], { env, encoding: 'utf8', timeout: 15000, windowsHide: true })
+const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../receiver/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], { env, encoding: 'utf8', timeout: 15000, windowsHide: true })
 assert.equal(result.status, 0, result.stderr)
 assert.equal(JSON.parse(fs.readFileSync(path.join(paths.runtimeRoot(), 'status/runtime-fixture.json'))).sessionId, json.session_id)
 // Existing shells without the new variable derive exactly the same profile root.
 paths.configureStoragePaths({})
 const oldEnv = { ...process.env }; delete oldEnv.AGENTDECK_RUNTIME_ROOT
-const old = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], { env: oldEnv, encoding: 'utf8', timeout: 15000, windowsHide: true })
+const old = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../receiver/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], { env: oldEnv, encoding: 'utf8', timeout: 15000, windowsHide: true })
 assert.equal(old.status, 0, old.stderr)
 assert.ok(fs.existsSync(path.join(paths.runtimeRoot(), 'status/runtime-fixture.json')))
 // Windows CI uses 8.3 aliases in TEMP. .NET GetFullPath expands those aliases,
@@ -35,7 +35,7 @@ assert.ok(short.stdout.trim(), 'Windows fixture must have a path')
 for (const profile of [path.join(short.stdout.trim(), 'short-profile'), path.join(root, 'parent', '..', 'normalized-profile') + path.sep]) {
     process.env.TABBY_CONFIG_DIRECTORY = profile
     const fallbackEnv = { ...process.env }; delete fallbackEnv.AGENTDECK_RUNTIME_ROOT
-    const fallback = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], {
+    const fallback = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../receiver/agentdeck-notify.ps1'), '-HookJson', JSON.stringify(json)], {
         env: fallbackEnv, encoding: 'utf8', timeout: 15000, windowsHide: true,
     })
     assert.equal(fallback.status, 0, fallback.stderr)

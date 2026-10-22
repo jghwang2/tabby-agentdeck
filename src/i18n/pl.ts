@@ -1,5 +1,7 @@
 /** Polski */
 export default {
+    'communication.title': "Komunikacja między kartami",
+    'communication.desc': "Wyłącza wiadomości i kontekst kart w hookach. Istniejące wiadomości są zachowywane i dostępne po ponownym włączeniu.",
     'root.more': 'Dodatkowe profile robocze',
     'root.choose.desc': 'Zapisz wiele folderów roboczych i wybierz profil podczas otwierania nowej karty.',
     'root.add': 'Dodaj profil',

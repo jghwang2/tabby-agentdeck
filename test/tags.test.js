@@ -9,8 +9,14 @@
 // git 이 없는 환경(배포본 압축 해제본 등)에서는 **건너뛴다** — 없는 것을 실패로 세지 않는다.
 const { execFileSync } = require('child_process')
 const path = require('path')
+const fs = require('fs')
 
 const root = path.join(__dirname, '..')
+// A patch-preparation branch may commit its next version before publication.
+// Only the current, explicitly unreleased version is exempt from a release tag.
+const currentVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version
+const unreleased = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8')
+    .split(/\r?\n/).includes(`## ${currentVersion} — Unreleased`)
 let pass = 0
 let fail = 0
 
@@ -75,7 +81,7 @@ for (const c of git('log', '--reverse', '--format=%H').split('\n').filter(Boolea
         continue
     }
     seen.add(v)
-    if (!tagged.has(v)) {
+    if (!tagged.has(v) && !(unreleased && v === currentVersion)) {
         untagged.push(`v${v} (${c.slice(0, 7)})`)
     }
 }

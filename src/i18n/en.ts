@@ -4,6 +4,8 @@ export default {
     'root.choose.desc': 'Save multiple working folders and choose a profile when opening a new tab.',
     'root.add': 'Add profile',
     'root.remove': 'Remove profile',
+    'communication.title': 'Cross-tab communication',
+    'communication.desc': 'Disable messaging and tab context in hooks. Existing messages are kept and available when enabled again.',
     'layout.title': 'Use the AgentDeck layout',
     'layout.desc': 'Turn this off to drop the sidebar and the fixed-width layout and go back to stock Tabby.',
 

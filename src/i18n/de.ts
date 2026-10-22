@@ -1,5 +1,7 @@
 /** Deutsch */
 export default {
+    'communication.title': "Kommunikation zwischen Tabs",
+    'communication.desc': "Deaktiviert Nachrichten und Tab-Kontext in Hooks. Vorhandene Nachrichten bleiben gespeichert und sind nach dem Einschalten wieder verfügbar.",
     'root.more': 'Weitere Arbeitsprofile',
     'root.choose.desc': 'Speichere mehrere Arbeitsordner und wähle beim Öffnen eines neuen Tabs ein Profil.',
     'root.add': 'Profil hinzufügen',

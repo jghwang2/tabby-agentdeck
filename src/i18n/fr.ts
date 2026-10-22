@@ -1,5 +1,7 @@
 /** Français */
 export default {
+    'communication.title': "Communication entre onglets",
+    'communication.desc': "Désactive les messages et le contexte des onglets dans les hooks. Les messages existants sont conservés et redeviennent accessibles à la réactivation.",
     'root.more': 'Profils de travail supplémentaires',
     'root.choose.desc': 'Enregistrez plusieurs dossiers de travail et choisissez un profil en ouvrant un nouvel onglet.',
     'root.add': 'Ajouter un profil',

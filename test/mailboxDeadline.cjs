@@ -6,7 +6,7 @@ const net = require('node:net')
 const { spawn } = require('node:child_process')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-deadline-'))
-const bridge = path.resolve(__dirname, '../hooks/agentdeck-mailbox.mjs')
+const bridge = path.resolve(__dirname, '../receiver/agentdeck-mailbox.mjs')
 const env = { ...process.env, AGENTDECK_TAB: 'test-pane', AGENTDECK_MAILBOX_ROOT: root }
 fs.mkdirSync(path.join(root, 'mailbox-connections'))
 fs.writeFileSync(path.join(root, 'mailbox-connections/test-pane.json'), JSON.stringify({ sessionId: 'test-session', token: 'fixture' }))

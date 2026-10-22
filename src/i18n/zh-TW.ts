@@ -1,5 +1,7 @@
 /** 繁體中文 */
 export default {
+    'communication.title': "分頁間通訊",
+    'communication.desc': "關閉後停止訊息收發及掛鉤中的分頁資訊。現有訊息會保留，重新開啟後可查看。",
     'root.more': '其他工作根目錄設定檔',
     'root.choose.desc': '儲存多個工作資料夾，並在開啟新分頁時選擇設定檔。',
     'root.add': '新增設定檔',

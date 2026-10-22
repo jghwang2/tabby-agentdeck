@@ -6,9 +6,9 @@ const net = require('node:net')
 const { spawn } = require('node:child_process')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-context-'))
-const hooks = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(__dirname, '../hooks')
+const hooks = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(__dirname, '../receiver')
 const title = '한글 탭 제목 · 새 메시지 😀'
-let pending = [], receiveError = false, navigationError = false
+let pending = [], receiveError = false, navigationError = false, disabled = false
 const env = { ...process.env, AGENTDECK_TAB: 'context-pane', AGENTDECK_MAILBOX_ROOT: root,
     AGENTDECK_RUNTIME_ROOT: root, AGENTDECK_ACCOUNTS_FILE: path.join(root, 'accounts.json'),
     AGENTDECK_CONTEXT: '', AGENTDECK_HOOK_DEADLINE: '' }
@@ -22,6 +22,10 @@ const server = net.createServer(socket => {
         buffer += data
         if (!buffer.includes('\n')) return
         const request = JSON.parse(buffer.slice(0, buffer.indexOf('\n')))
+        if (disabled) {
+            socket.end(JSON.stringify({ error: 'AgentDeck communication is disabled', code: 'COMMUNICATION_DISABLED' }) + '\n')
+            return
+        }
         if (request.channel === 'agentdeck-navigation') {
             socket.end(JSON.stringify(navigationError ? { error: 'offline' } : { result: {
                 capturedAt: 'fixture', context: `Tab alias="테스트1": session IDs context-session; title="${title}"`,
@@ -54,8 +58,8 @@ async function main () {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
     fs.writeFileSync(path.join(root, 'port'), String(server.address().port))
     const minimal = await hook()
-    assert.ok(minimal.includes(title))
-    assert.match(minimal, /Mailbox: 0 pending$/)
+    assert.ok(!minimal.includes(title))
+    assert.match(minimal, /--cli context-session context$/)
     assert.doesNotMatch(minimal, /CLI reply|agentdeck_reply/)
     assert.match(minimal, /context-session/)
     assert.equal(await hook('UserPromptSubmit', { AGENTDECK_CONTEXT: 'minimal' }), minimal)
@@ -67,21 +71,28 @@ async function main () {
     assert.equal(await hook('PostToolUse'), '')
     assert.equal(await hook('PostToolUse', { AGENTDECK_CONTEXT: 'full' }), '')
     pending = [{ id: 'pending-fixture' }]
+    disabled = true
+    for (const event of ['UserPromptSubmit', 'PostToolUse']) {
+        assert.equal(await hook(event), '')
+        assert.equal(await hook(event, { AGENTDECK_CONTEXT: 'full' }), '')
+        assert.equal(await hook(event, { AGENTDECK_TAB: '' }), '')
+    }
+    disabled = false
     for (const event of ['UserPromptSubmit', 'PostToolUse']) {
         const text = await hook(event)
-        assert.match(text, /1 pending messages/)
-        assert.match(text, /agentdeck_reply/)
-        assert.match(text, /--cli context-session receive/)
-        assert.match(text, /Never read other sessions' credential files/)
+        assert.match(text, /1 pending; read now/)
+        assert.match(text, /--cli context-session context$/)
+        assert.ok(!text.includes(title))
     }
     pending = []
     receiveError = true
-    assert.match(await hook(), /Mailbox not registered/)
+    assert.match(await hook(), /Connection unconfirmed/)
     const external = await hook('UserPromptSubmit', { AGENTDECK_TAB: '' })
-    assert.match(external, /External terminal session context-session: send the first message/)
+    assert.match(external, /--cli context-session context$/)
     receiveError = false
     navigationError = true
-    assert.match(await hook(), /snapshot unavailable/)
+    assert.equal(await hook(), minimal)
+    assert.match(await hook('UserPromptSubmit', { AGENTDECK_CONTEXT: 'full' }), /snapshot unavailable/)
     navigationError = false
     if (process.platform === 'win32') {
         // Force the Windows PowerShell 5.1 legacy output code page even on UTF-8 hosts.
@@ -89,10 +100,10 @@ async function main () {
             const file = path.join(hooks, script).replace(/'/g, "''")
             const args = script === 'agentdeck-notify.ps1' ? ' -Status running' : ''
             const text = await run('powershell.exe', ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-                `[Console]::OutputEncoding = [Text.Encoding]::GetEncoding(949); & '${file}'${args}`], {},
+                `[Console]::OutputEncoding = [Text.Encoding]::GetEncoding(949); & '${file}'${args}`], { AGENTDECK_CONTEXT: 'full' },
                 JSON.stringify({ session_id: 'context-session', hook_event_name: 'UserPromptSubmit', cwd: root }))
             assert.ok(text.includes(title), `${script}: Korean and emoji survive CP949 stdout: ${text}`)
-            assert.match(text, /Mailbox: 0 pending/)
+            assert.match(text, /Mailbox registered\. 0 pending/)
             const state = JSON.parse(fs.readFileSync(path.join(root, 'status/context-session.json'), 'utf8').replace(/^\uFEFF/, ''))
             assert.equal(state.sessionId, 'context-session')
             assert.equal(state.status, 'running')

@@ -9,7 +9,7 @@ require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2019, experimentalDecorators: true, esModuleInterop: true },
 }).outputText, file)
 const { mergeCodexHooks, stripCodexHooks, CODEX_EVENTS, setCodexHooks } = require('../src/codexHooks.ts')
-const script = path.resolve('hooks/agentdeck-codex-notify.ps1')
+const script = path.resolve('receiver/agentdeck-codex-notify.ps1')
 const own = { type: 'command', command: `powershell -File "${script}"` }
 const other = { type: 'command', command: 'echo keep' }
 const original = { description: 'keep', hooks: { Stop: [{ matcher: 'existing', hooks: [own, other] }], SessionStart: [{ hooks: [other] }] } }
@@ -191,6 +191,7 @@ try {
     cp.execFileSync(path.join(nodeCopy, 'node.exe'), ['--version'], { windowsHide: true, timeout: 10000 })
     const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH'
     env[pathKey] = [nodeCopy, path.dirname(process.execPath), env[pathKey] || ''].join(path.delimiter)
+    env.AGENTDECK_CONTEXT = 'full'
     const report = event => {
         const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
             input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,
@@ -213,7 +214,7 @@ try {
     }
     const claudeReport = (event, status, extra = {}) => {
         const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
-            path.resolve('hooks/agentdeck-notify.ps1'), '-Status', status], {
+            path.resolve('receiver/agentdeck-notify.ps1'), '-Status', status], {
             input: JSON.stringify({ session_id: 'claude-test', hook_event_name: event, ...extra }),
             encoding: 'utf8', env, timeout: 10000,
         })
@@ -262,7 +263,7 @@ try {
     }
     // ── 낡은 훅 정체는 명령줄로 갈렸을 때도 버려야 한다 ──
     //
-    // 훅은 자기가 무슨 CLI 인지 **정확히** 안다 (`hooks/agentdeck-notify.ps1` 은 `-Agent claude`,
+    // 훅은 자기가 무슨 CLI 인지 **정확히** 안다 (`receiver/agentdeck-notify.ps1` 은 `-Agent claude`,
     // `agentdeck-codex-notify.ps1` 은 `-Agent codex` 로 고정). 틀리는 게 아니라 **낡는다** —
     // 훅에 "세션이 끝났다" 가 없어서, 같은 탭에서 claude 를 끄고 다른 CLI 를 띄워도 옛 값이 남는다.
     //

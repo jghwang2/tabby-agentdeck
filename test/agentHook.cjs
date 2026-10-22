@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict'), fs = require('fs'), os = require('os'), path = require('path')
 const { spawn } = require('node:child_process')
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-agent-hook-'))
-const script = path.resolve(__dirname, '../hooks/agentdeck-notify.ps1')
+const script = path.resolve(__dirname, '../receiver/agentdeck-notify.ps1')
 const session = '11111111-2222-4333-8444-555555555555'
 const parent = path.join(root, 'status', session + '.json')
 fs.mkdirSync(path.dirname(parent), { recursive: true })

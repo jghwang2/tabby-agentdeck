@@ -1,5 +1,7 @@
 /** Čeština */
 export default {
+    'communication.title': "Komunikace mezi kartami",
+    'communication.desc': "Vypne zprávy a kontext karet v hácích. Stávající zprávy zůstanou uložené a po zapnutí budou opět dostupné.",
     'root.more': 'Další pracovní profily',
     'root.choose.desc': 'Uložte více pracovních složek a při otevření nové karty vyberte profil.',
     'root.add': 'Přidat profil',

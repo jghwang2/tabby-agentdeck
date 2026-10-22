@@ -1,5 +1,7 @@
 /** Italiano */
 export default {
+    'communication.title': "Comunicazione tra schede",
+    'communication.desc': "Disattiva i messaggi e il contesto delle schede negli hook. I messaggi esistenti vengono conservati e tornano disponibili alla riattivazione.",
     'root.more': 'Profili di lavoro aggiuntivi',
     'root.choose.desc': 'Salva più cartelle di lavoro e scegli un profilo quando apri una nuova scheda.',
     'root.add': 'Aggiungi profilo',

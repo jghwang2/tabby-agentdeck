@@ -1,5 +1,7 @@
 /** 简体中文 */
 export default {
+    'communication.title': "标签页间通信",
+    'communication.desc': "关闭后停止消息收发及钩子中的标签页信息。已有消息会保留，重新开启后可查看。",
     'root.more': '其他工作根目录配置',
     'root.choose.desc': '保存多个工作文件夹，并在打开新标签页时选择配置。',
     'root.add': '添加配置',

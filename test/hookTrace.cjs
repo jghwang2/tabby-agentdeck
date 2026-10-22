@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path')
 const { spawnSync, spawn } = require('node:child_process')
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-hook-trace-test-'))
-const source = path.resolve(__dirname, '../hooks')
+const source = path.resolve(__dirname, '../receiver')
 const session = '11111111-2222-4333-8444-555555555555'
 const secret = 'DO-NOT-LOG-PROMPT-TOKEN-123456'
 const results = []

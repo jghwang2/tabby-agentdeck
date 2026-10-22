@@ -1,5 +1,7 @@
 /** Português (pt-PT e pt-BR partilham este ficheiro) */
 export default {
+    'communication.title': "Comunicação entre separadores",
+    'communication.desc': "Desativa as mensagens e o contexto dos separadores nos hooks. As mensagens existentes são preservadas e ficam disponíveis ao reativar.",
     'root.more': 'Perfis de trabalho adicionais',
     'root.choose.desc': 'Guarde várias pastas de trabalho e escolha um perfil ao abrir um novo separador.',
     'root.add': 'Adicionar perfil',

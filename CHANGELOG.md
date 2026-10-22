@@ -1,9 +1,25 @@
 # Changelog
 
-Every entry below is a released version with a `vX.Y.Z` tag in this repository.
+Released entries have a `vX.Y.Z` tag in this repository; unreleased entries are marked explicitly.
 The tag points at the commit that first introduced that version, and `test/tags.test.js` keeps that true.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
+
+## 1.2.10 — Unreleased
+
+- Add a setting to enable or disable cross-session communication without disabling agent status reporting.
+- Reduce default hook context to a short on-demand mailbox command; emit no communication context when disabled.
+- Move hook processing into the receiver, with durable queuing, duplicate detection and protection against stale events.
+- Preserve existing Claude and Codex hook registration commands and the user's original Claude status line.
+- Stop repeatedly checking hook registration while settings remain open.
+
+**한국어**
+
+- 에이전트 상태 보고는 유지하면서 탭간 통신을 켜고 끌 수 있습니다.
+- 기본 훅 안내를 필요할 때 메시지를 조회하는 짧은 명령으로 줄이고, 통신을 끄면 안내를 출력하지 않습니다.
+- 훅 내부 처리를 수신기로 옮기고 이벤트 보관·재처리·중복 방지·오래된 상태 덮어쓰기 방지를 적용했습니다.
+- 기존 Claude·Codex 훅 등록 명령과 사용자의 Claude 상태줄 명령을 유지합니다.
+- 설정창을 열어 둔 동안 훅 등록 상태를 반복 검사하지 않습니다.
 
 ## 1.2.9 — 2026-10-19
 

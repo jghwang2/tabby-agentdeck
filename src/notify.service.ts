@@ -5,6 +5,7 @@ import * as net from 'net'
 import * as os from 'os'
 import * as path from 'path'
 import { StringDecoder } from 'string_decoder'
+import { HookDispatcher } from '../receiver/dispatcher.cjs'
 import { ScheduledTasks } from './scheduledTasks'
 import { AgentEvent, AgentLifecycle, AGENT_IDLE_TIMEOUT_MS, AGENT_RECONCILE_MS, validAgentKey } from './agentLifecycle'
 import { WorkStatusService } from './status.service'
@@ -30,6 +31,8 @@ import {
 
 /** 훅이 남기는 파일 하나의 내용 */
 interface NotifyFile {
+    /** Queued hook events must never fall back to an unrelated active tab. */
+    identityRequired?: boolean
     agentActivity?: AgentEvent
     sessionId: string
     /**
@@ -553,8 +556,11 @@ export class WorkNotifyService {
         }
     }
 
+    private hookDispatcher: any
+
     configureStorageRoots (): void {
         this.root = runtimeRoot()
+        this.hookDispatcher = new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'))
         this.dir = path.join(this.root, 'status')
         this.metaDir = path.join(this.root, 'meta')
         this.portFile = path.join(this.root, 'port')
@@ -990,6 +996,23 @@ export class WorkNotifyService {
     private acceptMailbox (line: string, socket: net.Socket): boolean {
         let request: any
         try { request = JSON.parse(line) } catch { return false }
+        if (request?.channel === 'agentdeck-hook') {
+            try {
+                this.hookDispatcher ??= new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'))
+                this.hookDispatcher.submit(request).then(reply => {
+                    if (!socket.destroyed) socket.write(JSON.stringify(reply) + '\n')
+                }).catch(error => {
+                    diagCatch('hook receiver worker', error)
+                    if (!socket.destroyed) socket.end()
+                })
+            } catch { socket.end() }
+            return true
+        }
+        if (this.config.store.agentDeck.communicationEnabled === false
+            && ['agentdeck-navigation', 'agentdeck-mailbox', 'agentdeck-external-mailbox'].includes(request?.channel)) {
+            socket.write(JSON.stringify({ error: 'AgentDeck communication is disabled', code: 'COMMUNICATION_DISABLED' }) + '\n')
+            return true
+        }
         if (request?.channel === 'agentdeck-navigation') {
             try {
                 this.retireMissingMailboxPanes()
@@ -1033,6 +1056,7 @@ export class WorkNotifyService {
     }
 
     private poll (): void {
+        this.hookDispatcher?.poll()
         // tabId 표는 동기라 매번, 셸 PID 표는 pty 에 물어야 해서 2초마다 — 탭 안에서 셸을 다시 띄우거나 분할하면 바뀐다
         this.refreshTabIds()
         if (Date.now() >= this.nextAgentReconcile) { this.reconcileAgentFiles() }
@@ -1118,7 +1142,7 @@ export class WorkNotifyService {
             return
         }
 
-        const tab = this.resolveTab(data.sessionId, data.tabId, data.pids)
+        const tab = this.resolveTab(data.sessionId, data.tabId, data.pids, data.identityRequired)
         if (!tab) {
             // tabId 도 pids 도 없는 보고(옛 훅·수동 호출)는 다시 봐도 결과가 같다. 그런데 폴링이 400ms 마다
             // 되풀이하면 "활성 탭에 묶는다" 규칙이 다음에 열리는 빈 탭을 붙잡는다 — 끝난 세션의
@@ -1231,7 +1255,7 @@ export class WorkNotifyService {
      * 단 그 탭을 이미 다른 세션이 점유했으면 묶지 않는다 (여러 세션이 한 탭에 겹쳐 붙어 서로의
      * 상태를 덮어쓰던 2026-08-28 사고의 방지책).
      */
-    private resolveTab (sessionId: string, tabId: string | undefined, pids?: number[]): BaseTabComponent | null {
+    private resolveTab (sessionId: string, tabId: string | undefined, pids?: number[], identityRequired = false): BaseTabComponent | null {
         const known = this.sessionTab.get(sessionId)
         const alive = known && this.app.tabs.includes(known) ? known : null
 
@@ -1268,6 +1292,7 @@ export class WorkNotifyService {
             return null
         }
 
+        if (identityRequired) { return null }
         const active = this.app.activeTab
         if (!active) {
             return null

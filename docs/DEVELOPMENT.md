@@ -4,6 +4,28 @@
 
 ## 개발
 
+### 훅 실행 책임을 수신기로 이동 (2026-10-22)
+
+- `hooks/agentdeck-notify.ps1`는 기존 등록 인자를 유지하는 UTF-8 전달기다. Codex 진입은 같은 전달기에 종류만 지정한다. `agentdeck-relay.mjs`는 필요한 이벤트 필드만 localhost로 전달하고 미응답이면 `hook-inbox`에 보관한다. 프롬프트·도구 인자/응답 전체는 보관하지 않는다.
+- `WorkNotifyService`의 `agentdeck-hook` 채널과 `receiver/dispatcher.cjs`가 영속 수신·재처리·중복 확인을 맡는다. 같은 세션은 직렬, 다른 세션은 병렬 처리한다. 24시간 초과 이벤트·완료 영수증을 정리한다. 상태·메타·자식 파일은 수신기가 실행하는 `receiver/` 작업자만 쓴다. 검증된 판정 규칙을 보존하기 위해 기존 PowerShell 판정기는 수신기 작업자로 이동했으며, TypeScript로 재구현한 것은 아니다.
+- 수신 확인은 이벤트를 디스크에 보관한 뒤 반환한다. 상태 처리와 짧은 문맥 응답은 분리하여 PowerShell 작업자 시작 지연이 호출자 응답을 막지 않는다. 탭 ID가 없는 외부 호출만 계보 확인까지 원래 프로세스를 유지한다. 보관 이벤트의 원래 프로세스가 이미 끝났고 알려진 세션 연결도 없으면 활성 탭에 임의로 붙이지 않는다.
+- 발신 시각과 원래 훅 프로세스 PID를 전달하여 재처리 시각이 새 이벤트로 오인되거나 수신기 프로세스가 에이전트로 연결되지 않게 했다. 부모 상태는 더 오래된 이벤트로 되돌리지 않고, 자식 상태는 기존 개별 시각/잠금을 유지한다. 리로드 복구 시 처리 영수증으로 같은 이벤트를 재적용하지 않는다.
+- Claude statusLine은 원래 사용자의 명령을 호출하는 부분만 호출자에 남긴다. 모델·컨텍스트·한도·계정 해석, 메타 저장, 사용량 조회/캐시는 수신기 작업자가 수행한다. Codex 모델·컨텍스트·한도는 기존 수신기 대화기록 처리 경로를 유지한다. 이 수치는 모델에게 지시문으로 넣지 않는다.
+- 기존 등록 경로와 명령 문자열을 유지한다. 패키지 갱신은 `dist`, `hooks`, `receiver`를 함께 반영한다. 기존 실행 중인 세션도 다음 훅 호출부터 새 전달기를 사용하며 훅 재등록을 요구하지 않는다. 새 수신기를 아직 로드하지 않은 짧은 교체 구간에는 이벤트가 보관된다.
+- `test/hookReceiver.cjs`는 실제 Claude/Codex 전달기 → TCP 수신기 → 상태/메타 결과와 수신기 부재·재시작·중복·역순·자식 분리·UTF-8·원래 statusLine 보존을 검사한다. 기존 판정기 단위 검사는 이동된 `receiver/`를 직접 검사하고, 실제 앱 경로는 `tools/probe-communication.js`로 별도 검증한다. 전수 회귀 R21도 오프라인 전달 후 수신기의 재처리 결과를 확인한다.
+- 최종 검증: 전체 단위 검사와 변경 후 훅 계약·이력/정체성·타입 검사 통과. 격리 앱 37 통과, 전수 회귀 169 통과 / 실패 0 / 건너뜀 7. 산출물 `.wt/hook-receiver/.tmp/receiver-verified-stage`, 번들 SHA256 `62B1A6FECB1DEBE8BFBC0678FFF9834CDCB462343BE9A4E6C5BCB26680C1E5C1`. 기능·회귀 증거는 같은 작업 폴더의 `.tmp/receiver-verified-ui.json`, `.tmp/tabby-agentdeck-test-receiver-verified/report/regression.json`이다. 이전 실패 보고는 보존했으며, 구형 직접 쓰기 검사를 실제 수신기 경로로 갱신하고 부하 시 응답 대기와 상태 처리를 분리해 재검증했다.
+- 실사용 설치 파일 21개를 동일 해시로 대조하고 세션 유지 리로드했다. `.tmp/receiver-live-verified.json`에서 당시 열린 Root1·Root2의 동일 탭·PTY·세션 유지, `.tmp/receiver-installed.json`에서 설치 파일 해시를 확인했다. 새 보고가 없던 Root2 연결은 직전 탭·PTY 대조 후 복구했다. 실제 Codex 상태의 `identityRequired: true`로 새 처리 경로를 확인했고, 실제 안내는 246자 한 줄이다. 등록 명령은 바꾸지 않았다. 백업 `.tmp/receiver-live-backup-20261022-161734`, 중복 없는 훅 전문 `.tmp/receiver-hooks-full.txt`. 커밋·공개 배포는 하지 않았다.
+
+### 탭간 통신 토글과 필요할 때만 문맥 조회 (2026-10-22)
+
+- `communicationEnabled`는 기본 true이고 설정 화면에서 즉시 전환한다. 수신기가 navigation/내부 mailbox/외부 mailbox 요청을 함께 차단하며 자동 깨우기도 같은 설정을 따른다. OFF에서 기존 메시지는 삭제하지 않고 훅은 문맥 없이 종료한다. 상태 보고 훅과 세션 등록은 유지한다.
+- 기본 훅은 메시지 개수와 `--cli <본인 세션 ID> context` 명령만 출력한다. `context`는 최신 탭 목록, 본인 메시지, 답장·완료 처리 방법을 필요할 때 조회한다. `AGENTDECK_CONTEXT=full`은 기존 상세 안내를 유지한다. 등록 명령·이벤트는 변경하지 않으므로 훅 재등록이 필요 없다. 패키지 반영에는 `dist`와 `hooks`가 모두 필요하다.
+- 실제 5개 탭 세션에서 기존 1,320자 → 기본 191자(약 86% 감소)를 측정했다. 문자 수이며 토큰·요금 측정은 아니다. 격리 앱 `tools/probe-communication.js`는 Claude/Codex 실제 PowerShell 래퍼, 설정 DOM 토글, OFF의 0자 출력·송수신 차단, 설정 저장, ON의 보관 메시지 조회·답장·완료 처리를 포함해 33건 통과했다.
+- 타입 검사·전체 단위 검사 통과 후 문맥 축소 변경의 훅·메시지 브리지 검사를 다시 수행했다. staging `.tmp/communication-stage`, 기능 보고 `.tmp/communication-ui-result.json`, 전체 회귀 `.tmp/tabby-agentdeck-test-communication-regression/report/regression.json`(169 통과 / 0 실패 / 7 건너뜀). 번들 SHA256 `6073E826343B68825134CD0728041F4250BA7B5855768B1B7FCF28D643899C49`.
+- 실사용 반영 완료: 검증한 동일 번들·통신 훅을 설치 폴더에 복사하고 세션 유지 리로드했다. `.tmp/communication-live-verified.json`에서 Root1~4의 동일 탭·PTY·세션 보존을 확인했다. 새 훅이 없던 Root2·3의 연결은 직전 탭·PTY 대조 후 복구했다. 실제 설정 화면의 탭간 통신 토글도 확인했다(`.tmp/communication-live-window.png`).
+- Claude의 기존 설치 경로에 Codex 등록 7개를 맞췄다. Codex 호환 래퍼의 SessionStart/SubagentStart/SubagentStop도 같은 설치 폴더의 공통 상태 훅을 호출한다. 설치된 실제 훅으로 격리 앱 33건을 다시 통과했고(`.tmp/communication-installed-result.json`), 보조 래퍼의 시작/자식 추가/자식 종료도 디스크 결과로 확인했다. Codex는 기존 `agents` 상태 목록, Claude는 개별 활동 기록을 쓰므로 검증 형식을 혼동하지 않는다.
+- 최종 설치 경로는 개발 경로보다 길어 기본 문구가 실제 246자다(기존 1,320자 대비 약 81% 감소). OFF는 0자. 설정·설치본 백업: `.tmp/communication-live-backup-20261022-144618`. 커밋·공개 배포는 하지 않았다.
+
 ### 연동 상태 확인 주기 (2026-10-19)
 
 - 설정창의 2초 반복 훅 검사를 제거했다. 기존 시작 시 설치 안내 검사와 설정 컴포넌트 생성 시 검사, 설치·제거 버튼 처리 직후 검사는 유지한다. 설정창이 열린 동안 외부에서 변경한 설정은 다음에 AgentDeck 설정을 열 때 읽는다.

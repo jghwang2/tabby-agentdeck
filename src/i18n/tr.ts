@@ -1,5 +1,7 @@
 /** Türkçe */
 export default {
+    'communication.title': "Sekmeler arası iletişim",
+    'communication.desc': "Hook içindeki mesajları ve sekme bağlamını kapatır. Mevcut mesajlar korunur ve yeniden açıldığında kullanılabilir.",
     'root.more': 'Ek çalışma profilleri',
     'root.choose.desc': 'Birden fazla çalışma klasörü kaydedin ve yeni sekme açarken bir profil seçin.',
     'root.add': 'Profil ekle',

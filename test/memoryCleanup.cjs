@@ -33,6 +33,12 @@ const service = new WorkNotifyService({ tabs: [tab], activeTab: tab }, { store: 
     setManual: (...args) => appliedStates.push(args), setLabel: () => {},
 }, {})
 service.diag = () => {}
+assert.equal(service.resolveTab('queued-without-origin', undefined, undefined, true), null,
+    'a delayed hook whose caller exited must not claim the active tab')
+service.sessionTab.set('queued-known-session', tab)
+assert.equal(service.resolveTab('queued-known-session', undefined, undefined, true), tab,
+    'known session identity remains usable after the original caller exits')
+service.sessionTab.delete('queued-known-session')
 service.registerMailbox = () => {}
 service.sessionTab.set('live', tab); service.tabSession.set(tab, 'live')
 service.tabIds.set(tab, ['pane'])

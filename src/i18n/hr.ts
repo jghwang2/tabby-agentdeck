@@ -1,5 +1,7 @@
 /** Hrvatski */
 export default {
+    'communication.title': "Komunikacija između kartica",
+    'communication.desc': "Isključuje poruke i kontekst kartica u hookovima. Postojeće poruke ostaju spremljene i dostupne nakon ponovnog uključivanja.",
     'root.more': 'Dodatni radni profili',
     'root.choose.desc': 'Spremite više radnih mapa i odaberite profil pri otvaranju nove kartice.',
     'root.add': 'Dodaj profil',

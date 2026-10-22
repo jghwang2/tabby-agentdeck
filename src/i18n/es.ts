@@ -1,5 +1,7 @@
 /** Español */
 export default {
+    'communication.title': "Comunicación entre pestañas",
+    'communication.desc': "Desactiva los mensajes y el contexto de pestañas en los hooks. Los mensajes existentes se conservan y vuelven a estar disponibles al activar la función.",
     'root.more': 'Perfiles de trabajo adicionales',
     'root.choose.desc': 'Guarda varias carpetas de trabajo y elige un perfil al abrir una pestaña nueva.',
     'root.add': 'Añadir perfil',

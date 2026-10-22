@@ -1,5 +1,7 @@
 /** Bahasa Indonesia */
 export default {
+    'communication.title': "Komunikasi antartab",
+    'communication.desc': "Nonaktifkan pesan dan konteks tab di hook. Pesan yang ada tetap disimpan dan tersedia saat diaktifkan kembali.",
     'root.more': 'Profil kerja tambahan',
     'root.choose.desc': 'Simpan beberapa folder kerja dan pilih profil saat membuka tab baru.',
     'root.add': 'Tambah profil',

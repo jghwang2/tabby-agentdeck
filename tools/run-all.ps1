@@ -957,7 +957,8 @@ Write-Output ''
 Write-Output '--- 5) 훅 실발화 (R21) ---'
 # **여기는 앱 소실과 무관하게 항상 돌린다** — 훅은 별개 PowerShell 프로세스라 Tabby 가 없어도
 # 판정된다. 앱이 사라졌다고 밖에서 되는 검증까지 버리면 한 판에서 얻는 정보가 줄어든다
-$hook = Join-Path $root 'hooks\agentdeck-notify.ps1'
+$hookPackage = if ($PluginRoot) { $PluginRoot } else { $root }
+$hook = Join-Path $hookPackage 'hooks\agentdeck-notify.ps1'
 if (-not (Test-Path $hook)) {
     Note 'R21' 'StopFailure 훅 실발화' $null '훅 스크립트가 없다'
 } else {
@@ -975,6 +976,10 @@ if (-not (Test-Path $hook)) {
     $env:AGENTDECK_RUNTIME_ROOT = Join-Path $iso 'tabby-agentdeck'
     $env:LOCALAPPDATA = $iso
     $json | & powershell -NoProfile -ExecutionPolicy Bypass -File $hook -Status error | Out-Null
+    # Offline relay retains the raw event; only the receiver writes the final state.
+    $env:AGENTDECK_TEST_PACKAGE = $hookPackage
+    & node -e "const p=require('path'); const {HookDispatcher}=require(p.join(process.env.AGENTDECK_TEST_PACKAGE,'receiver/dispatcher.cjs')); const d=new HookDispatcher(process.env.AGENTDECK_RUNTIME_ROOT); d.poll(); d.tail.catch(e=>{console.error(e);process.exitCode=1})"
+    Remove-Item Env:AGENTDECK_TEST_PACKAGE
     $env:LOCALAPPDATA = $prevLocal
     $env:AGENTDECK_RUNTIME_ROOT = $prevRuntime
     $file = Join-Path $statusDir "$sid.json"
