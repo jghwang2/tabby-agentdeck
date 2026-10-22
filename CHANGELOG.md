@@ -5,6 +5,22 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.11 — 2026-10-22
+
+- Process tab-bound hook state, subagent activity, metadata and mailbox context directly in the local receiver.
+- Separate independent event queues and clean up receipts asynchronously to reduce delays during subagent bursts.
+- Register new Claude and Codex hooks with a single Node transport process; keep existing PowerShell registrations compatible. External process ancestry still uses the legacy worker.
+- Keep default hook context short as pending messages grow; empty tool-completion hooks emit no context. Concurrent process startup can still exceed one second under load.
+- Fix missing Korean text during composition and duplicate text from the IME start key.
+
+**한국어**
+
+- 탭에 연결된 훅의 상태·서브에이전트 활동·메타 정보·메시지 안내를 로컬 수신기 안에서 직접 처리합니다.
+- 독립된 이벤트의 대기열을 분리하고 오래된 처리 기록을 비동기로 정리해 서브에이전트가 몰릴 때의 지연을 줄였습니다.
+- 새 Claude·Codex 훅은 Node 전달기 하나로 등록합니다. 기존 PowerShell 등록은 계속 호환되며, 외부 프로세스 계보 확인에는 기존 작업자가 남습니다.
+- 메시지가 쌓여도 기본 훅 안내는 짧게 유지하며, 메시지가 없는 도구 완료 훅은 안내를 출력하지 않습니다. 동시 프로세스 시작 비용 때문에 부하 상황에서는 여전히 1초를 넘을 수 있습니다.
+- 한글 조합 중 글자 누락과 IME 시작 키로 인한 중복 전송을 수정했습니다.
+
 ## 1.2.10 — 2026-10-22
 
 - Add a setting to enable or disable cross-session communication without disabling agent status reporting.

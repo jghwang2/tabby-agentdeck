@@ -11,6 +11,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.11
+
+- 탭에 연결된 훅의 상태·서브에이전트 활동·메타 정보·메시지 안내를 로컬 수신기 안에서 직접 처리합니다.
+- 독립된 이벤트의 대기열을 분리해 서브에이전트가 몰릴 때 지연이 누적되는 문제를 줄였습니다.
+- 새 훅 등록은 PowerShell 대신 Node 전달기 하나를 사용합니다. 기존 등록은 계속 호환되며, 외부 프로세스 계보 확인에는 기존 작업자가 남습니다.
+- 기본 안내 길이는 메시지 수에 따라 늘어나지 않으며, 빈 도구 완료 훅은 안내를 출력하지 않습니다. 동시 호출은 시스템 부하에 따라 1초를 넘을 수 있습니다.
+- 한글 조합 중 글자 누락과 IME 시작 키로 인한 중복 전송을 수정했습니다.
+
 ## 1.2.10
 
 - 상태 보고는 유지하면서 탭간 통신을 켜고 끌 수 있습니다.
