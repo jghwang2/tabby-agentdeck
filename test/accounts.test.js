@@ -2,7 +2,7 @@ const assert = require('assert/strict')
 const fs = require('fs'), os = require('os'), path = require('path')
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-accounts-'))
 process.env.AGENTDECK_ACCOUNTS_FILE = path.join(dir, 'accounts.json')
-const { readAccounts, addAccount, removeAccount, parseQuotas, parseCodexUsage, accountHome, prepareAccount, accountEmail, saveAccountAuth, restoreAccountAuth, pendingMarketplaceSeed } = require('../.tmp/accounts')
+const { readAccounts, addAccount, removeAccount, parseQuotas, parseCodexUsage, accountHome, prepareAccount, claudeConfigHome, carryClaudeSession, accountEmail, saveAccountAuth, restoreAccountAuth, pendingMarketplaceSeed } = require('../.tmp/accounts')
 const { loginOriginAllowed } = require('../.tmp/accountBrowser')
 const fixture = { claude: [{ name: '한글 계정', id: 'a@example.test', password: 'SECRET' }, { id: '', password: '' }], codex: [{ id: 'b@example.test', password: 'OTHER' }] }
 const addedFile = path.join(dir, 'new', 'accounts.json')
@@ -69,6 +69,32 @@ assert.equal(accountEmail('claude', accountHome(accounts[0])), '')
 assert.ok(fs.existsSync(path.join(accountHome(accounts[0]), 'settings.json')))
 prepareAccount(accounts[0], source)
 assert.ok(fs.readFileSync(path.join(source, '.claude.json'), 'utf8').includes('someone@example.test'))
+// A tab without CLAUDE_CONFIG_DIR reports the user home (where `.claude.json` lives); its history is `~/.claude`.
+assert.equal(claudeConfigHome(os.homedir()), path.join(os.homedir(), '.claude'))
+assert.equal(claudeConfigHome(source), source)
+{
+    // Account switch: a conversation missing from an unshared target history is copied, never overwritten.
+    const sid = '11111111-1111-4111-8111-111111111111', project = 'C--work'
+    const from = path.join(dir, 'carry-source'), to = path.join(dir, 'carry-target')
+    fs.mkdirSync(path.join(from, 'projects', project, sid, 'subagents'), { recursive: true })
+    fs.writeFileSync(path.join(from, 'projects', project, sid + '.jsonl'), '{"한글":1}\n')
+    fs.writeFileSync(path.join(from, 'projects', project, sid, 'subagents', 'agent-a.jsonl'), 'child\n')
+    fs.mkdirSync(path.join(to, 'projects'), { recursive: true })
+    assert.equal(carryClaudeSession(sid, from, to), true)
+    assert.equal(fs.readFileSync(path.join(to, 'projects', project, sid + '.jsonl'), 'utf8'), '{"한글":1}\n')
+    assert.equal(fs.readFileSync(path.join(to, 'projects', project, sid, 'subagents', 'agent-a.jsonl'), 'utf8'), 'child\n')
+    fs.writeFileSync(path.join(to, 'projects', project, sid + '.jsonl'), 'target-newer\n')
+    assert.equal(carryClaudeSession(sid, from, to), true)
+    assert.equal(fs.readFileSync(path.join(to, 'projects', project, sid + '.jsonl'), 'utf8'), 'target-newer\n')
+    assert.equal(carryClaudeSession('22222222-2222-4222-8222-222222222222', from, to), false)
+    assert.equal(carryClaudeSession('../escape', from, to), false)
+    // Shared history (a directory link) needs no copy.
+    const linked = path.join(dir, 'carry-linked')
+    fs.mkdirSync(linked)
+    fs.symlinkSync(path.join(from, 'projects'), path.join(linked, 'projects'), process.platform === 'win32' ? 'junction' : 'dir')
+    assert.equal(carryClaudeSession(sid, from, linked), true)
+    assert.deepEqual(fs.readdirSync(path.join(from, 'projects', project)).sort(), [sid, sid + '.jsonl'])
+}
 ;(async () => {
     // Codex account homes get the source home's marketplace clones, so Codex never re-clones them itself.
     const codexSource = path.join(dir, 'codex-source')
