@@ -11,6 +11,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.12
+
+- 자식 Claude/Codex를 실행해도 탭 아이콘과 세션은 부모 CLI를 유지합니다.
+- 기존 탭의 계정 전환 시 실제 실행 프로세스에 선택한 계정 경로를 전달합니다.
+- 실제 계정과 사용량을 그대로 표시하며 계정 전환 불일치를 경고합니다.
+- 지난 세션은 원래 도구로 열고, 숨기지 않은 전체 기록을 마이그레이션 없이 표시합니다.
+- 훅은 추가하지 않았으며 부모 판별에 전체 프로세스 조회를 사용하지 않습니다. 훅 길이·시간 검사를 기본 회귀 검사에 포함했습니다.
+
 ## 1.2.11
 
 - 탭에 연결된 훅의 상태·서브에이전트 활동·메타 정보·메시지 안내를 로컬 수신기 안에서 직접 처리합니다.

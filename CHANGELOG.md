@@ -5,6 +5,22 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.12 — 2026-10-23
+
+- Keep tab icons and session identity attached to the registered parent CLI when it launches another CLI. Reuse tab/session and native subagent identities without adding process enumeration to hook handling.
+- Fix account switching in existing Windows tabs when global terminal environment settings override the selected account directory.
+- Preserve the actual reported account and usage together, show account-switch mismatches, and discard potentially misattributed usage caches.
+- Resume history with its original Claude/Codex CLI using the default login environment. Show all non-hidden history, including archived Codex sessions, without moving or migrating session files.
+- Add recurring regression gates for hook count, command/context length, execution time and zero process creation during parent authorization.
+
+**한국어**
+
+- 부모 CLI 안에서 다른 CLI를 실행해도 탭 아이콘과 세션 연결은 부모를 유지합니다. 기존 탭·세션·서브에이전트 정보를 재사용하며 훅 처리에 프로세스 전체 조회를 추가하지 않습니다.
+- Windows 기존 탭에서 계정을 전환할 때 전역 터미널 환경 설정 때문에 선택한 계정 경로가 누락되는 문제를 수정했습니다.
+- 실제 보고된 계정과 사용량을 함께 유지하고 전환 대상과 다르면 경고합니다. 잘못 연결됐을 수 있는 사용량 캐시는 다시 수집합니다.
+- 지난 세션은 원래 Claude/Codex CLI와 기본 로그인 환경으로 엽니다. 숨기지 않은 기록과 Codex 보관 기록을 모두 표시하며, 세션 파일을 이동하거나 마이그레이션하지 않습니다.
+- 훅 개수·명령 및 안내 길이·실행 시간과 부모 판별 중 프로세스 생성 여부를 매번 회귀 검사합니다.
+
 ## 1.2.11 — 2026-10-22
 
 - Process tab-bound hook state, subagent activity, metadata and mailbox context directly in the local receiver.
