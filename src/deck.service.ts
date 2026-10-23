@@ -26,7 +26,7 @@ import { AGENT_PROFILES, AgentId, AgentProfile, detectProfileFor, identifyAgent,
 import { STATUS_STYLES, WorkStatus } from './api'
 import { extractPrompt } from './prompt'
 import { formatMeta, MetaGauge, MetaInput } from './meta'
-import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
+import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError, carryClaudeSession } from './accounts'
 import { storageEnvironment } from './storagePaths'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
@@ -5205,6 +5205,9 @@ export class AgentDeckService {
                     // Accounts can also be selected before a CLI has a resumable conversation.
                     if (!command) { command = provider }
                     if (provider === 'codex') { command = command.replace(/^codex(?: |$)/, 'codex -c \'cli_auth_credentials_store="file"\' ') }
+                    if (provider === 'claude' && latest.sessionId && latest.configDir) {
+                        try { carryClaudeSession(latest.sessionId, latest.configDir, accountHome(account)) } catch { /* the CLI reports a missing conversation itself */ }
+                    }
                     await this.switchAccountInTab(tab, account, command, latest.cwd)
                     dismiss()
                 } catch (e: any) { message.textContent = this.sidebarLang === 'ko' && e.message ? e.message : this.ui('계정 전환에 실패했습니다. 다시 선택하세요.') }

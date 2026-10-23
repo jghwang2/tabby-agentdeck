@@ -103,6 +103,39 @@ export function accountEnv (account: SavedAccount): NodeJS.ProcessEnv {
     return env
 }
 
+/**
+ * Without CLAUDE_CONFIG_DIR, Claude keeps `.claude.json` in the user home but everything else in `~/.claude`.
+ * The statusLine reports the folder that held `.claude.json`, so such a tab reports the home itself.
+ */
+export function claudeConfigHome (dir: string): string {
+    return path.resolve(dir) === path.resolve(os.homedir()) ? path.join(os.homedir(), '.claude') : dir
+}
+
+/**
+ * `claude --resume` only looks in `<CLAUDE_CONFIG_DIR>/projects`. When the target account does not share the
+ * source history (a real folder instead of a link), copy that one conversation over. Never overwrites.
+ */
+export function carryClaudeSession (sessionId: string, sourceHome: string, destHome: string): boolean {
+    if (!/^[0-9a-fA-F-]{8,64}$/.test(sessionId || '')) { return false }
+    const from = path.join(claudeConfigHome(sourceHome), 'projects'), to = path.join(destHome, 'projects')
+    try { if (fs.realpathSync(from) === fs.realpathSync(to)) { return true } } catch { /* missing side: copy below */ }
+    let entries: fs.Dirent[]
+    try { entries = fs.readdirSync(from, { withFileTypes: true }) } catch { return false }
+    const project = entries.find(e => e.isDirectory() && fs.existsSync(path.join(from, e.name, sessionId + '.jsonl')))
+    if (!project) { return false }
+    const target = path.join(to, project.name)
+    fs.mkdirSync(target, { recursive: true })
+    if (!fs.existsSync(path.join(target, sessionId + '.jsonl'))) {
+        fs.copyFileSync(path.join(from, project.name, sessionId + '.jsonl'), path.join(target, sessionId + '.jsonl'), fs.constants.COPYFILE_EXCL)
+    }
+    // Subagent transcripts live next to the conversation in `<sessionId>/`.
+    const children = path.join(from, project.name, sessionId)
+    if (fs.existsSync(children) && !fs.existsSync(path.join(target, sessionId))) {
+        fs.cpSync(children, path.join(target, sessionId), { recursive: true, force: false, errorOnExist: false })
+    }
+    return true
+}
+
 function readJson (file: string): any {
     try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
 }
@@ -200,7 +233,8 @@ export async function restoreAccountAuth (account: SavedAccount): Promise<void> 
 /** Clone settings, share only conversation/instruction directories, keep auth private per account. */
 export function prepareAccount (account: SavedAccount, sourceHome?: string): void {
     const dest = accountHome(account)
-    const source = hasConfiguredAgentHome(account.provider) ? agentHome(account.provider) : sourceHome || agentHome(account.provider)
+    const reported = sourceHome && account.provider === 'claude' ? claudeConfigHome(sourceHome) : sourceHome
+    const source = hasConfiguredAgentHome(account.provider) ? agentHome(account.provider) : reported || agentHome(account.provider)
     fs.mkdirSync(dest, { recursive: true, mode: 0o700 })
     if (path.resolve(source) === path.resolve(dest)) { return }
     if (account.provider === 'claude' && fs.existsSync(path.join(dest, '.claude.json'))) {
