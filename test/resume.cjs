@@ -85,10 +85,47 @@ assert.equal(readHead([JSON.stringify({ type: 'session_meta', payload: { source:
             assert.equal(base.options.env.OPENAI_API_KEY, 'must-not-inherit')
             assert.equal(sent.cmd, command)
             assert.equal(bound[1], provider)
+            base.options.command = provider === 'claude' ? 'codex' : 'claude'
+            base.options.args = ['--resume', 'unrelated-session']
+            await AgentDeckService.prototype.openResumeTab.call(host, { ...rows[0], agent: provider }, command)
+            assert.equal(opened.options.command, process.platform === 'win32' ? 'powershell.exe' : '/bin/sh')
+            assert.ok(!opened.options.args.includes('unrelated-session'))
+            assert.equal(sent.cmd, command)
             host.profiles.openNewTabForProfile = async () => null
             await assert.rejects(() => AgentDeckService.prototype.openResumeTab.call(host, rows[0], command, account))
         }
-        console.log('PASS: Codex history scan without Claude, prompt/cwd, resume/fork routing, open-tab reuse, command validation')
+        // A busy provider must not evict the other provider's older sessions.
+        const claudeDir = path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', 'fixture')
+        fs.mkdirSync(claudeDir, { recursive: true })
+        for (let i = 0; i < 205; i++) {
+            const id = 'aaaaaaaa-aaaa-aaaa-aaaa-' + String(i).padStart(12, '0')
+            fs.writeFileSync(path.join(claudeDir, id + '.jsonl'), JSON.stringify({ type: 'user', cwd: 'E:\\project', message: { role: 'user', content: 'history ' + i } }))
+        }
+        const allHistory = new SessionLedgerService({ store: { agentDeck: { resumeListDays: 1, resumeListLimit: 1 } } })
+        const oldDate = new Date('2020-01-01')
+        fs.utimesSync(path.join(dir, `rollout-2026-09-13T18-41-53-${sid}.jsonl`), oldDate, oldDate)
+        await allHistory.refresh(true)
+        assert.equal(allHistory.records().length, 206)
+        for (const row of allHistory.records()) {
+            let command
+            await AgentDeckService.prototype.activateResume.call({ openResumeTab: async (_, cmd) => { command = cmd } }, row, false)
+            assert.equal(command.split(' ')[0], row.sessionId === sid ? 'codex' : 'claude')
+        }
+        const pane = { session: {} }, root = {}
+        const { TerminalAgentTracker } = require('../src/screenAgent.ts')
+        const tracker = new TerminalAgentTracker()
+        tracker.id = 'codex'
+        const host = { firstPane: () => pane, paneAgents: new WeakMap([[pane, { session: pane.session, tracker }]]),
+            notify: { agentOf: () => 'claude' }, tabAgents: new WeakMap([[root, 'claude']]) }
+        assert.equal(AgentDeckService.prototype.profileForTab.call(host, root).id, 'codex')
+        tracker.id = 'unknown'
+        assert.equal(AgentDeckService.prototype.profileForTab.call(host, root), undefined)
+        tracker.id = 'claude'
+        host.notify.agentOf = () => 'codex'
+        assert.equal(AgentDeckService.prototype.profileForTab.call(host, root).id, 'claude')
+        pane.session = {}
+        assert.equal(AgentDeckService.prototype.profileForTab.call(host, root), undefined)
+        console.log('PASS: default-provider resume, 206 untruncated mixed sessions, current execution icons, shell exit and PTY replacement')
     } finally {
         if (oldHome === undefined) delete process.env.CODEX_HOME
         else process.env.CODEX_HOME = oldHome

@@ -165,9 +165,7 @@ export class SessionLedgerService {
 
     private async scan (): Promise<void> {
         this.load()
-        const cfg = this.config.store.agentDeck
-        const days = Number(cfg.resumeListDays) || 0
-        const cutoff = days > 0 ? Date.now() - days * 86400000 : 0
+        // History is read in place, without age or count truncation.
 
         interface Found { sessionId: string, file: string, mtime: number, agent?: 'claude' | 'codex' }
         const found: Found[] = []
@@ -237,13 +235,12 @@ export class SessionLedgerService {
             }
         }
         await scanCodex(path.join(agentHome('codex'), 'sessions'), 0)
+        await scanCodex(path.join(agentHome('codex'), 'archived_sessions'), 0)
 
         found.sort((a, b) => b.mtime - a.mtime)
         this.historyFiles = found.map(f => ({file: f.file, sessionId: f.sessionId, agent: f.agent || 'claude'}))
-        // 앞부분 읽기에 상한을 둔다 — 기록이 수백 개인 사람에게도 펼치는 순간이 멈추지 않게.
-        // 그룹당 몇 줄만 그리므로 최신 200개면 화면에 닿는 것은 다 들어온다
-        const HEAD_SCAN_MAX = 200
-        const slice = found.filter(f => !cutoff || f.mtime >= cutoff).slice(0, HEAD_SCAN_MAX)
+        // Async reads keep the UI responsive; older sessions must remain reachable.
+        const slice = found
 
         const out: SessionRecord[] = []
         for (const f of slice) {

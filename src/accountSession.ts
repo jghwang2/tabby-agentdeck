@@ -213,13 +213,13 @@ export function ensureAccountSession (account: SavedAccount, forceRefresh = fals
 function cacheFile (account: SavedAccount): string { return path.join(accountHome(account), 'usage.json') }
 export function cachedAccountQuotas (account: SavedAccount): QuotaSnapshot | null {
     const cache = read(cacheFile(account))
-    return cache?.id === account.id.toLowerCase() && cache?.provider === account.provider && Array.isArray(cache.values)
+    return cache?.version === 2 && cache?.id === account.id.toLowerCase() && cache?.provider === account.provider && Array.isArray(cache.values)
         ? { values: cache.values, ts: cache.ts, stale: Date.now() - cache.ts > 120000 } : null
 }
 function cacheQuotas (account: SavedAccount, values: AccountQuota[], ts = Date.now()): QuotaSnapshot {
     const prev = cachedAccountQuotas(account)
     if (prev && prev.ts > ts) { return prev }
-    write(cacheFile(account), { provider: account.provider, id: account.id.toLowerCase(), values, ts })
+    write(cacheFile(account), { version: 2, provider: account.provider, id: account.id.toLowerCase(), values, ts })
     return { values, ts, stale: Date.now() - ts > 120000 }
 }
 

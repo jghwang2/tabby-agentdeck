@@ -31,6 +31,7 @@ class HookDispatcher {
     }
     async submit (event) {
         if (!this.valid(event)) return { id: event?.id, accepted: false }
+        if (this.services.authorize && !await this.services.authorize(event)) return { id: event.id, accepted: true, output: '' }
         // accept() durably saves before returning. State processing need not hold
         // the caller open; only the small context response shares its deadline.
         const pending = this.accept(event).catch(() => {})
@@ -159,6 +160,7 @@ class HookDispatcher {
         })
     }
     async run (event, contextOnly = false) {
+        if (this.services.authorize && !await this.services.authorize(event)) return ''
         if (contextOnly) return this.schedule(() => hookContext(event, this.root, this.workerRoot,
             payload => this.services.request ? this.services.request(payload) : this.request(payload)))
         if (event.kind === 'statusline') return this.schedule(() => {

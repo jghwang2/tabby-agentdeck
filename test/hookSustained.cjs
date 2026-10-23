@@ -2,9 +2,11 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), net = require('node:net')
 const { spawn } = require('node:child_process')
 const { HookDispatcher } = require('../receiver/dispatcher.cjs')
+const { service: notify } = require('./notifyFixture.cjs')()
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-sustained-'))
 let pending = [], disabled = false, seq = 0, legacyCalls = 0
 const dispatcher = new HookDispatcher(root, path.resolve(__dirname, '../receiver'), {
+    authorize: event => notify.authorizeHook(event),
     report () {}, request: async () => disabled ? { error: 'disabled', code: 'COMMUNICATION_DISABLED' } : { result: pending },
 })
 dispatcher.runLegacy = () => { legacyCalls++; throw Error('Unexpected worker process') }
@@ -60,6 +62,7 @@ function invoke () {
     const sequential = []
     for (let i = 0; i < 10; i++) sequential.push(await invoke())
     const concurrent = await Promise.all(Array.from({ length: 16 }, invoke))
+    const ordered = sequential.map(x => x.ms).sort((a,b) => a-b)
     assert.ok([...sequential, ...concurrent].every(x => x.chars === 0))
     await dispatcher.tail
     await dispatcher.accept(event('Stop'))
@@ -69,5 +72,8 @@ function invoke () {
     const result = { root, wavesMs: waves, eventsPerWave: 128, children: 64, promptChars: promptLengths, sequential, concurrent, legacyCalls }
     fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify(result, null, 2))
     console.log(JSON.stringify(result))
+    assert.ok(ordered[8] < 400, `Actual relay p90 ${ordered[8]}ms exceeds 400ms`)
+    assert.ok(sequential.every(x => x.ms < 1000), 'Actual relay exceeds 1000ms')
+    assert.ok(concurrent.every(x => x.ms < 2000), 'Concurrent relay exceeds 2000ms')
     console.log('PASS sustained: 64 children, 10 waves, empty queue, bounded context, actual Node relay')
 })().catch(e => { console.error(e); process.exitCode = 1 }).finally(() => server.close())

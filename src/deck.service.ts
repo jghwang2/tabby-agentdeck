@@ -1377,8 +1377,8 @@ export class AgentDeckService {
                         keyOf: cwd => groupKeyOf(cwd, projectRootOf),
                         fold: foldGroupKey,
                         live,
-                        days: Number(cfg.resumeListDays) || 0,
-                        limit: Number(cfg.resumeListLimit) || 0,
+                        days: 0,
+                        limit: 0,
                         hidden: new Set<string>(Array.isArray(cfg.resumeHidden) ? cfg.resumeHidden : []),
                         now: Date.now(),
                     }).map(r => ({ sessionId: r.sessionId, label: r.label, cwd: r.cwd,
@@ -2197,10 +2197,24 @@ export class AgentDeckService {
     private observePaneAgent (pane: any, data: string): void {
         let state = this.paneAgents.get(pane)
         if (!state || state.session !== pane.session) {
+            const root = this.app.getParentTab?.(pane) ?? pane
+            this.tabAgents?.delete(root)
+            if (state) { this.notify?.setParentAgent?.(root, null); this.notify?.forgetAgent?.(root) }
             state = { session: pane.session, tracker: new TerminalAgentTracker() }
             this.paneAgents.set(pane, state)
         }
+        const previous = state.tracker.id
         state.tracker.write(data)
+        if (state.tracker.id !== previous && state.tracker.id !== undefined) {
+            const root = this.app.getParentTab?.(pane) ?? pane
+            if (state.tracker.id === 'unknown') this.notify?.setParentAgent?.(root, null)
+            const parent = this.notify?.parentAgentOf?.(root)
+            if (!parent) { this.notify?.forgetAgent?.(root) }
+            if (!parent && state.tracker.id !== 'unknown') this.notify?.setParentAgent?.(root, {agent:state.tracker.id})
+            this.tabAgents?.set(root, parent ?? state.tracker.id)
+            this.profileMemo?.delete(pane)
+            this.agentProbedAt?.delete(root)
+        }
     }
 
     /**
@@ -3204,6 +3218,8 @@ export class AgentDeckService {
      */
     private async detectAgentApp (pane: any): Promise<{ id: AgentId, via: 'hook' | 'proc' | 'cmdline' | 'title' | 'none' }> {
         const root = (this.app.getParentTab?.(pane) ?? pane) as BaseTabComponent
+        const verified = this.notify?.parentAgentOf?.(root)
+        if (verified) return {id:verified,via:'hook'}
         const hooked = this.notify?.agentOf?.(root) ?? null
         let pids: number[] = []
         try {
@@ -3345,15 +3361,17 @@ export class AgentDeckService {
         }
         const session = pane.session
         const observed = this.paneAgents.get(pane)
+        const observedId = observed?.tracker.id
         const found = await this.detectAgentApp(pane)
         if (pane.session !== session) { return }
+        if (observed && observed.tracker.id !== observedId) { return }
         // A fresh process result can recover a stream identity invalidated by
         // a console title. The tab cache may belong to an exited application.
         // `hook` 은 여기 넣지 않는다 — 훅 값은 `profileForPane` 이 직접 쓰고, 추적기에 박으면
         // 훅 값을 버린 뒤에도(`forgetAgent`) 추적기에 남아 옛 정체가 계속 이긴다(2026-09-14 ML11 실측)
         if (found.id !== 'unknown' && (found.via === 'proc' || found.via === 'cmdline')
             && observed && this.paneAgents.get(pane) === observed && observed.session === session
-            && observed.tracker.id === 'unknown') {
+            && observed.tracker.id !== found.id) {
             observed.tracker.id = found.id
             this.diag(`agent stream recovered id=${found.id} via=${found.via}`)
         }
@@ -3453,6 +3471,13 @@ export class AgentDeckService {
             // codex 겠지" 류의 추정이다. 에이전트가 직접 말한 것이 있으면 그걸 쓴다.
             // 훅 값이 낡는 경우(그 에이전트가 끝나고 다른 CLI 가 뜸)는 `detectAgentApp` 이
             // 프로세스 트리로 걸러 `forgetAgent` 로 지운다 — 여기는 동기 경로라 프로세스를 묻지 않는다
+            const currentStream = this.paneAgents?.get(pane)
+            const parent = this.notify?.parentAgentOf?.(root)
+            if (parent) return detectProfileFor(parent)
+            if (currentStream?.session === pane.session && currentStream?.tracker.id
+                && currentStream.tracker.id !== 'unknown') {
+                return detectProfileFor(currentStream.tracker.id)
+            }
             const hooked = this.notify?.agentOf?.(root)
             if (hooked) {
                 return detectProfileFor(hooked)
@@ -3504,6 +3529,14 @@ export class AgentDeckService {
     }
 
     private profileForTab (root: BaseTabComponent): AgentProfile | undefined {
+        const parent = this.notify?.parentAgentOf?.(root)
+        if (parent) return detectProfileFor(parent)
+        const pane = this.firstPane?.(root)
+        const stream = pane && this.paneAgents?.get(pane)
+        if (stream?.session === pane?.session && stream?.tracker.id !== undefined) {
+            return stream.tracker.id === 'unknown' ? undefined : detectProfileFor(stream.tracker.id)
+        }
+        if (stream && stream.session !== pane?.session) { return undefined }
         // 훅이 말한 것이 먼저다 — `tabAgents` 는 추측(프로세스·제목·화면)의 캐시다
         const hooked = this.notify?.agentOf?.(root)
         if (hooked) {
@@ -5229,6 +5262,18 @@ export class AgentDeckService {
         const options = { ...base.options, cwd: cwd || pane.profile.options?.cwd,
             env: { ...base.options?.env, ...pane.profile.options?.env,
                 [account.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: accountHome(account) } }
+        // Set the selected home in the actual launch shell too. Tabby's global
+        // terminal environment and PowerShell profiles can override profile.env.
+        let launchCommand = command
+        if (process.platform === 'win32') {
+            options.command = 'powershell.exe'
+            options.args = ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass']
+            const key = account.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'
+            const home = accountHome(account).replace(/'/g, "''")
+            const clear = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'CLAUDECODE']
+                .map(k => `Remove-Item Env:${k} -ErrorAction SilentlyContinue`).join('; ')
+            launchCommand = `$env:${key}='${home}'; ${clear}; ${command}`
+        }
         delete options.restoreFromPTYID
         for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'CLAUDECODE']) {
             options.env[key] = ''
@@ -5243,7 +5288,7 @@ export class AgentDeckService {
         pane.frontend?.xterm?.reset()
         pane.initializeSession(pane.size.columns, pane.size.rows)
         this.notify.setAccountHome(tab, account.provider, accountHome(account), account.id)
-        this.sendResumeCommand(tab, command, pane.session)
+        this.sendResumeCommand(tab, launchCommand, pane.session, account.provider)
         pane.session?.releaseInitialDataBuffer()
         this.diag('account switched in existing tab')
     }
@@ -5278,6 +5323,14 @@ export class AgentDeckService {
         const provider = this.notify.metaOf(this.app.activeTab as BaseTabComponent)?.agent
         const switchable = provider === 'claude' || provider === 'codex'
         accountEl.textContent = view.account || this.ui('계정 선택')
+        const switchState = this.notify.accountSwitchState?.(this.app.activeTab as BaseTabComponent)
+        if (switchState && switchState.state !== 'confirmed') {
+            const message = switchState.state === 'pending'
+                ? (this.sidebarLang === 'ko' ? '계정 전환 확인 중' : 'Verifying account switch')
+                : (this.sidebarLang === 'ko' ? '계정 전환 확인 실패' : 'Account switch verification failed')
+            accountEl.textContent += ` · ${message}`
+            accountEl.title = `${message}: ${switchState.expected} → ${switchState.actual || '?'}`
+        } else accountEl.title = ''
         accountEl.hidden = !view.account && !switchable
         ;(accountEl as HTMLButtonElement).disabled = !switchable
         accountEl.onclick = () => { void this.showAccountPicker() }
@@ -5367,8 +5420,8 @@ export class AgentDeckService {
             keyOf: cwd => groupKeyOf(cwd, projectRootOf),
             fold: foldGroupKey,
             live: this.liveSessionIds(),
-            days: Number(cfg.resumeListDays) || 0,
-            limit: Number(cfg.resumeListLimit) || 0,
+            days: 0,
+            limit: 0,
             hidden: new Set<string>(Array.isArray(cfg.resumeHidden) ? cfg.resumeHidden : []),
             now: Date.now(),
         })
@@ -6989,6 +7042,13 @@ export class AgentDeckService {
                 options: { ...(base as any).options, cwd: row.cwd || (base as any).options?.cwd,
                     env: storageEnvironment((base as any).options?.env) },
             }
+            // A default CLI profile would consume the resume command as a chat prompt.
+            // Start a shell for that profile so the recorded provider is actually executed.
+            const baseCommand = [profile.options.command, ...(profile.options.args || [])].join(' ')
+            if (identifyAgent(baseCommand, '') !== 'unknown') {
+                profile.options.command = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh'
+                profile.options.args = process.platform === 'win32' ? ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass'] : []
+            }
             if (account) {
                 profile.options.env = { ...(base as any).options?.env,
                     [account.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: accountHome(account) }
@@ -7024,7 +7084,7 @@ export class AgentDeckService {
      * 그래서 출력이 한 번이라도 흐른 뒤에 보내고, 끝내 안 오면 정해진 시각에 한 번은 보낸다 —
      * 아무것도 안 보내고 조용히 끝나는 것이 제일 나쁜 결과다.
      */
-    private sendResumeCommand (tab: BaseTabComponent, command: string, expectedSession?: any): void {
+    private sendResumeCommand (tab: BaseTabComponent, command: string, expectedSession?: any, executionAgent?: AgentId): void {
         /** 첫 출력(=셸이 프롬프트를 그렸다)을 보고 나서 더 기다리는 시간 */
         const RESUME_SETTLE_MS = 700
         /** 출력이 끝내 안 와도 여기서는 한 번 쏜다 — 아무것도 안 보내고 조용히 끝나는 게 제일 나쁘다 */
@@ -7049,6 +7109,18 @@ export class AgentDeckService {
             }
             sent = true
             sub?.unsubscribe?.()
+            // The command, not the login email or previous hook, identifies this execution.
+            const launched = executionAgent || /^(claude|codex)(?:\s|$)/.exec(command)?.[1] as AgentId | undefined
+            if (launched) {
+                const root = this.app.getParentTab?.(anyPane) ?? tab
+                const tracker = new TerminalAgentTracker()
+                tracker.id = launched
+                this.paneAgents.set(anyPane, { session: anyPane.session, tracker })
+                this.tabAgents.set(root, launched)
+                this.profileMemo?.delete(anyPane)
+                this.notify?.forgetAgent?.(root)
+                this.notify?.setParentAgent?.(root, {agent:launched})
+            }
             this.sendToPane(anyPane, 'resume', () => anyPane.sendInput(command + '\r'))
             this.diag('resume 명령 전송')
         }

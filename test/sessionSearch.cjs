@@ -80,7 +80,7 @@ async function main () {
             const ledger=new SessionLedgerService({store:{agentDeck:{resumeListDays:7}}})
             ledger.root=root;ledger.file=path.join(root,'ledger.json')
             await ledger.refresh(true)
-            assert.equal(ledger.records().length,200)
+            assert.equal(ledger.records().length,205)
             const all=await ledger.historySources()
             assert.equal(all.length,205)
             assert.equal((await engine.search(all,'VERY_OLD_IDENTIFIER')).hits.length,1)

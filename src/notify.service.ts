@@ -21,7 +21,6 @@ import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
 import { SessionMailbox, MailMessage } from './sessionMailbox'
 import { WakeResult } from './mailboxWake'
 import { diag, diagCatch } from './diag'
-import { accountEmail } from './accounts'
 import { agentHome, runtimeRoot, runtimeEnvironment } from './storagePaths'
 import {
     createSubagentState, feedChunk, formatSubagentTooltip, matchesSessionTranscript, summarizeSubagents,
@@ -31,6 +30,7 @@ import {
 
 /** 훅이 남기는 파일 하나의 내용 */
 interface NotifyFile {
+    configDir?: string
     /** Queued hook events must never fall back to an unrelated active tab. */
     identityRequired?: boolean
     agentActivity?: AgentEvent
@@ -468,7 +468,8 @@ export class WorkNotifyService {
      */
     private codexScans = new Map<string, CodexScan>()
     /** `auth.json` 에서 푼 Codex 계정 — 파일이 바뀔 때만 다시 읽는다 */
-    private codexAuth: { mtime: number, email: string } | null = null
+    private codexAuth: { file: string, mtime: number, email: string } | null = null
+    private reportedHomes = new Map<string, string>()
     private codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')
     /** 모델·한도 값이 바뀌면 부른다 (사이드바 다시 그리기). deck.service 가 꽂는다 */
     onMetaChange: (() => void) | null = null
@@ -557,9 +558,36 @@ export class WorkNotifyService {
     }
 
     private hookDispatcher: any
+    private parentOwners = new WeakMap<BaseTabComponent, { agent: AgentId, sessionId?: string }>()
+
+    parentAgentOf (tab: BaseTabComponent): AgentId | null { return this.parentOwners?.get(tab)?.agent || null }
+    setParentAgent (tab: BaseTabComponent, owner: {agent: AgentId, sessionId?: string} | null): void {
+        if (owner) this.parentOwners.set(tab, owner)
+        else { this.parentOwners.delete(tab); this.forgetAgent(tab) }
+    }
+
+    private async authorizeHook (event: any): Promise<boolean> {
+        const sid = event.hook?.session_id || event.options?.SessionId
+        const tab = pickTabByTabId(event.env?.AGENTDECK_TAB, this.tabIds)
+        if (!tab || !sid) return true // Existing external/legacy routing.
+        const agent = (event.options?.Agent || 'claude') as AgentId
+        let owner = this.parentOwners.get(tab)
+        if (!owner) {
+            const registered = this.agentOf(tab)
+            const registeredSid = this.tabSession.get(tab)
+            owner = {agent:registered || agent, sessionId:registered ? registeredSid : undefined}
+            this.parentOwners.set(tab, owner)
+        }
+        if (owner.agent !== agent || (owner.sessionId && owner.sessionId !== sid)) return false
+        // The parent session is already carried by native subagent events.
+        // A separate CLI inheriting the tab ID cannot replace this registration.
+        if (!event.hook?.agent_id) owner.sessionId = sid
+        return true
+    }
 
     private createHookDispatcher (): any {
         return new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'), {
+            authorize: (event: any) => this.authorizeHook(event),
             report: (payload: any) => this.apply(payload),
             request: (payload: any) => new Promise((resolve, reject) => {
                 const socket = { write: (line: string) => {
@@ -1154,6 +1182,10 @@ export class WorkNotifyService {
             return
         }
 
+        const target = pickTabByTabId(data.tabId, this.tabIds)
+        const parent = target && this.parentOwners?.get(target)
+        if (parent && ((data.agent && data.agent !== parent.agent)
+            || (parent.sessionId && parent.sessionId !== data.sessionId))) return
         const tab = this.resolveTab(data.sessionId, data.tabId, data.pids, data.identityRequired)
         if (!tab) {
             // tabId 도 pids 도 없는 보고(옛 훅·수동 호출)는 다시 봐도 결과가 같다. 그런데 폴링이 400ms 마다
@@ -1167,6 +1199,8 @@ export class WorkNotifyService {
             return
         }
         this.applied.set(data.sessionId, data.ts)
+        if (data.configDir) this.reportedHomes.set(data.sessionId, data.configDir)
+        while (this.reportedHomes.size > 1024) this.reportedHomes.delete(this.reportedHomes.keys().next().value!)
         this.registerMailbox(data.sessionId, tab, data.tabId)
 
         // 누가 보냈나 — 온 보고마다 갱신한다. 같은 탭에서 CLI 를 바꿔 띄우면 그쪽 첫 보고가 덮는다
@@ -1443,23 +1477,27 @@ export class WorkNotifyService {
      * 여기서 값을 꾸미지 않는다 — 화면 문구는 부르는 쪽(deck.service)이 만든다.
      * 이 서비스는 "누가 무엇을 보고했나" 만 들고 있는다.
      */
-    private accountHomes = new WeakMap<BaseTabComponent, { provider: string, home: string, email: string }>()
+    private accountHomes = new WeakMap<BaseTabComponent, { provider: string, home: string, email: string, since: number }>()
 
     setAccountHome (tab: BaseTabComponent, provider: string, home: string, email: string): void {
-        this.accountHomes.set(tab, { provider, home, email })
+        this.accountHomes.set(tab, { provider, home, email, since: Date.now() })
     }
 
     metaOf (tab: BaseTabComponent | null | undefined): AgentMeta | null {
         const sid = tab ? this.tabSession.get(tab) : null
         const meta = (sid && this.metaBySession.get(sid)) || null
-        if (!meta || !tab) { return meta }
-        const selected = this.accountHomes?.get(tab)
-        const env = (tab as any).profile?.options?.env
-        const home = selected?.home || (meta.agent === 'codex' ? env?.CODEX_HOME : env?.CLAUDE_CONFIG_DIR)
-        if (home && (meta.agent === 'codex' || meta.agent === 'claude')) {
-            return { ...meta, configDir: home, account: accountEmail(meta.agent, home) || selected?.email || '' }
-        }
         return meta
+    }
+
+    accountSwitchState (tab: BaseTabComponent): { state: string, expected: string, actual: string } | null {
+        const selected = this.accountHomes.get(tab)
+        if (!selected) return null
+        const meta = this.metaOf(tab)
+        const actual = meta?.account || ''
+        const state = !meta || meta.ts < selected.since || !actual ? 'pending'
+            : meta.agent === selected.provider && actual.toLowerCase() === selected.email.toLowerCase()
+                && !!meta.configDir && path.resolve(meta.configDir).toLowerCase() === path.resolve(selected.home).toLowerCase() ? 'confirmed' : 'mismatch'
+        return {state, expected:selected.email, actual}
     }
 
     /**
@@ -1531,7 +1569,7 @@ export class WorkNotifyService {
      */
     private scanCodexMeta (): void {
         for (const [sid, tab] of this.sessionTab) {
-            if (!this.app.tabs.includes(tab) || this.hookAgent.get(tab) !== 'codex') {
+            if (!this.app.tabs.includes(tab) || (this.parentAgentOf(tab) ?? this.hookAgent.get(tab)) !== 'codex') {
                 continue
             }
             let scan = this.codexScans.get(sid)
@@ -1596,6 +1634,7 @@ export class WorkNotifyService {
 
     /** 스캔 상태를 사이드바가 쓰는 모양으로 (`AgentMeta`) */
     private codexMetaOf (sid: string, state: CodexState): AgentMeta {
+        const home = this.reportedHomes?.get(sid) || this.codexHome
         return {
             sessionId: sid,
             ts: Date.now(),
@@ -1605,9 +1644,9 @@ export class WorkNotifyService {
             effort: state.effort,
             version: state.cliVersion,
             fastMode: false,
-            account: this.codexAccount(),
+            account: this.codexAccount(home),
             org: '',
-            configDir: this.codexHome,
+            configDir: home,
             cwd: state.cwd,
             contextPct: codexContextPct(state),
             limits: codexLimits(state),
@@ -1618,15 +1657,15 @@ export class WorkNotifyService {
      * Codex 계정 메일. 파일이 바뀔 때만 다시 읽는다 — 2초마다 JWT 를 풀 이유가 없다.
      * 토큰 자체는 들고 있지 않는다(메일만 남긴다).
      */
-    private codexAccount (): string {
-        const file = path.join(this.codexHome, 'auth.json')
+    private codexAccount (home = this.codexHome): string {
+        const file = path.join(home, 'auth.json')
         let mtime = 0
         try {
             mtime = fs.statSync(file).mtimeMs
         } catch {
             return '' // 로그인 기록이 없다
         }
-        if (this.codexAuth && this.codexAuth.mtime === mtime) {
+        if (this.codexAuth && this.codexAuth.file === file && this.codexAuth.mtime === mtime) {
             return this.codexAuth.email
         }
         let email = ''
@@ -1635,7 +1674,7 @@ export class WorkNotifyService {
         } catch {
             email = ''
         }
-        this.codexAuth = { mtime, email }
+        this.codexAuth = { file, mtime, email }
         return email
     }
 
@@ -1677,7 +1716,7 @@ export class WorkNotifyService {
             return null
         }
         try {
-            const hit = await walk(path.join(this.codexHome, 'sessions'), 0)
+            const hit = await walk(path.join(this.reportedHomes?.get(scan.sessionId) || this.codexHome, 'sessions'), 0)
             if (hit) {
                 scan.path = hit
                 this.diag(`codex meta sid=${scan.sessionId.slice(0, 8)} file=${hit}`)
