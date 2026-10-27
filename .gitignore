@@ -14,3 +14,13 @@ accounts.json.*.tmp
 accounts/
 auth.json
 .credentials.json
+
+# Local test runners, hook probes, and development notes.
+/tools/run-all.ps1
+/tools/test-instance.ps1
+/tools/prepare-test-hooks.cjs
+/tools/probe-hook-dialog.ps1
+/tools/probe-hook-ready.js
+/tools/regress-hook-onboarding.cjs
+/docs/DEVELOPMENT.md
+/docs/REGRESSION.md
