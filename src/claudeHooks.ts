@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
+import { claudeSettingsHomes, readClaudeSettings, writeClaudeSettings } from './claudeSettings'
 
 /**
  * Claude Code 상태 통보 훅을 사용자의 Claude 설정에 등록/해제한다.
@@ -65,19 +66,14 @@ export function hooksSupported (): boolean {
 }
 
 function readSettings (): any {
-    try {
-        const raw = fs.readFileSync(claudeSettingsPath(), 'utf8')
-        return raw.trim() ? JSON.parse(raw) : {}
-    } catch {
-        // 파일이 없거나 아직 JSON 이 아니다 — 새로 만드는 것으로 본다
-        return {}
-    }
+    return readClaudeSettings(agentHome('claude'))
 }
 
 /** 이 이벤트에 걸린 훅 중 우리 것이 아닌 것만 남긴다 */
 function withoutOurs (entries: any): any[] {
     return (Array.isArray(entries) ? entries : [])
-        .filter(e => !JSON.stringify(e ?? '').includes(MARK))
+        .map(e => Array.isArray(e?.hooks) ? { ...e, hooks: e.hooks.filter((h: any) => !String(h?.command || '').includes(MARK)) } : e)
+        .filter(e => !Array.isArray(e?.hooks) || e.hooks.length)
 }
 
 /**
@@ -91,6 +87,11 @@ export function isMerged (settings: any): boolean {
         const entries = Array.isArray(hooks[p.event]) ? hooks[p.event] : []
         return entries.some((e: any) => JSON.stringify(e ?? '').includes(MARK))
     })
+}
+
+export function hasAgentDeckHooks (settings: any): boolean {
+    return Object.values(settings?.hooks || {}).some(entries => Array.isArray(entries)
+        && entries.some(e => Array.isArray(e?.hooks) && e.hooks.some((hook: any) => String(hook?.command || '').includes(MARK))))
 }
 
 /**
@@ -133,17 +134,19 @@ export function hooksInstalled (): boolean {
 }
 
 /** 훅을 등록한다 */
-export function installHooks (): void {
+export function installHooks (homes = claudeSettingsHomes()): void {
     const script = notifyScriptPath()
     if (!fs.existsSync(script)) {
         throw new Error(`훅 스크립트를 찾지 못했다: ${script}`)
     }
-    writeSettings(mergeHooks(readSettings(), script))
+    const updates = homes.map(home => ({ home, next: mergeHooks(readClaudeSettings(home), script) }))
+    for (const { home, next } of updates) { writeClaudeSettings(home, next) }
 }
 
 /** 훅을 뗀다 */
-export function uninstallHooks (): void {
-    writeSettings(stripHooks(readSettings()))
+export function uninstallHooks (homes = claudeSettingsHomes()): void {
+    const updates = homes.map(home => ({ home, next: stripHooks(readClaudeSettings(home)) }))
+    for (const { home, next } of updates) { writeClaudeSettings(home, next) }
 }
 
 function writeSettings (settings: any): void {

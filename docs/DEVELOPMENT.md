@@ -1,5 +1,15 @@
 # 개발 노트 (tabby-agentdeck)
 
+### 계정 전환 기록 보존 및 계정별 Claude 연동 (2026-10-27)
+
+- PR #2는 그대로 머지하지 않았다. 홈 경로 보정이라는 원인 분석을 참고하되, 기존 파일을 무조건 건너뛰는 복사 방식 대신 현재 대화와 하위 기록의 확장 여부를 검증한다. 대상이 원본의 앞부분과 일치할 때만 갱신하고, 서로 다른 기록이면 기존 터미널 종료 전에 중단한다. 원본 기록은 변경하지 않는다.
+- 기록 전달은 이전 프로세스 종료 뒤 다시 읽어 수행한다. Windows Tabby의 `destroy()`는 종료 요청 후 먼저 반환하므로 PTY와 자식 PID의 실제 종료도 기다린다. 종료 이후 복사에 실패하면 원래 계정으로 터미널을 다시 시작한다. 종료 제한 시간 초과는 복사·새 계정 실행 없이 오류로 알린다.
+- 이슈 #3: 계정 준비 시 기본 Claude 연동 설치 상태를 반영하며, 설정 화면의 설치·해제는 이미 생성된 저장 계정에도 적용한다. 사용자 훅과 다른 설정 키는 보존한다. 기존 statusLine은 계정 홈의 `.agentdeck-statusline-inner.json`에 따로 보관하고 래퍼가 `--inner`로 읽는다. 이전 공용 inner 파일은 기존 설치 마이그레이션을 위해 읽기 호환한다.
+- `test/accountResumeSettings.cjs`는 계정 왕복·하위 기록·충돌·공유 폴더와 설정 설치/해제·사용자 설정 보존·손상 JSON을 검사한다. `test/accountSwitchTransfer.cjs`는 실제 전환 메서드의 종료 후 복사, 실패 복구, 비동기 자식 프로세스 종료를 검사한다. `tools/probe-account-resume-settings.js`는 `account-fix-ui` 전용 격리 앱에서 실제 설정 버튼·터미널·훅·사이드바를 검증한다. 테스트용 CLI를 사용하며 실제 유료 계정 인증·모델 응답 검증과 구분한다.
+- 최초 전체 단위 검사는 worktree의 node_modules 경로가 없어 실패했다. 기존 의존성 junction으로 해결했다. 이후 훅 지연 p90 기준 400ms를 초과한 실행은 실패 로그 그대로 남기고 기준 변경 없이 원본과 비교한다. 최초 UI 검사의 메타 연결 실패는 테스트용 CLI의 시작 훅 누락을 보완했다. 증거는 `.tmp/account-fix-*`와 메인 작업 공간 `.tmp/account-fix-ui-2/results.json`에 보존한다.
+- 최종 본 작업 폴더에서 타입 검사·전체 `npm test` 통과(`.tmp/account-fix-typecheck.log`, `.tmp/account-fix-unit.log`). 훅 지연 p90은 약 294ms로 400ms 기준을 충족했다. 릴리스 산출물 `.tmp/account-fix-release`로 실제 설정·PTY·훅·사이드바 기능 16건 통과(`.tmp/account-fix-ui-final/results.json`), 전수 회귀 170 통과 / 실패 0 / 건너뜀 7(`.tmp/account-fix-regression/report/regression.json`). 빌드와 단위 검사는 별도로 완료하여 앱 러너에서 중복 실행하지 않았다. 지난 세션 검사는 전용 홈에 합성 기록 8개를 넣어 수행했다.
+- 동일 산출물 29개를 설치 경로에 반영하고 모두 해시를 대조했다. `dist/index.js` SHA256은 `C7A3CBB00DA3037E7F59F3B9D9D71106544A8495D4555F1DC938BDDC953DBCA4`. 기존 설치본(1.2.11) 백업은 `.tmp/account-fix-install-backup-20261027-174121`이며 새 로컬 설치 파일은 1.2.12다. 실사용 Tabby는 제어 포트 없이 실행 중이라 세션 보존 리로드는 수행하지 않았다. 새 번들의 실사용 로드는 앱 재시작 후 필요하다. Git 커밋·푸시·PR 머지는 하지 않았다.
+
 사용자에게 알릴 필요는 없지만 고칠 때 다시 필요한 것들 — 개발 절차, 구조, 검증 도구, 설계 근거, 실측으로 확인한 함정. 사용자용 설명은 `README.md`, 회귀 체크리스트는 `REGRESSION.md`.
 
 ## 개발

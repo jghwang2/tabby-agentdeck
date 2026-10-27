@@ -1,5 +1,7 @@
 # 회귀 체크리스트 (agentdeck)
 
+계정 전환/설정 추가 검사(2026-10-27): `npm run test:accounts`에 `accountResumeSettings.cjs`와 `accountSwitchTransfer.cjs`를 포함한다. 별도 `account-fix-ui` 격리 앱에서 `node tools/cdp.js <port> tools/probe-account-resume-settings.js`를 실행한다. 실제 설정 버튼의 계정별 설치·제거와 사용자 상태 표시 복원, 실제 PTY 전환 A→B→A, 이전 프로세스 종료·최종 기록 전달·충돌 시 기존 세션 보존, 실제 훅 메타의 사이드바 반영을 확인한다. 합성 기록·대체 CLI를 사용하며 실제 계정 인증과 모델 호출은 수행하지 않는다.
+
 한 곳을 고치면 다른 곳이 깨지는 일이 반복돼서, **매 수정 후 이 목록을 전부 통과해야 완료**로 본다.
 눈으로 보고 판정하지 않는다 — CDP 로 xterm 버퍼와 pty 폭을 **실제 값으로 읽어** 판정한다.
 

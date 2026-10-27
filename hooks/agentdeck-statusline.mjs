@@ -3,7 +3,9 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import runtime from './agentdeck-runtime.cjs'
 import { relay } from './agentdeck-relay.mjs'
-const INNER_FILE = path.join(runtime.runtimeRoot(), 'statusline-inner.json')
+const innerIndex = process.argv.indexOf('--inner')
+const INNER_FILE = innerIndex >= 0 && process.argv[innerIndex + 1]
+    ? process.argv[innerIndex + 1] : path.join(runtime.runtimeRoot(), 'statusline-inner.json')
 // Preserve the user's statusline locally; the receiver processes metrics.
 function runInner (raw) {
     let inner = null

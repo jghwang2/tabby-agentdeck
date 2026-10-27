@@ -28,6 +28,7 @@ import { extractPrompt } from './prompt'
 import { formatMeta, MetaGauge, MetaInput } from './meta'
 import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, prepareAccount, loginAccount, AccountRequestError } from './accounts'
 import { storageEnvironment } from './storagePaths'
+import { claudeConfigHome, prepareClaudeSessionTransfer, waitForClaudeExit } from './claudeSessionTransfer'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
 import { openAccountBrowser } from './accountBrowser'
 import { accountRefreshState } from './accountRefreshPolicy'
@@ -5238,7 +5239,7 @@ export class AgentDeckService {
                     // Accounts can also be selected before a CLI has a resumable conversation.
                     if (!command) { command = provider }
                     if (provider === 'codex') { command = command.replace(/^codex(?: |$)/, 'codex -c \'cli_auth_credentials_store="file"\' ') }
-                    await this.switchAccountInTab(tab, account, command, latest.cwd)
+                    await this.switchAccountInTab(tab, account, command, latest.cwd, latest)
                     dismiss()
                 } catch (e: any) { message.textContent = this.sidebarLang === 'ko' && e.message ? e.message : this.ui('계정 전환에 실패했습니다. 다시 선택하세요.') }
                 finally {
@@ -5249,7 +5250,7 @@ export class AgentDeckService {
         }
     }
 
-    private async switchAccountInTab (tab: BaseTabComponent, account: SavedAccount, command: string, cwd?: string): Promise<void> {
+    private async switchAccountInTab (tab: BaseTabComponent, account: SavedAccount, command: string, cwd?: string, source?: { sessionId?: string, configDir?: string }): Promise<void> {
         const pane = this.firstPane(tab) as any
         if (!pane || pane.profile?.type !== 'local' || typeof pane.initializeSession !== 'function' || !pane.session) {
             throw new Error(this.ui('계정 전환에 실패했습니다. 다시 선택하세요.'))
@@ -5279,9 +5280,43 @@ export class AgentDeckService {
             options.env[key] = ''
         }
         const previous = pane.session
+        let transfer: (() => Promise<void>) | undefined
+        if (account.provider === 'claude' && source?.sessionId) {
+            if (!source.configDir) { throw new Error(this.ui('원본 대화 폴더를 확인할 수 없어 계정 전환을 중단했습니다.')) }
+            transfer = await prepareClaudeSessionTransfer(source.sessionId, source.configDir, accountHome(account))
+        }
+        // Windows Tabby destroy() requests PTY termination but does not await process exit.
+        const exitingPids: number[] = []
+        if (transfer && previous.pty) {
+            exitingPids.push(await previous.pty.getPID())
+            for (const child of await previous.getChildProcesses()) { exitingPids.push(child.pid) }
+        }
+        if (!this.app.tabs.includes(tab) || pane.session !== previous) { throw new Error(this.ui('전환할 세션이 변경되었습니다. 다시 선택하세요.')) }
         // Detach first: a local session's close event would otherwise destroy its tab.
         pane.setSession(null)
         await previous.destroy()
+        if (!this.app.tabs.includes(tab)) { return }
+        await waitForClaudeExit(exitingPids.filter(pid => Number.isInteger(pid) && pid > 0))
+        if (!this.app.tabs.includes(tab)) { return }
+        try { await transfer?.() } catch (error) {
+            if (!this.app.tabs.includes(tab)) { throw error }
+            // Keep the original account usable if final validation/copy fails after shutdown.
+            const home = claudeConfigHome(source!.configDir!)
+            const original = { ...pane.profile.options, env: { ...pane.profile.options?.env, CLAUDE_CONFIG_DIR: home } }
+            delete original.restoreFromPTYID
+            let resume = command
+            if (process.platform === 'win32') {
+                original.command = 'powershell.exe'
+                original.args = ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass']
+                resume = `$env:CLAUDE_CONFIG_DIR='${home.replace(/'/g, "''")}'; ${command}`
+            }
+            pane.profile = { ...pane.profile, options: original }
+            pane.sessionOptions = original
+            pane.initializeSession(pane.size.columns, pane.size.rows)
+            this.sendResumeCommand(tab, resume, pane.session, account.provider)
+            pane.session?.releaseInitialDataBuffer()
+            throw error
+        }
         if (!this.app.tabs.includes(tab)) { return }
         pane.profile = { ...pane.profile, options }
         pane.sessionOptions = options

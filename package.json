@@ -25,7 +25,7 @@
     "test:performance": "node test/performance.cjs && node test/memoryCleanup.cjs",
     "test:storage": "tsc src/storagePaths.ts src/accounts.ts src/storageSettings.ts src/runtimeMigration.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/storagePaths.cjs && node test/storageSettings.cjs && node test/runtimePaths.cjs",
     "test:sessions": "tsc src/sessionSearch.ts src/sessionMailbox.ts src/sessionSlots.ts src/sessionIdentity.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/sessionIdentity.cjs && node test/sessionSearch.cjs && node test/sessionCommunication.cjs && node test/mailboxBridge.cjs && node test/mailboxWake.cjs",
-    "test:accounts": "tsc src/accounts.ts src/accountBrowser.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/accounts.test.js && node test/accountSecrets.cjs && node test/accountFiles.cjs && node test/accountCliRoots.cjs",
+    "test:accounts": "tsc src/accounts.ts src/accountBrowser.ts --outDir .tmp --module commonjs --target es2019 --skipLibCheck --esModuleInterop && node test/accounts.test.js && node test/accountSecrets.cjs && node test/accountFiles.cjs && node test/accountCliRoots.cjs && node test/accountResumeSettings.cjs && node test/accountSwitchTransfer.cjs",
     "prebuild": "node tools/sync-version.js",
     "sync-version": "node tools/sync-version.js",
     "release": "node tools/release.js",

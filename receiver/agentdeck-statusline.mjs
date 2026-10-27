@@ -72,14 +72,14 @@ function readAccount () {
                 return {
                     account: String(acc.emailAddress),
                     org: acc.organizationName ? String(acc.organizationName) : '',
-                    configDir: dir,
+                    configDir: process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
                 }
             }
         } catch {
             // 없거나 아직 못 읽는다 — 다음 후보로
         }
     }
-    return { account: '', org: '', configDir: '' }
+    return { account: '', org: '', configDir: process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude') }
 }
 
 function pct (v) {

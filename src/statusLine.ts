@@ -1,7 +1,8 @@
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { runtimeRoot } from './storagePaths'
+import { runtimeRoot, agentHome } from './storagePaths'
+import { claudeSettingsHomes, readClaudeSettings, writeClaudeSettings } from './claudeSettings'
 
 import { claudeSettingsPath } from './claudeHooks'
 
@@ -23,8 +24,8 @@ import { claudeSettingsPath } from './claudeHooks'
 const MARK = 'agentdeck-statusline'
 
 /** 원래 걸려 있던 statusLine 을 옮겨 두는 자리 (스크립트도 같은 경로를 읽는다) */
-export function innerConfigPath (): string {
-    return path.join(runtimeRoot(), 'statusline-inner.json')
+export function innerConfigPath (home = agentHome('claude')): string {
+    return path.join(home, '.agentdeck-statusline-inner.json')
 }
 
 /** statusLine 스크립트의 실제 경로. dist/index.js 기준으로 한 단계 위가 패키지 뿌리다 */
@@ -48,13 +49,14 @@ export function isWrapped (settings: any): boolean {
  * 이미 우리 것이면 명령줄만 지금 경로로 갱신한다 — 그때 안쪽 설정은 **그대로 둔다**
  * (다시 옮기면 안쪽에 우리 자신이 들어가 고리가 된다).
  */
-export function wrapStatusLine (settings: any, script: string): { next: any, inner: any | null } {
+export function wrapStatusLine (settings: any, script: string, innerFile?: string): { next: any, inner: any | null } {
     const next = { ...(settings ?? {}) }
     const current = next.statusLine
     const inner = isWrapped(next) ? null : (current ?? null)
     // 경로는 슬래시로 적는다 — Claude Code 명령줄은 셸을 거치며 백슬래시가 뭉개질 수 있다
     // (훅에서 `D:\Project\…` 가 `D:Project…` 로 사라져 조용히 실패한 적이 있다, 2026-08-28 실측)
     next.statusLine = { type: 'command', command: `node "${script.replace(/\\/g, '/')}"` }
+    if (innerFile) { next.statusLine.command += ` --inner "${innerFile.replace(/\\/g, '/')}"` }
     return { next, inner }
 }
 
@@ -76,12 +78,7 @@ export function unwrapStatusLine (settings: any, inner: any | null): any {
 }
 
 function readSettings (): any {
-    try {
-        const raw = fs.readFileSync(claudeSettingsPath(), 'utf8')
-        return raw.trim() ? JSON.parse(raw) : {}
-    } catch {
-        return {}
-    }
+    return readClaudeSettings(agentHome('claude'))
 }
 
 function writeSettings (settings: any): void {
@@ -93,12 +90,13 @@ function writeSettings (settings: any): void {
     fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n', 'utf8')
 }
 
-function readInner (): any | null {
-    try {
-        return JSON.parse(fs.readFileSync(innerConfigPath(), 'utf8'))
-    } catch {
-        return null
+export function readInner (home = agentHome('claude')): any | null {
+    for (const file of [innerConfigPath(home), path.join(runtimeRoot(), 'statusline-inner.json')]) {
+        try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch (e: any) {
+            if (e.code !== 'ENOENT') { throw e }
+        }
     }
+    return null
 }
 
 export function statusLineInstalled (): boolean {
@@ -111,27 +109,30 @@ export function innerCommand (): string {
     return inner?.type === 'command' ? String(inner.command ?? '') : ''
 }
 
-export function installStatusLine (): void {
+export function installStatusLine (homes = claudeSettingsHomes()): void {
     const script = statusLineScriptPath()
     if (!fs.existsSync(script)) {
         throw new Error(`statusLine 스크립트를 찾지 못했다: ${script}`)
     }
-    const { next, inner } = wrapStatusLine(readSettings(), script)
+    const updates = homes.map(home => {
+        const settings = readClaudeSettings(home)
+        const { next, inner } = wrapStatusLine(settings, script, innerConfigPath(home))
+        return { home, next, inner: isWrapped(settings) ? readInner(home) : inner }
+    })
     // 안쪽을 **먼저** 저장한다. 반대로 하면 그 사이에 statusLine 이 한 번 돌 때
     // 안쪽을 못 찾아 사용자의 statusLine 이 잠깐 비어 보인다
-    if (inner !== null) {
-        const file = innerConfigPath()
+    for (const { home, next, inner } of updates) {
+        const file = innerConfigPath(home)
         fs.mkdirSync(path.dirname(file), { recursive: true })
         fs.writeFileSync(file, JSON.stringify(inner, null, 2) + '\n', 'utf8')
+        writeClaudeSettings(home, next)
     }
-    writeSettings(next)
 }
 
-export function uninstallStatusLine (): void {
-    writeSettings(unwrapStatusLine(readSettings(), readInner()))
-    try {
-        fs.unlinkSync(innerConfigPath())
-    } catch {
-        // 없으면 그만
+export function uninstallStatusLine (homes = claudeSettingsHomes()): void {
+    const updates = homes.map(home => ({ home, next: unwrapStatusLine(readClaudeSettings(home), readInner(home)) }))
+    for (const { home, next } of updates) {
+        writeClaudeSettings(home, next)
+        // Keep the backup for settings copied before uninstall or an interrupted update.
     }
 }

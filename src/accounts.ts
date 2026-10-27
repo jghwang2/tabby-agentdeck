@@ -6,6 +6,8 @@ import { createHash } from 'crypto'
 import { spawn, execFileSync, ChildProcessWithoutNullStreams } from 'child_process'
 import { accountsFile, agentHome, hasConfiguredAgentHome } from './storagePaths'
 import { resetAccountRefreshAfterLogin } from './accountRefreshPolicy'
+import { claudeConfigHome } from './claudeSessionTransfer'
+import { syncClaudeIntegration } from './claudeIntegration'
 
 export type AccountProvider = 'claude' | 'codex'
 export interface SavedAccount { provider: AccountProvider, key: string, name: string, id: string }
@@ -200,9 +202,13 @@ export async function restoreAccountAuth (account: SavedAccount): Promise<void> 
 /** Clone settings, share only conversation/instruction directories, keep auth private per account. */
 export function prepareAccount (account: SavedAccount, sourceHome?: string): void {
     const dest = accountHome(account)
-    const source = hasConfiguredAgentHome(account.provider) ? agentHome(account.provider) : sourceHome || agentHome(account.provider)
+    const reported = sourceHome && account.provider === 'claude' ? claudeConfigHome(sourceHome) : sourceHome
+    const source = hasConfiguredAgentHome(account.provider) ? agentHome(account.provider) : reported || agentHome(account.provider)
     fs.mkdirSync(dest, { recursive: true, mode: 0o700 })
-    if (path.resolve(source) === path.resolve(dest)) { return }
+    if (path.resolve(source) === path.resolve(dest)) {
+        if (account.provider === 'claude') { syncClaudeIntegration(dest, source) }
+        return
+    }
     if (account.provider === 'claude' && fs.existsSync(path.join(dest, '.claude.json'))) {
         // Restoring encrypted auth may create a minimal profile before first launch. Carry over existing
         // CLI preferences/onboarding state without replacing the selected account's identity.
@@ -231,7 +237,7 @@ export function prepareAccount (account: SavedAccount, sourceHome?: string): voi
             try { existing = fs.lstatSync(target) } catch (error: any) { if (error.code !== 'ENOENT') { throw error } }
             if (existing?.isSymbolicLink() && path.resolve(fs.readlinkSync(target)) !== path.resolve(source, name)) {
                 fs.unlinkSync(target)
-            } else if (existing && !existing.isSymbolicLink()) {
+            } else if (existing && !existing.isSymbolicLink() && account.provider !== 'claude') {
                 throw new Error('계정 폴더에 별도 대화 기록이 있습니다. 기록을 옮긴 뒤 다시 시도하세요.')
             }
         }
@@ -253,6 +259,7 @@ export function prepareAccount (account: SavedAccount, sourceHome?: string): voi
         fs.copyFileSync(path.join(source, 'auth.json'), path.join(dest, 'auth.json'), fs.constants.COPYFILE_EXCL)
     }
     if (account.provider === 'codex') { void seedCodexMarketplaces(source, dest).catch(() => {}) }
+    if (account.provider === 'claude') { syncClaudeIntegration(dest, source) }
 }
 
 const marketplaceSeeds = new Map<string, Promise<void>>()
