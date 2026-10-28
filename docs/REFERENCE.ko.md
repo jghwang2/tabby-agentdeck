@@ -11,6 +11,12 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.2.13
+
+- Claude 계정을 전환하거나 이전 계정으로 돌아가도 추가된 대화와 하위 에이전트 기록을 이어받습니다.
+- 이전 프로세스 종료 후 마지막 기록까지 전달하며, 기록 충돌 시 전환을 중단합니다. 종료 후 전달에 실패하면 원래 계정의 터미널을 복원합니다.
+- Claude 상태줄·훅 설치와 해제를 저장 계정에도 반영하고 사용자 설정과 계정별 기존 상태줄을 보존합니다.
+
 ## 1.2.12
 
 - 자식 Claude/Codex를 실행해도 탭 아이콘과 세션은 부모 CLI를 유지합니다.

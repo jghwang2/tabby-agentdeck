@@ -5,6 +5,18 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.2.13 — 2026-10-28
+
+- Fix Claude conversation resume after account switching, including returning to a previously used account and transferring subagent history.
+- Wait for the previous process to exit before transferring its final history. Stop on conflicting histories and restore the original account terminal if transfer fails after shutdown.
+- Apply Claude statusLine and hook installation changes to saved accounts while preserving user settings and each account's original statusLine.
+
+**한국어**
+
+- Claude 계정 전환 후 대화를 이어받지 못하는 문제를 수정했습니다. 이전 계정으로 돌아갈 때 추가된 대화와 하위 에이전트 기록도 전달합니다.
+- 이전 프로세스가 종료된 뒤 마지막 기록까지 전달합니다. 기록이 충돌하면 전환을 중단하고, 종료 후 전달에 실패하면 원래 계정의 터미널을 복원합니다.
+- Claude 상태줄·훅 설치와 해제를 저장 계정에도 반영하며, 사용자 설정과 계정별 기존 상태줄을 보존합니다.
+
 ## 1.2.12 — 2026-10-23
 
 - Keep tab icons and session identity attached to the registered parent CLI when it launches another CLI. Reuse tab/session and native subagent identities without adding process enumeration to hook handling.
