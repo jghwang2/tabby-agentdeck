@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Opdater forbrug",
+    "사용량을 갱신했습니다.": "Forbrug opdateret.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Kontrollér dit login, og prøv igen.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Kunne ikke opdatere forbruget. Prøv igen om lidt.",
     "상태": "Status",
     "탭 제목": "Fanetitel",
     "별명": "Alias",

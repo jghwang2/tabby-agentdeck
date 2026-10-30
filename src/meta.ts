@@ -26,7 +26,7 @@ export interface MetaInput {
         sevenDayResetsAt?: number
         /**
          * 모델별 주간 한도 (Fable 등). statusLine stdin 에는 **안 내려온다** —
-         * 래퍼가 `/api/oauth/usage` 를 따로 물어봐 채운다 (hooks/agentdeck-statusline.mjs).
+         * 앱의 사용량 새로고침이 API 응답으로 채운다.
          * 이름은 계정마다 다를 수 있으므로 화면에 쓸 표시명도 같이 받는다.
          */
         scopedName?: string

@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Verfris gebruik",
+    "사용량을 갱신했습니다.": "Gebruik verfris.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Kontroleer jou aanmelding en probeer weer.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Kon nie gebruik verfris nie. Probeer binnekort weer.",
     "상태": "Status",
     "탭 제목": "Oortjietitel",
     "별명": "Bynaam",

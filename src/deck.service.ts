@@ -30,6 +30,7 @@ import { readAccounts, addAccount, removeAccount, SavedAccount, accountHome, pre
 import { storageEnvironment } from './storagePaths'
 import { claudeConfigHome, prepareClaudeSessionTransfer, waitForClaudeExit } from './claudeSessionTransfer'
 import { getAccountQuotas, ensureAccountSession, recordAccountUsage, registerAccountSource, maintainAccountSessions } from './accountSession'
+import { UsageRefresh } from './usageRefresh'
 import { openAccountBrowser } from './accountBrowser'
 import { accountRefreshState } from './accountRefreshPolicy'
 import { judgeScreen, INPUT_TAIL, isGhostRuleRow, isRuleRow, sizeInSync, ScreenLine } from './screen'
@@ -599,6 +600,7 @@ export class AgentDeckService {
     private accountPopup: HTMLElement | null = null
     private accountPopupTab: BaseTabComponent | null = null
     private accountSwitchBusy = false
+    private usageRefresh = new UsageRefresh()
     /** 지난 세션 서랍 — 목록 **밖**, "지금 이 탭" 줄 바로 위. 펼치면 위로 자란다 */
     private resumeEl: HTMLElement | null = null
     private historySearchPanel: SessionSearchPanel | null = null
@@ -4358,9 +4360,10 @@ export class AgentDeckService {
             // "지금 이 탭" 줄. 목록 **밖**에 둔다 — 목록 안이면 render() 가 매번 지우고,
             // 검색이 아무것도 못 찾은 화면(목록이 빈 상태)에서도 이 줄은 남아 있어야 한다
             '<div class="ad-now" hidden>',
-            '  <div class="ad-now-title"></div>',
+            '  <div class="ad-now-heading"><div class="ad-now-title"></div><button type="button" class="ad-now-refresh">↻</button></div>',
             this.uiMarkup('  <button type="button" class="ad-now-account" title="계정 선택" aria-haspopup="dialog"></button>'),
             '  <div class="ad-now-gauges"></div>',
+            '  <div class="ad-now-refresh-status" role="status" aria-live="polite"></div>',
             '</div>',
             '<div class="ad-foot">',
             this.uiMarkup('  <button class="ad-btn ad-new" title="새 탭">+ 새 탭</button>'),
@@ -5336,7 +5339,8 @@ export class AgentDeckService {
         if (!el) {
             return
         }
-        const meta = this.notify.metaOf(this.app.activeTab as BaseTabComponent)
+        const rawMeta = this.notify.metaOf(this.app.activeTab as BaseTabComponent)
+        const meta = this.usageRefresh.merge(rawMeta)
         const view = this.config.store.agentDeck.metaLine === false
             ? null
             : formatMeta(meta, Date.now())
@@ -5354,6 +5358,22 @@ export class AgentDeckService {
         ].filter(Boolean).join('\n')
         const titleEl = el.querySelector('.ad-now-title') as HTMLElement
         titleEl.textContent = view.title
+        const refreshEl = el.querySelector('.ad-now-refresh') as HTMLButtonElement
+        const refreshState = this.usageRefresh.state(rawMeta)
+        refreshEl.hidden = !rawMeta?.account || !['claude', 'codex'].includes(rawMeta.agent)
+        refreshEl.disabled = !!refreshState?.busy || (refreshState?.retryAt || 0) > Date.now()
+        refreshEl.textContent = refreshState?.busy ? '…' : '↻'
+        refreshEl.title = this.ui('사용량 새로고침')
+        refreshEl.setAttribute('aria-label', refreshEl.title)
+        refreshEl.onclick = () => {
+            if (!rawMeta) { return }
+            const task = this.usageRefresh.refresh(rawMeta)
+            this.renderNow()
+            void task.finally(() => this.renderNow())
+        }
+        const refreshStatus = el.querySelector('.ad-now-refresh-status') as HTMLElement
+        refreshStatus.textContent = refreshState?.busy ? this.ui('잔량 조회 중…') : this.ui(refreshState?.message || '')
+        refreshStatus.hidden = !refreshStatus.textContent
         const accountEl = el.querySelector('.ad-now-account') as HTMLElement
         const provider = this.notify.metaOf(this.app.activeTab as BaseTabComponent)?.agent
         const switchable = provider === 'claude' || provider === 'codex'
@@ -5371,6 +5391,14 @@ export class AgentDeckService {
         accountEl.onclick = () => { void this.showAccountPicker() }
         const gaugeEl = el.querySelector('.ad-now-gauges') as HTMLElement
         this.renderMetaGauges(gaugeEl, view.gauges)
+        for (const value of refreshState?.values?.filter(v => v.remaining === undefined && v.status) || []) {
+            const row = document.createElement('span')
+            row.className = 'ad-now-reset'
+            const available = RESET_COPY[this.sidebarLang] ?? RESET_COPY.en
+            row.textContent = `${value.label.toLowerCase()} · ${available[value.status === '사용 가능' ? 3 : 4]}`
+            gaugeEl.appendChild(row)
+            gaugeEl.hidden = false
+        }
     }
 
     private renderMetaGauges (gaugeEl: HTMLElement, gauges: MetaGauge[]): void {

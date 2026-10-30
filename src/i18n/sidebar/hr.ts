@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Osvježi potrošnju",
+    "사용량을 갱신했습니다.": "Potrošnja je osvježena.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Provjerite prijavu i pokušajte ponovno.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Potrošnju nije moguće osvježiti. Pokušajte uskoro ponovno.",
     "상태": "Status",
     "탭 제목": "Naslov kartice",
     "별명": "Nadimak",

@@ -3,6 +3,10 @@ import { SIDEBAR_LOCALES } from './sidebarLocales'
 
 // UI copy only: never pass session titles, prompts, paths or account names here.
 const EN: Record<string, string> = {
+    '사용량 새로고침': 'Refresh usage',
+    '사용량을 갱신했습니다.': 'Usage refreshed.',
+    '로그인을 확인한 뒤 다시 시도하세요.': 'Check your login, then try again.',
+    '사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.': 'Could not refresh usage. Try again shortly.',
     "상태": "Status",
     "탭 제목": "Tab title",
     "별명": "Alias",

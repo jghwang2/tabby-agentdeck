@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Kullanımı yenile",
+    "사용량을 갱신했습니다.": "Kullanım güncellendi.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Oturumunuzu kontrol edip tekrar deneyin.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Kullanım güncellenemedi. Biraz sonra tekrar deneyin.",
     "상태": "Durum",
     "탭 제목": "Sekme başlığı",
     "별명": "Takma ad",

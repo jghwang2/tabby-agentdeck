@@ -102,7 +102,7 @@ export function mergeHooks (settings: any, script: string): any {
     const next = { ...(settings ?? {}) }
     next.hooks = { ...(next.hooks ?? {}) }
     for (const p of PLAN) {
-        const command = `node "${script.replace(/\.ps1$/i, '.mjs')}" ${p.args}`
+        const command = `node "${script.replace(/\\/g, '/').replace(/\.ps1$/i, '.mjs')}" ${p.args}`
         next.hooks[p.event] = [
             ...withoutOurs(next.hooks[p.event]),
             { matcher: '*', hooks: [{ type: 'command', command, timeout: 5 }] },

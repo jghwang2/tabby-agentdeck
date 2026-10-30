@@ -216,7 +216,7 @@ export function cachedAccountQuotas (account: SavedAccount): QuotaSnapshot | nul
     return cache?.version === 2 && cache?.id === account.id.toLowerCase() && cache?.provider === account.provider && Array.isArray(cache.values)
         ? { values: cache.values, ts: cache.ts, stale: Date.now() - cache.ts > 120000 } : null
 }
-function cacheQuotas (account: SavedAccount, values: AccountQuota[], ts = Date.now()): QuotaSnapshot {
+export function cacheQuotas (account: SavedAccount, values: AccountQuota[], ts = Date.now()): QuotaSnapshot {
     const prev = cachedAccountQuotas(account)
     if (prev && prev.ts > ts) { return prev }
     write(cacheFile(account), { version: 2, provider: account.provider, id: account.id.toLowerCase(), values, ts })
@@ -237,10 +237,14 @@ export function recordAccountUsage (account: SavedAccount, meta: MetaInput & { t
             values.push({ label, remaining: 100 - Math.max(0, Math.min(100, pct)), ...(reset ? { resetsAt: reset } : {}) })
         }
     }
-    if (values.length) { cacheQuotas(account, values, ts) }
+    if (values.length) {
+        // Passive status lines omit API-only model windows; preserve the last observed scoped values.
+        const previous = cachedAccountQuotas(account)?.values || []
+        cacheQuotas(account, [...values, ...previous.filter(v => !values.some(next => next.label === v.label))], ts)
+    }
 }
 
-export function getAccountQuotas (account: SavedAccount): Promise<QuotaSnapshot> {
+export function getAccountQuotas (account: SavedAccount, force = false): Promise<QuotaSnapshot> {
     const existing = quotaFlight.get(account.key)
     if (existing) { return existing }
     const run = (async () => {
@@ -250,7 +254,7 @@ export function getAccountQuotas (account: SavedAccount): Promise<QuotaSnapshot>
             throw error
         }
         const cache = cachedAccountQuotas(account)
-        if (cache && !cache.stale) { return cache }
+        if (cache && !cache.stale && !force) { return cache }
         const retryFile = path.join(accountHome(account), 'usage-retry.json')
         const blockedUntil = Math.max(nextQuery.get(account.key) || 0, Number(read(retryFile)?.until) || 0)
         if (blockedUntil > Date.now()) {

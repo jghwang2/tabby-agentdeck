@@ -15,6 +15,7 @@ import {
     CodexState, codexContextPct, codexLimits, createCodexState, emailFromIdToken, feedCodexChunk,
 } from './codexMeta'
 import { claudeSettingsPath, hooksInstalled, hooksSupported, installHooks } from './claudeHooks'
+import { findHookUpgrades, applyHookUpgrades, HookUpgrade } from './hookUpgrade'
 import { pickTabByPids } from './bind'
 import { shortenReason } from './reason'
 import { TAB_ENV, newTabId, pickTabByTabId } from './tabenv'
@@ -216,8 +217,7 @@ export interface AgentMeta {
         sevenDayPct: number | null
         sevenDayResetsAt: number
         /**
-         * 모델별 주간 한도 (Fable 등) — Claude 래퍼만 채운다. statusLine stdin 에는 없어서
-         * 래퍼가 `/api/oauth/usage` 를 따로 물어본 값이고, 없으면 칸이 안 생긴다 (meta.ts)
+         * Legacy scoped metadata is accepted; new API-only usage is refreshed by the app (meta.ts).
          */
         scopedName?: string
         scopedPct?: number | null
@@ -505,6 +505,7 @@ export class WorkNotifyService {
      */
     private async promptHooksOnce (): Promise<void> {
         const cfg = this.config.store.agentDeck
+        if (await this.promptHookUpgrade()) { return }
         if (cfg.hookPromptDismissed || !hooksSupported()) {
             return
         }
@@ -558,6 +559,27 @@ export class WorkNotifyService {
     }
 
     private hookDispatcher: any
+    private async promptHookUpgrade (): Promise<boolean> {
+        let plans: HookUpgrade[]
+        try { plans = findHookUpgrades() } catch (error) { diagCatch('hook upgrade detection', error); return false }
+        if (!plans.length) { return false }
+        const choice = await this.platform.showMessageBox({
+            type: 'warning',
+            message: 'AgentDeck — 기존 훅을 새 실행 방식으로 갱신할까요?',
+            detail: 'PowerShell을 거치던 AgentDeck 훅을 Node 직접 실행으로 바꿔 호출 지연을 줄입니다.\n'
+                + '다른 훅과 사용자 설정은 유지하고, 변경 전 백업을 남깁니다.\n'
+                + '실행 중인 CLI는 다시 시작하거나 훅을 다시 불러와야 할 수 있습니다. Codex의 훅 신뢰 확인은 그대로 유지됩니다.\n\n'
+                + plans.map(p => `${p.file} (${p.count})`).join('\n'),
+            buttons: ['갱신한다', '나중에'], defaultId: 0, cancelId: 1,
+        })
+        if (choice.response === 0) {
+            try { applyHookUpgrades(plans) } catch (error: any) {
+                await this.platform.showMessageBox({ type: 'error', message: 'AgentDeck — 훅 갱신을 완료하지 못했습니다.',
+                    detail: String(error?.message || error), buttons: ['확인'] })
+            }
+        }
+        return true
+    }
     private parentOwners = new WeakMap<BaseTabComponent, { agent: AgentId, sessionId?: string }>()
 
     parentAgentOf (tab: BaseTabComponent): AgentId | null { return this.parentOwners?.get(tab)?.agent || null }

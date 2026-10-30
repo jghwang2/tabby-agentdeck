@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Obnovit využití",
+    "사용량을 갱신했습니다.": "Využití aktualizováno.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Zkontrolujte přihlášení a zkuste to znovu.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Využití se nepodařilo aktualizovat. Zkuste to za chvíli.",
     "상태": "Stav",
     "탭 제목": "Název karty",
     "별명": "Přezdívka",

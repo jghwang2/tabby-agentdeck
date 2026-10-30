@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Nutzung aktualisieren",
+    "사용량을 갱신했습니다.": "Nutzung aktualisiert.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Prüfe deine Anmeldung und versuche es erneut.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Nutzung konnte nicht aktualisiert werden. Versuche es in Kürze erneut.",
     "상태": "Status",
     "탭 제목": "Tabtitel",
     "별명": "Alias",

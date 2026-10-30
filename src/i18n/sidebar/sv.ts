@@ -1,5 +1,9 @@
 // Sidebar UI copy; user content is never translated.
 export default {
+    "사용량 새로고침": "Uppdatera användning",
+    "사용량을 갱신했습니다.": "Användningen uppdaterad.",
+    "로그인을 확인한 뒤 다시 시도하세요.": "Kontrollera din inloggning och försök igen.",
+    "사용량을 갱신하지 못했습니다. 잠시 후 다시 시도하세요.": "Kunde inte uppdatera användningen. Försök igen om en stund.",
     "상태": "Status",
     "탭 제목": "Fliktitel",
     "별명": "Alias",

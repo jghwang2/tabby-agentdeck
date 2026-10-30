@@ -453,8 +453,8 @@ export function parseCodexUsage (body: any): AccountQuota[] {
     return result
 }
 
-function fetchCodexUsage (account: SavedAccount): Promise<AccountQuota[]> {
-    const auth = readJson(path.join(accountHome(account), 'auth.json'))
+function fetchCodexUsage (account: SavedAccount, home = accountHome(account)): Promise<AccountQuota[]> {
+    const auth = readJson(path.join(home, 'auth.json'))
     return new Promise((resolve, reject) => {
         const req = https.get('https://chatgpt.com/backend-api/wham/usage', {
             headers: { authorization: `Bearer ${auth?.tokens?.access_token || ''}`, 'ChatGPT-Account-Id': auth?.tokens?.account_id || '' }, timeout: 10000,
@@ -462,7 +462,12 @@ function fetchCodexUsage (account: SavedAccount): Promise<AccountQuota[]> {
             let body = ''
             res.on('data', chunk => { body += chunk; if (body.length > 1024 * 1024) { req.destroy() } })
             res.on('end', () => {
-                if (res.statusCode !== 200) { reject(new Error('Codex 잔량 조회 실패')); return }
+                if (res.statusCode !== 200) {
+                    const retry = Number(res.headers['retry-after'])
+                    reject(new AccountRequestError(res.statusCode === 401 ? 'auth' : 'temporary',
+                        res.statusCode === 429 ? '사용량 조회 제한 · 잠시 후 다시 시도하세요.' : 'Codex 잔량 조회 실패',
+                        res.statusCode, Number.isFinite(retry) ? Math.max(30000, retry * 1000) : 60000)); return
+                }
                 try {
                     const data = JSON.parse(body)
                     if (data.account_id && data.account_id !== auth?.tokens?.account_id) { reject(new Error('잔량 응답의 계정이 일치하지 않습니다.')); return }
@@ -492,10 +497,19 @@ export async function authenticateAccount (account: SavedAccount, refreshToken =
     }
 }
 
-export async function fetchAccountQuotas (account: SavedAccount): Promise<AccountQuota[]> {
-    await authenticateAccount(account)
-    if (account.provider === 'codex') { return fetchCodexUsage(account) }
-    const token = readJson(path.join(accountHome(account), '.credentials.json'))?.claudeAiOauth?.accessToken
+export async function fetchAccountQuotas (account: SavedAccount, sourceHome?: string): Promise<AccountQuota[]> {
+    const home = sourceHome || accountHome(account)
+    if (sourceHome) {
+        // A live CLI account need not be registered in the account picker. Read its own credentials only.
+        const identity = accountEmail(account.provider, home) || (account.provider === 'claude'
+            && path.resolve(home) === path.resolve(os.homedir(), '.claude')
+            ? String(readJson(path.join(os.homedir(), '.claude.json'))?.oauthAccount?.emailAddress || '') : '')
+        if (identity.toLowerCase() !== account.id.toLowerCase()) {
+            throw new AccountRequestError('auth', '현재 세션의 로그인 계정을 확인하지 못했습니다.')
+        }
+    } else { await authenticateAccount(account) }
+    if (account.provider === 'codex') { return fetchCodexUsage(account, home) }
+    const token = readJson(path.join(home, '.credentials.json'))?.claudeAiOauth?.accessToken
     if (!token) { throw new AccountRequestError('auth', '저장된 로그인 정보가 없습니다.') }
     return new Promise((resolve, reject) => {
         const req = https.get('https://api.anthropic.com/api/oauth/usage', {

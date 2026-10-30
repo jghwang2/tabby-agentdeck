@@ -629,7 +629,22 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         overflow: hidden;
     }
 
+    .ad-now-heading { display: flex; align-items: center; gap: 8px; }
+    .ad-now-refresh {
+        margin-left: auto;
+        flex: 0 0 auto;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 20px;
+        &:hover, &:focus-visible { background: rgba(255, 255, 255, 0.1); }
+        &:disabled { opacity: 0.4; cursor: default; }
+    }
+    .ad-now-refresh-status { font-size: 12px; opacity: 0.7; margin-top: 4px; }
     .ad-now-title {
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;

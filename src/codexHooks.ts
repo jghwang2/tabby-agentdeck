@@ -116,7 +116,7 @@ export function stripCodexHooks (settings: any): any {
 
 export function mergeCodexHooks (settings: any, script: string): any {
     const next = stripCodexHooks(settings)
-    const command = `node "${script.replace(/\.ps1$/i, '.mjs')}"`
+    const command = `node "${script.replace(/\\/g, '/').replace(/\.ps1$/i, '.mjs')}"`
     for (const event of CODEX_EVENTS) {
         next.hooks[event] = [...(next.hooks[event] ?? []), {
             hooks: [{ type: 'command', command, timeout: 3 }],
