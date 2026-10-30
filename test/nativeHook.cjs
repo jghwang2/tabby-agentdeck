@@ -82,12 +82,15 @@ const normalize = e => { const { id, ts, pid, ...rest } = e; return rest }
     // Runtime root parity with accounts path/profile hashing, including a trailing slash.
     mode = 'ok'
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-    const profile = path.join(root, '프로필') + path.sep
     const accountFile = path.join(root, 'accounts', 'accounts.json')
-    const hash = require('node:crypto').createHash('sha256').update(path.resolve(profile).toLowerCase()).digest('hex').slice(0, 16)
-    const runtime = path.join(root, 'accounts', 'runtime', hash)
-    fs.mkdirSync(runtime, { recursive: true }); fs.writeFileSync(path.join(runtime, 'port'), String(server.address().port))
-    assert.equal(await run(true, 'codex', raw, { AGENTDECK_RUNTIME_ROOT: '', AGENTDECK_ACCOUNTS_FILE: accountFile, TABBY_CONFIG_DIRECTORY: profile }), '한글 😀 문맥')
+    const shortProfile = path.join(path.parse(process.env.ProgramFiles || 'C:/Program Files').root, 'PROGRA~1')
+    const profiles = [path.join(root, '프로필') + path.sep, ...(fs.existsSync(shortProfile) ? [shortProfile] : [])]
+    for (const profile of profiles) {
+        const hash = require('node:crypto').createHash('sha256').update(path.resolve(profile).toLowerCase()).digest('hex').slice(0, 16)
+        const runtime = path.join(root, 'accounts', 'runtime', hash)
+        fs.mkdirSync(runtime, { recursive: true }); fs.writeFileSync(path.join(runtime, 'port'), String(server.address().port))
+        assert.equal(await run(true, 'codex', raw, { AGENTDECK_RUNTIME_ROOT: '', AGENTDECK_ACCOUNTS_FILE: accountFile, TABBY_CONFIG_DIRECTORY: profile }), '한글 😀 문맥', 'profile path parity: ' + profile)
+    }
     // Registration, history cleanup and source-only updates use the same offline package.
     const ts = require('typescript')
     require.extensions['.ts'] = (m,f) => m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2019}}).outputText,f)

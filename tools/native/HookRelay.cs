@@ -13,14 +13,24 @@ internal static class HookRelay {
     static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 16777216, RecursionLimit = 100 };
     static string Env(string key) { return Environment.GetEnvironmentVariable(key) ?? ""; }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern uint GetFullPathName(string input, uint size, StringBuilder output, IntPtr filePart);
+    static string ProfilePath(string profile) {
+        // Match Node's lexical path.resolve. Framework Path.GetFullPath expands
+        // existing 8.3 names, which changes the shared runtime directory hash.
+        var buffer = new StringBuilder(32768);
+        uint length = GetFullPathName(profile, (uint)buffer.Capacity, buffer, IntPtr.Zero);
+        if (length == 0 || length >= buffer.Capacity) throw new IOException("Invalid profile path");
+        string full = buffer.ToString();
+        return full.Length > Path.GetPathRoot(full).Length ? full.TrimEnd('\\', '/') : full;
+    }
     static string Root() {
         if (Env("AGENTDECK_RUNTIME_ROOT") != "") return Env("AGENTDECK_RUNTIME_ROOT");
         string accounts = Env("AGENTDECK_ACCOUNTS_FILE");
         if (accounts == "") accounts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".agentdeck", "accounts.json");
         string root = Path.Combine(Path.GetDirectoryName(accounts), "runtime"), profile = Env("TABBY_CONFIG_DIRECTORY");
         if (profile != "") {
-            string full = Path.GetFullPath(profile);
-            if (full.Length > Path.GetPathRoot(full).Length) full = full.TrimEnd('\\', '/');
+            string full = ProfilePath(profile);
             using (var sha = SHA256.Create()) root = Path.Combine(root, BitConverter.ToString(sha.ComputeHash(Utf8.GetBytes(full.ToLowerInvariant()))).Replace("-", "").ToLowerInvariant().Substring(0, 16));
         }
         return root;
