@@ -1,10 +1,12 @@
 import * as fs from 'fs'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
+import { historicalHook, CODEX_HOOK_EVENTS, currentHookGroups } from './hookCatalog'
+import { prepareHookRegistry } from './hookRegistry'
 
 const MARK = 'agentdeck-codex-notify'
 // https://learn.chatgpt.com/docs/hooks — no Claude-only Notification/StopFailure events.
-export const CODEX_EVENTS = ['UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'Interrupt', 'SessionEnd']
+export const CODEX_EVENTS = CODEX_HOOK_EVENTS
 
 export function codexHooksPath (): string {
     return path.join(agentHome('codex'), 'hooks.json')
@@ -95,8 +97,8 @@ export function codexEventLabel (snake: string): string {
     return CODEX_EVENTS.includes(pascal) ? pascal : snake
 }
 
-function ours (handler: any): boolean {
-    return typeof handler?.command === 'string' && handler.command.includes(MARK)
+function ours (handler: any, event: string, group: any): boolean {
+    return !!historicalHook('codex', event, group, handler)
 }
 
 export function stripCodexHooks (settings: any): any {
@@ -105,10 +107,12 @@ export function stripCodexHooks (settings: any): any {
         if (!Array.isArray(hooks[event])) {
             throw new Error(`Invalid hooks.${event}: expected an array`)
         }
-        hooks[event] = hooks[event].map((group: any) => {
+        hooks[event] = hooks[event].flatMap((group: any) => {
             if (!Array.isArray(group?.hooks)) { throw new Error(`Invalid hooks.${event} group`) }
-            return { ...group, hooks: group.hooks.filter((handler: any) => !ours(handler)) }
-        }).filter((group: any) => group.hooks.length)
+            const kept = group.hooks.filter((handler: any) => !ours(handler, event, group))
+            if (kept.length === group.hooks.length) return [group]
+            return kept.length ? [{...group, hooks: kept}] : []
+        })
         if (!hooks[event].length) { delete hooks[event] }
     }
     return { ...settings, hooks }
@@ -127,7 +131,7 @@ export function mergeCodexHooks (settings: any, script: string): any {
 
 export function codexHooksInstalled (): boolean {
     const settings = readCodexHooks()
-    return CODEX_EVENTS.every(event => settings.hooks?.[event]?.some((group: any) => group.hooks?.some(ours)))
+    return CODEX_EVENTS.every(event => settings.hooks?.[event]?.some((group: any) => group.hooks?.some((h: any) => ours(h, event, group))))
 }
 
 function readCodexHooks (): any {
@@ -147,7 +151,9 @@ export function setCodexHooks (enabled: boolean): void {
     if (enabled && !fs.existsSync(script)) { throw new Error(`Missing hook: ${script}`) }
     const current = readCodexHooks()
     const next = enabled ? mergeCodexHooks(current, script) : stripCodexHooks(current)
+    const record = enabled ? prepareHookRegistry(path.dirname(file), 'codex', currentHookGroups('codex', path.dirname(script))) : null
     fs.mkdirSync(path.dirname(file), { recursive: true })
     if (fs.existsSync(file)) { fs.copyFileSync(file, `${file}.agentdeck-backup-${Date.now()}`) }
     fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n', 'utf8')
+    record?.()
 }

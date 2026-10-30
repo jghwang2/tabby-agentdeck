@@ -17,7 +17,7 @@ function check (name, got, want) {
     }
 }
 
-const SCRIPT = 'D:/plugin/hooks/agentdeck-notify.ps1'
+const SCRIPT = 'D:/tabby-agentdeck/hooks/agentdeck-notify.ps1'
 /** 사용자가 이미 쓰고 있던 남의 훅 — 우리 것과 공존해야 한다 */
 const FOREIGN = {
     matcher: 'Edit|Write',
@@ -42,7 +42,8 @@ const FOREIGN = {
 {
     const old = { hooks: {} }
     for (const ev of ['UserPromptSubmit', 'Notification', 'Stop']) {
-        old.hooks[ev] = [{ matcher: '*', hooks: [{ type: 'command', command: `powershell -File "${SCRIPT}" -Status x` }] }]
+        const status = ev === 'Stop' ? 'done' : ev === 'Notification' ? 'waiting' : 'running'
+        old.hooks[ev] = [{ matcher: '*', hooks: [{ type: 'command', command: `powershell -File "${SCRIPT}" -Status ${status}` }] }]
     }
     check('옛 3이벤트 설치는 미설치 판정', isMerged(old), false)
     const out = mergeHooks(old, SCRIPT)
@@ -63,7 +64,7 @@ const FOREIGN = {
 // 3) 두 번 걸어도 중복되지 않는다 (경로만 갈아끼운다)
 {
     const once = mergeHooks({}, SCRIPT)
-    const twice = mergeHooks(once, 'E:/other/hooks/agentdeck-notify.ps1')
+    const twice = mergeHooks(once, 'E:/other/tabby-agentdeck/hooks/agentdeck-notify.ps1')
     check('중복 등록 없음', twice.hooks.Stop.length, 1)
     check('새 경로로 갈아끼움',
         twice.hooks.Stop[0].hooks[0].command.includes('E:/other'), true)
@@ -91,8 +92,9 @@ const FOREIGN = {
 {
     check('hooks 없음', isMerged({ theme: 'dark' }), false)
     check('hooks 가 배열', isMerged({ hooks: [] }), false)
-    const out = mergeHooks({ hooks: { Stop: 'oops' } }, SCRIPT)
-    check('문자열이던 값은 우리 것으로 대체', out.hooks.Stop.length, 1)
+    let rejected = false
+    try { mergeHooks({ hooks: { Stop: 'oops' } }, SCRIPT) } catch { rejected = true }
+    check('손상된 설정은 덮어쓰지 않는다', rejected, true)
     check('빈 설정 제거도 안전', stripHooks({}), {})
 }
 

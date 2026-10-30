@@ -19,6 +19,8 @@ hooks.installHooks(); sl.installStatusLine()
 for(const home of [main,ah,bh]) {
   const s=settings.readClaudeSettings(home)
   assert.ok(hooks.isMerged(s));assert.ok(sl.isWrapped(s));assert.ok(s.statusLine.command.includes('--inner'))
+  const registry=JSON.parse(fs.readFileSync(path.join(home,'.agentdeck-hook-registry.json'),'utf8'))
+  assert.equal(registry.groups.length,9);assert.deepEqual(registry.statusLine.value,s.statusLine)
 }
 assert.deepEqual(sl.readInner(ah),original('account-a'))
 assert.deepEqual(sl.readInner(main),original('primary'))
@@ -44,7 +46,7 @@ assert.throws(()=>sl.installStatusLine());assert.throws(()=>hooks.installHooks()
 assert.equal(fs.readFileSync(path.join(main,'settings.json'),'utf8'),before,'all settings validated before writing')
 assert.equal(fs.readFileSync(path.join(bh,'settings.json'),'utf8'),'{broken')
 writeSettings(bh,{})
-writeSettings(main,{hooks:{Stop:[{hooks:[{type:'command',command:'node old-agentdeck-notify.ps1'}]}]}})
+writeSettings(main,{hooks:{Stop:[{hooks:[{type:'command',command:'powershell -NoProfile -ExecutionPolicy Bypass -File "C:/old/tabby-agentdeck/hooks/agentdeck-notify.ps1" -Status done',timeout:5}]}]}})
 accounts.prepareAccount(b,main)
 assert.ok(hooks.isMerged(settings.readClaudeSettings(bh)),'upgrade an older partial hook installation')
 

@@ -10,14 +10,15 @@ require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
 }).outputText, file)
 const { mergeCodexHooks, stripCodexHooks, CODEX_EVENTS, setCodexHooks } = require('../src/codexHooks.ts')
 const script = path.resolve('receiver/agentdeck-codex-notify.ps1')
-const own = { type: 'command', command: `powershell -File "${script}"` }
+const registrationScript = path.resolve('hooks/agentdeck-codex-notify.ps1')
+const own = { type: 'command', command: `powershell -File "${registrationScript}"` }
 const other = { type: 'command', command: 'echo keep' }
 const original = { description: 'keep', hooks: { Stop: [{ matcher: 'existing', hooks: [own, other] }], SessionStart: [{ hooks: [other] }] } }
 const untouched = structuredClone(original)
-const merged = mergeCodexHooks(original, script)
+const merged = mergeCodexHooks(original, registrationScript)
 assert.deepEqual(original, untouched)
-assert.deepEqual(mergeCodexHooks(merged, script), merged)
-assert.deepEqual(stripCodexHooks(merged).hooks.Stop, [{ matcher: 'existing', hooks: [other] }])
+assert.deepEqual(mergeCodexHooks(merged, registrationScript), merged)
+assert.deepEqual(stripCodexHooks(merged).hooks.Stop, original.hooks.Stop, 'custom matcher is preserved')
 assert.deepEqual(stripCodexHooks(merged).hooks.SessionStart, original.hooks.SessionStart)
 assert.equal(merged.description, 'keep')
 assert.equal(CODEX_EVENTS.includes('Notification'), false)
@@ -180,6 +181,11 @@ try {
     fs.writeFileSync(config, '{broken')
     assert.throws(() => setCodexHooks(true))
     assert.equal(fs.readFileSync(config, 'utf8'), '{broken')
+    fs.writeFileSync(config, JSON.stringify({hooks:{Stop:[{hooks:[other]}]}}))
+    setCodexHooks(true)
+    assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME,'.agentdeck-hook-registry.json'),'utf8')).groups.length,7)
+    setCodexHooks(false)
+    assert.deepEqual(JSON.parse(fs.readFileSync(config,'utf8')).hooks.Stop,[{hooks:[other]}])
     const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_RUNTIME_ROOT: path.join(temp, 'tabby-agentdeck'), AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
     // Windows CI has both setup-node and preinstalled Node on PATH. Get-Command
     // can return multiple applications; the hook must select one executable.

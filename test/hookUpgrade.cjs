@@ -4,9 +4,9 @@ const {findHookUpgrades,applyHookUpgrades,upgradedHookSettings}=require('../src/
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'agentdeck-hook-upgrade-')),dir=path.resolve(__dirname,'../hooks')
 const legacy=name=>`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\old\\tabby-agentdeck\\hooks\\${name}.ps1"`
 const files=['claude','codex'].map(x=>path.join(root,x+'.json'))
-const originals=files.map((file,i)=>({model:'keep',statusLine:{command:'user-status'},hooks:{PostToolUse:[{matcher:'Custom',hooks:[
+const originals=files.map((file,i)=>({model:'keep',statusLine:{command:'user-status'},hooks:{PostToolUse:[{matcher:'*',hooks:[
  {type:'command',command:'echo user-hook',timeout:7},
- {type:'command',command:legacy(i?'agentdeck-codex-notify':'agentdeck-notify')+(i?'':' -Status running'),timeout:3,async:true},
+ {type:'command',command:legacy(i?'agentdeck-codex-notify':'agentdeck-notify')+(i?'':' -Status running'),timeout:i?3:5},
  {type:'command',command:'powershell -File "C:\\other\\custom.ps1"',timeout:9},
 ]}]}}))
 try{
@@ -18,7 +18,7 @@ try{
  for(let i=0;i<files.length;i++){
   const next=JSON.parse(fs.readFileSync(files[i]));const handlers=next.hooks.PostToolUse[0].hooks
   assert.match(handlers[1].command,/^node ".*\.mjs"/);assert.ok(!handlers[1].command.includes('powershell'))
-  assert.equal(handlers[1].async,true);assert.equal(handlers[1].timeout,3)
+  assert.equal(handlers[1].timeout,i?3:5)
   assert.deepEqual(handlers[0],originals[i].hooks.PostToolUse[0].hooks[0]);assert.deepEqual(handlers[2],originals[i].hooks.PostToolUse[0].hooks[2])
   assert.deepEqual(next.statusLine,originals[i].statusLine);assert.equal(next.model,'keep')
   assert.equal(fs.readFileSync(files[i]+'.agentdeck-hook-upgrade-backup','utf8'),before[i])

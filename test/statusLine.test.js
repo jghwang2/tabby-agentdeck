@@ -22,9 +22,9 @@ function check (name, got, want) {
     }
 }
 
-const SCRIPT = 'D:/plugin/hooks/agentdeck-statusline.mjs'
+const SCRIPT = 'D:/tabby-agentdeck/hooks/agentdeck-statusline.mjs'
 // 윈도우 경로로 넘겨도 명령줄에는 슬래시로 박혀야 한다 (statusLine.ts wrapStatusLine 주석)
-const WIN_SCRIPT = 'D:\\plugin\\hooks\\agentdeck-statusline.mjs'
+const WIN_SCRIPT = 'D:\\tabby-agentdeck\\hooks\\agentdeck-statusline.mjs'
 const OURS = { type: 'command', command: `node "${SCRIPT}"` }
 // 다른 도구의 래퍼가 이미 한 겹 들어가 있는 모양
 const THEIRS = {
@@ -44,7 +44,7 @@ const second = wrapStatusLine(first.next, SCRIPT)
 check('이미 우리 것이면 안쪽을 다시 옮기지 않는다 (null)', second.inner, null)
 check('명령줄은 지금 경로로 갱신된다', second.next.statusLine, OURS)
 check('경로가 바뀌어도 우리 것으로 알아본다',
-    isWrapped({ statusLine: { type: 'command', command: 'node "X:/other/hooks/agentdeck-statusline.mjs"' } }), true)
+    isWrapped({ statusLine: { type: 'command', command: 'node "X:/other/tabby-agentdeck/hooks/agentdeck-statusline.mjs"' } }), true)
 
 check('윈도우 경로(백슬래시)도 명령줄에는 슬래시로 박힌다',
     wrapStatusLine({}, WIN_SCRIPT).next.statusLine, OURS)

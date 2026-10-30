@@ -19,7 +19,7 @@
     "prepack": "npm run build:release && node tools/check-release.js",
     "watch": "webpack --progress --color --watch",
     "test": "npm run test:existing && npm run test:ime && npm run test:codex && npm run test:accounts && node test/sidebarI18n.cjs && node test/accountSession.cjs && node test/usageRefresh.cjs && node test/accountRefreshPolicy.cjs && node test/accountRefreshClient.cjs && npm run test:sessions && npm run test:storage && npm run test:performance && npm run test:hook-trace && npm run test:updater",
-    "pretest": "node test/hookUpgrade.cjs",
+    "pretest": "node test/hookUpgrade.cjs && node test/hookManagement.cjs",
     "test:ime": "node test/imeCommit.cjs",
     "test:hook-trace": "node test/hookCost.cjs && node test/hookReceiver.cjs && node test/hookBacklog.cjs && node test/hookSustained.cjs && node test/hookTrace.cjs && node test/agentHook.cjs && node test/mailboxDeadline.cjs && node test/mailboxContext.cjs && node test/scheduledTasks.cjs",
     "test:updater": "node test/updater.cjs && node test/updateService.cjs",

@@ -59,6 +59,10 @@ Write-Host "의존성 등록: $pkgPath (tabby-agentdeck = $spec)"
 
 # 2-2) Claude Code 상태 통보 훅 등록
 if ($Hooks) {
+    Write-Host '훅 설정은 변경하지 않았습니다. Tabby > AgentDeck 설정에서 훅 전문을 확인한 뒤 설치 / 재적용을 사용하세요.'
+}
+<# Retired: group-wide substring deletion could remove user hooks. Use the reviewed app workflow.
+if ($Hooks) {
     $settingsPath = Join-Path $env:USERPROFILE '.claude\settings.json'
     $notify = Join-Path $source 'hooks\agentdeck-notify.ps1'
     if (-not (Test-Path $notify)) {
@@ -107,5 +111,6 @@ if ($Hooks) {
     Write-Host "저장: $settingsPath (백업: $settingsPath.agentdeck-backup)"
 }
 
+#>
 Write-Host ""
 Write-Host "Tabby 를 재시작하면 적용된다."

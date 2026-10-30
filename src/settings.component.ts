@@ -20,6 +20,8 @@ import { StoragePaths, STORAGE_KEYS, storageDefaults } from './storagePaths'
 import { StorageSettings, storageSettingsFor } from './storageSettings'
 import { storageText } from './storageI18n'
 import { AgentDeckProfileService } from './profile.service'
+import { HookProvider } from './hookCatalog'
+import { HookAction, HookManagementPlan, planHookManagement, applyHookManagement } from './hookManagement'
 
 /** 확인 결과를 사람 말로 — 설정 창의 한 줄 안내 */
 const UPDATE_OUTCOME_TEXT: Record<UpdateOutcome, string> = {
@@ -408,12 +410,11 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
             <span *ngIf="claudeError" class="text-danger d-block mt-1">{{claudeError}}</span>
         </div>
     </div>
-    <button class="btn" type="button"
-            [class.btn-secondary]="!claudeOn" [class.btn-outline-danger]="claudeOn"
-            (click)="toggleClaude()">
-        <i class="fas me-2" [class.fa-plug]="!claudeOn" [class.fa-trash]="claudeOn"></i>
-        {{t(claudeOn ? 'btn.remove' : 'btn.install')}}
-    </button>
+    <div class="ad-hook-actions" data-hook-provider="claude">
+        <button *ngFor="let action of hookActions" class="btn btn-secondary" type="button"
+            [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
+            (click)="openHookManagement('claude', action.id)">{{action.label}}</button>
+    </div>
 </div>
 
 <div class="form-line" *ngIf="hooksSupported">
@@ -427,13 +428,29 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
             <span *ngIf="codexHookError" class="text-danger d-block mt-1">{{codexHookError}}</span>
         </div>
     </div>
-    <button class="btn" type="button"
-            [class.btn-secondary]="!codexHooksOn" [class.btn-outline-danger]="codexHooksOn"
-            (click)="toggleCodexHooks()">
-        <i class="fas me-2" [class.fa-plug]="!codexHooksOn" [class.fa-trash]="codexHooksOn"></i>
-        {{t(codexHooksOn ? 'btn.remove' : 'btn.install')}}
-    </button>
+    <div class="ad-hook-actions" data-hook-provider="codex">
+        <button *ngFor="let action of hookActions" class="btn btn-secondary" type="button"
+            [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
+            (click)="openHookManagement('codex', action.id)">{{action.label}}</button>
+    </div>
 </div>
+
+<section class="ad-hook-preview" *ngIf="hookManagementPlan" aria-label="훅 전문과 변경 미리보기">
+    <h4>{{hookManagementPlan.provider === 'claude' ? 'Claude' : 'Codex'}} — {{hookManagementTitle}}</h4>
+    <p>{{hookManagementDescription}}</p>
+    <p>모든 제거·초기화는 AgentDeck 항목만 대상으로 합니다. 사용자 훅, 출처 미확인 항목과 Codex 신뢰 설정은 보존합니다.</p>
+    <pre tabindex="0">{{hookManagementPlan.preview}}</pre>
+    <details *ngFor="let source of hookManagementPlan.sources" class="mb-2">
+        <summary>현재 설치된 AgentDeck 전달기 코드 — {{source.file}}</summary>
+        <pre tabindex="0">{{source.text}}</pre>
+    </details>
+    <button class="btn btn-primary me-2" type="button" data-hook-apply
+        [disabled]="hookManagementBusy || !hookManagementPlan.canApply" (click)="confirmHookManagement()">변경 적용</button>
+    <button class="btn btn-secondary me-2" type="button" [disabled]="hookManagementBusy"
+        (click)="openHookManagement(hookManagementPlan.provider, hookManagementPlan.action)">다시 불러오기</button>
+    <button class="btn btn-secondary" type="button" [disabled]="hookManagementBusy" (click)="hookManagementPlan = null">닫기</button>
+    <p class="mt-2" role="status">{{hookManagementMessage}}</p>
+</section>
 
 <section class="ad-storage-settings">
 <h3 class="mt-4 mb-3">{{storageLabel('head')}}</h3>
@@ -897,6 +914,11 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
      * 그래야 "훅은 걸렸는데 statusLine 이 안 걸린" 반쪽 상태를 사용자가 볼 수 있다.
      */
     toggleClaude (): void {
+        this.openHookManagement('claude', this.claudeOn ? 'reset' : 'apply')
+    }
+
+    /* Retired direct writer. UI actions use reviewed plans below.
+    private legacyToggleClaude (): void {
         this.hookError = ''
         this.statusLineError = ''
         const remove = this.claudeOn
@@ -924,7 +946,13 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         this.syncNotifyChannel()
     }
 
+    */
     toggleCodexHooks (): void {
+        this.openHookManagement('codex', this.codexHooksOn ? 'reset' : 'apply')
+    }
+
+    /* Retired direct writer.
+    private legacyToggleCodexHooks (): void {
         this.codexHookError = ''
         try {
             setCodexHooks(!this.codexHooksOn)
@@ -933,6 +961,58 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         }
         this.refreshHooks()
         this.syncNotifyChannel()
+    }
+
+    */
+    hookActions: {id: HookAction, label: string, description: string}[] = [
+        {id: 'view', label: '훅 전문 보기', description: '등록된 훅 전체와 AgentDeck 판별 근거를 읽기 전용으로 봅니다.'},
+        {id: 'managed', label: '관리 단락 제거', description: '설치 기록과 정확히 일치하는 AgentDeck 단락만 제거합니다. 기록 도입 전 항목이나 수정된 단락은 보존합니다.'},
+        {id: 'history', label: '이력 기반 정리', description: '커밋 이력에서 확인한 과거·현재 등록 형태와 정확히 일치하는 AgentDeck 항목을 정리합니다. 사용자 수정은 보존합니다.'},
+        {id: 'reset', label: 'AgentDeck 전체 초기화', description: '관리 기록과 배포 이력으로 확인한 AgentDeck 항목을 모두 제거합니다. 다른 도구의 훅은 지우지 않습니다.'},
+        {id: 'apply', label: '설치 / 재적용', description: '확인된 AgentDeck 항목을 최신 목록으로 다시 등록하고 관리 기록을 남깁니다. 사용자 훅은 유지하며, 불명확한 기존 등록이 있으면 적용을 중단합니다.'},
+    ]
+    hookManagementPlan: HookManagementPlan | null = null
+    hookManagementBusy = false
+    hookManagementMessage = ''
+    get hookManagementTitle (): string { return this.hookActions.find(a => a.id === this.hookManagementPlan?.action)?.label || '' }
+    get hookManagementDescription (): string { return this.hookActions.find(a => a.id === this.hookManagementPlan?.action)?.description || '' }
+
+    openHookManagement (provider: HookProvider, action: HookAction): void {
+        if (this.hookManagementBusy) return
+        this.hookManagementMessage = ''
+        try {
+            this.hookManagementPlan = planHookManagement(provider, action)
+            if (action !== 'view' && !this.hookManagementPlan.writes.length && !this.hookManagementPlan.blockers.length) {
+                this.hookManagementMessage = '변경할 항목이 없습니다. 현재 등록 전문과 보존 사유를 확인하세요.'
+            }
+        } catch (e: any) {
+            this.hookManagementPlan = {provider, action, changes: [], snapshots: [], writes: [], canApply: false,
+                blockers: [String(e.message)], preview: '설정을 읽지 못했습니다: ' + String(e.message)}
+        }
+    }
+
+    async confirmHookManagement (): Promise<void> {
+        const plan = this.hookManagementPlan
+        if (!plan?.canApply || this.hookManagementBusy) return
+        this.hookManagementBusy = true
+        try {
+            const removed = plan.changes.filter(c => c.decision === '제거').length
+            const added = plan.changes.filter(c => c.decision === '추가').length
+            const result = await this.platform.showMessageBox({type: 'warning',
+                message: 'AgentDeck — ' + this.hookManagementTitle,
+                detail: `제거 ${removed}개 · 추가 ${added}개\n미리보기에 표시된 AgentDeck 항목만 변경하고 원본을 백업합니다.\n다른 도구의 훅은 유지합니다. 실행 중인 CLI는 훅 재로드 또는 재시작이 필요할 수 있습니다.\n\n`
+                    + [...new Set(plan.changes.map(c => c.file))].join('\n'),
+                buttons: ['적용', '취소'], defaultId: 1, cancelId: 1})
+            if (result.response !== 0) { this.hookManagementMessage = '취소했습니다. 설정을 변경하지 않았습니다.'; return }
+            const backups = applyHookManagement(plan)
+            this.refreshHooks(); this.syncNotifyChannel()
+            this.hookManagementPlan = planHookManagement(plan.provider, 'view')
+            this.hookManagementMessage = '적용했습니다. 백업 ' + backups.length + '개. CLI에서 훅을 다시 불러오거나 새 세션을 시작하세요.'
+                + (backups.length ? '\n' + backups.join('\n') : '')
+        } catch (e: any) {
+            this.hookManagementMessage = String(e.message)
+            if (this.hookManagementPlan) this.hookManagementPlan.canApply = false
+        } finally { this.hookManagementBusy = false }
     }
 
     /**

@@ -1,4 +1,6 @@
 import * as fs from 'fs'
+import { ownedStatusLine } from './hookCatalog'
+import { prepareHookRegistry } from './hookRegistry'
 import * as os from 'os'
 import * as path from 'path'
 import { runtimeRoot, agentHome } from './storagePaths'
@@ -40,7 +42,7 @@ export function statusLineSupported (): boolean {
 /** 우리 래퍼가 걸려 있나 — 파일을 읽지 않는 순수 판정 */
 export function isWrapped (settings: any): boolean {
     const sl = settings?.statusLine
-    return !!sl && sl.type === 'command' && String(sl.command ?? '').includes(MARK)
+    return ownedStatusLine(sl)
 }
 
 /**
@@ -117,15 +119,17 @@ export function installStatusLine (homes = claudeSettingsHomes()): void {
     const updates = homes.map(home => {
         const settings = readClaudeSettings(home)
         const { next, inner } = wrapStatusLine(settings, script, innerConfigPath(home))
-        return { home, next, inner: isWrapped(settings) ? readInner(home) : inner }
+        const original = isWrapped(settings) ? readInner(home) : inner
+        return { home, next, inner: original, record: prepareHookRegistry(home, 'claude', undefined, {value: next.statusLine, original}) }
     })
     // 안쪽을 **먼저** 저장한다. 반대로 하면 그 사이에 statusLine 이 한 번 돌 때
     // 안쪽을 못 찾아 사용자의 statusLine 이 잠깐 비어 보인다
-    for (const { home, next, inner } of updates) {
+    for (const { home, next, inner, record } of updates) {
         const file = innerConfigPath(home)
         fs.mkdirSync(path.dirname(file), { recursive: true })
         fs.writeFileSync(file, JSON.stringify(inner, null, 2) + '\n', 'utf8')
         writeClaudeSettings(home, next)
+        record()
     }
 }
 

@@ -2,6 +2,8 @@ import * as fs from 'fs'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
 import { claudeSettingsHomes, readClaudeSettings, writeClaudeSettings } from './claudeSettings'
+import { historicalHook, CLAUDE_HOOK_PLAN, currentHookGroups } from './hookCatalog'
+import { prepareHookRegistry } from './hookRegistry'
 
 /**
  * Claude Code 상태 통보 훅을 사용자의 Claude 설정에 등록/해제한다.
@@ -27,7 +29,9 @@ const MARK = 'agentdeck-notify'
  * `-PromptAsLabel` 이 붙어 있었는데, 훅이 상태 파일의 직전 라벨을 도로 써 넣는 바람에
  * 플러그인이 방금 넣은 최신 프롬프트를 옛 값으로 되돌렸다 (2026-09-01 실측).
  */
-const PLAN: { event: string, args: string }[] = [
+const PLAN = CLAUDE_HOOK_PLAN
+/* Historical event rationale; registration now has one catalog in hookCatalog.ts.
+const LEGACY_PLAN: { event: string, args: string }[] = [
     // 지시를 받았다
     { event: 'UserPromptSubmit', args: '-Status running' },
     // 승인을 기다린다
@@ -50,6 +54,7 @@ const PLAN: { event: string, args: string }[] = [
     // 턴이 실패로 끝났다 — 스크립트가 `error` 를 보고 rate_limit(사용량 한도)이면 limited 로 바꿔 보낸다
     { event: 'StopFailure', args: '-Status error' },
 ]
+*/
 
 export function claudeSettingsPath (): string {
     return path.join(agentHome('claude'), 'settings.json')
@@ -70,10 +75,14 @@ function readSettings (): any {
 }
 
 /** 이 이벤트에 걸린 훅 중 우리 것이 아닌 것만 남긴다 */
-function withoutOurs (entries: any): any[] {
+function withoutOurs (entries: any, event: string): any[] {
     return (Array.isArray(entries) ? entries : [])
-        .map(e => Array.isArray(e?.hooks) ? { ...e, hooks: e.hooks.filter((h: any) => !String(h?.command || '').includes(MARK)) } : e)
-        .filter(e => !Array.isArray(e?.hooks) || e.hooks.length)
+        .flatMap(e => {
+            if (!Array.isArray(e?.hooks)) return [e]
+            const kept = e.hooks.filter((h: any) => !historicalHook('claude', event, e, h))
+            if (kept.length === e.hooks.length) return [e]
+            return kept.length ? [{...e, hooks: kept}] : []
+        })
 }
 
 /**
@@ -85,13 +94,13 @@ export function isMerged (settings: any): boolean {
     const hooks = settings?.hooks ?? {}
     return PLAN.every(p => {
         const entries = Array.isArray(hooks[p.event]) ? hooks[p.event] : []
-        return entries.some((e: any) => JSON.stringify(e ?? '').includes(MARK))
+        return entries.some((e: any) => Array.isArray(e?.hooks) && e.hooks.some((h: any) => historicalHook('claude', p.event, e, h)))
     })
 }
 
 export function hasAgentDeckHooks (settings: any): boolean {
-    return Object.values(settings?.hooks || {}).some(entries => Array.isArray(entries)
-        && entries.some(e => Array.isArray(e?.hooks) && e.hooks.some((hook: any) => String(hook?.command || '').includes(MARK))))
+    return Object.entries(settings?.hooks || {}).some(([event, entries]) => Array.isArray(entries)
+        && entries.some(e => Array.isArray(e?.hooks) && e.hooks.some((hook: any) => historicalHook('claude', event, e, hook))))
 }
 
 /**
@@ -99,12 +108,16 @@ export function hasAgentDeckHooks (settings: any): boolean {
  * 이미 우리 것이 있으면 명령줄만 지금 경로로 갈아끼우고, 남이 걸어 둔 훅은 그대로 둔다.
  */
 export function mergeHooks (settings: any, script: string): any {
-    const next = { ...(settings ?? {}) }
+    if (settings?.hooks !== undefined && (!settings.hooks || typeof settings.hooks !== 'object' || Array.isArray(settings.hooks)
+        || Object.values(settings.hooks).some((groups: any) => !Array.isArray(groups) || groups.some((g: any) => !Array.isArray(g?.hooks))))) {
+        throw new Error('Invalid Claude hooks; existing configuration was not changed')
+    }
+    const next = stripHooks(settings)
     next.hooks = { ...(next.hooks ?? {}) }
     for (const p of PLAN) {
         const command = `node "${script.replace(/\\/g, '/').replace(/\.ps1$/i, '.mjs')}" ${p.args}`
         next.hooks[p.event] = [
-            ...withoutOurs(next.hooks[p.event]),
+            ...withoutOurs(next.hooks[p.event], p.event),
             { matcher: '*', hooks: [{ type: 'command', command, timeout: 5 }] },
         ]
     }
@@ -118,12 +131,13 @@ export function stripHooks (settings: any): any {
         return next
     }
     next.hooks = { ...next.hooks }
-    for (const p of PLAN) {
-        const kept = withoutOurs(next.hooks[p.event])
+    for (const event of Object.keys(next.hooks)) {
+        if (!Array.isArray(next.hooks[event])) continue
+        const kept = withoutOurs(next.hooks[event], event)
         if (kept.length) {
-            next.hooks[p.event] = kept
+            next.hooks[event] = kept
         } else {
-            delete next.hooks[p.event]
+            delete next.hooks[event]
         }
     }
     return next
@@ -139,8 +153,9 @@ export function installHooks (homes = claudeSettingsHomes()): void {
     if (!fs.existsSync(script)) {
         throw new Error(`훅 스크립트를 찾지 못했다: ${script}`)
     }
-    const updates = homes.map(home => ({ home, next: mergeHooks(readClaudeSettings(home), script) }))
-    for (const { home, next } of updates) { writeClaudeSettings(home, next) }
+    const updates = homes.map(home => ({ home, next: mergeHooks(readClaudeSettings(home), script),
+        record: prepareHookRegistry(home, 'claude', currentHookGroups('claude', path.dirname(script))) }))
+    for (const { home, next, record } of updates) { writeClaudeSettings(home, next); record() }
 }
 
 /** 훅을 뗀다 */

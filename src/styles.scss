@@ -2314,3 +2314,20 @@ body.agentdeck-active {
     pre { color: inherit; font: 13px/1.6 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
 }
 .ad-history-search mark, .ad-history-overlay mark { background: #dec566; color: #171b22; border-radius: 2px; }
+.ad-hook-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 520px;
+    justify-content: flex-end;
+}
+.ad-hook-preview {
+    grid-column: 1 / -1;
+    margin: 12px 0;
+    padding: 16px;
+    border: 1px solid #ffffff33;
+    border-radius: 6px;
+    min-width: 0;
+    pre { max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+    [role='status'] { white-space: pre-wrap; overflow-wrap: anywhere; }
+}

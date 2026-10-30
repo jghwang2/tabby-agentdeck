@@ -3,6 +3,7 @@ import * as path from 'path'
 import { createHash } from 'crypto'
 import { agentHome } from './storagePaths'
 import { accountHome, readAccounts } from './accounts'
+import { historicalHook } from './hookCatalog'
 
 export interface HookUpgrade { file: string, beforeHash: string, count: number }
 const hash = (text: string): string => createHash('sha256').update(text).digest('hex')
@@ -11,7 +12,7 @@ const hash = (text: string): string => createHash('sha256').update(text).digest(
 export function upgradedHookSettings (settings: any, hooksDir: string): { next: any, count: number } {
     const next = JSON.parse(JSON.stringify(settings))
     let count = 0
-    for (const groups of Object.values(next?.hooks || {})) {
+    for (const [event, groups] of Object.entries(next?.hooks || {})) {
         if (!Array.isArray(groups)) { continue }
         for (const group of groups) {
             for (const hook of Array.isArray(group?.hooks) ? group.hooks : []) {
@@ -23,6 +24,7 @@ export function upgradedHookSettings (settings: any, hooksDir: string): { next: 
                 if (!/\/tabby-agentdeck\/hooks\/[^/]+$/i.test(oldScript)) { continue }
                 const name = oldScript.split('/').pop()!
                 if (!/^agentdeck-(?:codex-)?notify\.ps1$/i.test(name)) { continue }
+                if (!historicalHook(name.toLowerCase().includes('codex') ? 'codex' : 'claude', event, group, hook)) { continue }
                 const script = path.join(hooksDir, name.replace(/\.ps1$/i, '.mjs'))
                 if (!fs.existsSync(script)) { throw new Error('새 AgentDeck 훅 파일을 찾지 못했습니다: ' + script) }
                 hook.command = `node "${script.replace(/\\/g, '/')}"${match[3]}`
