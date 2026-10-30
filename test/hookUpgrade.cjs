@@ -3,7 +3,7 @@ require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f
 const {findHookUpgrades,applyHookUpgrades,upgradedHookSettings}=require('../src/hookUpgrade.ts')
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'agentdeck-hook-upgrade-')),dir=path.resolve(__dirname,'../hooks')
 const legacy=name=>`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\old\\tabby-agentdeck\\hooks\\${name}.ps1"`
-const files=['claude','codex'].map(x=>path.join(root,x+'.json'))
+const files=['claude','codex'].map((x,i)=>{const home=path.join(root,x);fs.mkdirSync(home);return path.join(home,i?'hooks.json':'settings.json')})
 const originals=files.map((file,i)=>({model:'keep',statusLine:{command:'user-status'},hooks:{PostToolUse:[{matcher:'*',hooks:[
  {type:'command',command:'echo user-hook',timeout:7},
  {type:'command',command:legacy(i?'agentdeck-codex-notify':'agentdeck-notify')+(i?'':' -Status running'),timeout:i?3:5},
@@ -17,11 +17,15 @@ try{
  applyHookUpgrades(plan,dir)
  for(let i=0;i<files.length;i++){
   const next=JSON.parse(fs.readFileSync(files[i]));const handlers=next.hooks.PostToolUse[0].hooks
-  assert.match(handlers[1].command,/^node ".*\.mjs"/);assert.ok(!handlers[1].command.includes('powershell'))
-  assert.equal(handlers[1].timeout,i?3:5)
-  assert.deepEqual(handlers[0],originals[i].hooks.PostToolUse[0].hooks[0]);assert.deepEqual(handlers[2],originals[i].hooks.PostToolUse[0].hooks[2])
-  assert.deepEqual(next.statusLine,originals[i].statusLine);assert.equal(next.model,'keep')
-  assert.equal(fs.readFileSync(files[i]+'.agentdeck-hook-upgrade-backup','utf8'),before[i])
+  const current=next.hooks.PostToolUse[1].hooks[0]
+  assert.match(current.command,/^node ".*\.mjs"/);assert.ok(!current.command.includes('powershell'))
+  assert.equal(current.timeout,i?3:5)
+  assert.deepEqual(handlers,[originals[i].hooks.PostToolUse[0].hooks[0],originals[i].hooks.PostToolUse[0].hooks[2]])
+  if(i)assert.deepEqual(next.statusLine,originals[i].statusLine)
+  else assert.deepEqual(JSON.parse(fs.readFileSync(path.join(path.dirname(files[i]),'.agentdeck-statusline-inner.json'))),originals[i].statusLine)
+  assert.equal(next.model,'keep')
+  const backup=fs.readdirSync(path.dirname(files[i])).find(n=>n.startsWith(path.basename(files[i])+'.agentdeck-backup-'))
+  assert.equal(fs.readFileSync(path.join(path.dirname(files[i]),backup),'utf8'),before[i])
  }
  assert.deepEqual(findHookUpgrades(dir,files),[],'latest settings never prompt again')
  assert.equal(upgradedHookSettings({hooks:{}},dir).count,0,'no automatic enrollment')

@@ -1,6 +1,8 @@
 export interface SessionIdentity {
     id: string; letter: string; alias: string; title?: string
     scheduledCount?: { count: number; revision: string }
+    createdAt?: number
+    tabIds?: string[]
 }
 export interface AliasProject { key: string; name: string; evidence: string }
 
@@ -71,19 +73,22 @@ export function jobAliasBase (title: string, cwd: string): string {
 export class SessionIdentities {
     constructor (readonly records: SessionIdentity[]) {}
 
-    reconcile (liveIds: ReadonlySet<string>): void {
+    reconcile (liveIds: ReadonlySet<string>, ownedIds: ReadonlySet<string>): void {
         for (let index = this.records.length - 1; index >= 0; index--) {
-            if (!liveIds.has(this.records[index].id)) { this.records.splice(index, 1) }
+            const id = this.records[index].id
+            // Shared settings include other windows. Absence here is not proof of closure there.
+            if (ownedIds.has(id) && !liveIds.has(id)) { this.records.splice(index, 1) }
         }
     }
 
-    ensure (id: string, base = '작업'): SessionIdentity {
+    ensure (id: string, base = '작업', preferredAlias?: string): SessionIdentity {
         const existing = this.records.find(record => record.id === id)
         if (existing) {
             if (!existing.alias) { existing.alias = this.nextAlias(base) }
             return existing
         }
-        const record = { id, letter: '', alias: this.nextAlias(base) }
+        const available = preferredAlias && !this.records.some(r => [r.alias,r.letter].some(v => this.key(v) === this.key(preferredAlias)))
+        const record = { id, letter: '', alias: available ? preferredAlias : this.nextAlias(base) }
         this.records.push(record)
         return record
     }

@@ -440,6 +440,7 @@ export class AgentDeckService {
 
     private readonly sessionSlots = new SessionSlots<BaseTabComponent>()
     private readonly identityIds = new WeakMap<BaseTabComponent, string>()
+    private readonly identityCache = new WeakMap<BaseTabComponent, SessionIdentity>()
     private readonly scheduledOverrides = new WeakMap<BaseTabComponent, { count: number; revision: string }>()
     private readonly closeGuarded = new WeakSet<BaseTabComponent>()
 
@@ -498,7 +499,7 @@ export class AgentDeckService {
         this.scheduleRender()
     }
 
-    private identityOf (tab: BaseTabComponent): SessionIdentity {
+    private identityOf (tab: BaseTabComponent, restore = false): SessionIdentity {
         const store = this.config.store.agentDeck
         const records = store.sessionIdentities ?? (store.sessionIdentities = [])
         const panes: any[] = typeof (tab as any).getAllTabs === 'function' ? (tab as any).getAllTabs() : [tab]
@@ -522,26 +523,9 @@ export class AgentDeckService {
         }
         const count = records.length
         const identities = new SessionIdentities(records)
-        // Startup/reload attaches restored panes asynchronously. Reserve their old
-        // aliases until all profiles are available, including tabs not rendered yet.
-        const liveIds = new Set<string>([id])
-        let profilesReady = true
-        for (const other of this.app.tabs) {
-            if (other instanceof SettingsTabComponent) { continue }
-            const children: any[] = typeof (other as any).getAllTabs === 'function' ? (other as any).getAllTabs() : [other]
-            if (!children.length || children.some(pane => !pane.profile?.options && ('session' in pane || 'frontend' in pane))) {
-                profilesReady = false
-            }
-            const known = this.identityIds.get(other)
-            if (known) { liveIds.add(known) }
-            for (const pane of children) {
-                const restored = pane.profile?.options?.env?.AGENTDECK_IDENTITY
-                if (restored) { liveIds.add(restored) }
-            }
-        }
-        if (!this.identityRecoveryPending && (this.app as any).tabRecovery?.enabled !== false && profilesReady) {
-            identities.reconcile(liveIds)
-        }
+        const cached = this.identityCache.get(tab)
+        if (cached?.id === id && !records.some(r => r.id === id) && !restore) { return cached }
+        // The hook receiver expires reservations after 24h; a window never reaps them.
         const hadAlias = !!records.find(record => record.id === id)?.alias
         const jobTitle = `${stripTitleMarker(tab.customTitle || tab.title || '')} ${this.status.get(tab).label || ''}`.trim()
         const cwd = this.notify.cwdOf(tab) || this.cwdCache.get(tab)?.dir
@@ -553,8 +537,13 @@ export class AgentDeckService {
             if (count !== records.length) { this.config.save() }
             return { id, letter: '', alias: '' }
         }
-        const record = identities.ensure(id, base)
-        if (count !== records.length || !hadAlias || JSON.stringify(projects) !== previousProjects) { this.config.save() }
+        const record = identities.ensure(id, base, restore ? cached?.alias : undefined)
+        const tabIds = panes.map(pane => pane.profile?.options?.env?.AGENTDECK_TAB).filter(Boolean)
+        const changed = !record.createdAt || JSON.stringify(record.tabIds || []) !== JSON.stringify(tabIds)
+        record.createdAt ||= Date.now()
+        record.tabIds = tabIds
+        this.identityCache.set(tab, record)
+        if (changed || count !== records.length || !hadAlias || JSON.stringify(projects) !== previousProjects) { this.config.save() }
         return record
     }
     private pendingSessionOpens = 0
@@ -1060,6 +1049,7 @@ export class AgentDeckService {
         // 경과 시간 갱신 + running -> idle 자동 복귀
         setInterval(() => this.tick(), 1000)
         monitorEventLoop()
+        this.notify.onIdentityHook = tab => { this.identityOf(tab, true) }
 
         this.relayout()
         this.render()
@@ -5201,7 +5191,7 @@ export class AgentDeckService {
                 }
                 const gauges = formatMeta({ model: 'account', limits }, Date.now())?.gauges || []
                 this.renderMetaGauges(quota, gauges)
-                for (const value of values.filter(v => v.remaining === undefined && v.status)) {
+                for (const value of values.filter(v => v.remaining === undefined && v.status && v.status !== '사용 가능')) {
                     const row = document.createElement('span')
                     row.className = 'ad-now-reset'
                     const available = RESET_COPY[this.sidebarLang] ?? RESET_COPY.en
@@ -5391,7 +5381,7 @@ export class AgentDeckService {
         accountEl.onclick = () => { void this.showAccountPicker() }
         const gaugeEl = el.querySelector('.ad-now-gauges') as HTMLElement
         this.renderMetaGauges(gaugeEl, view.gauges)
-        for (const value of refreshState?.values?.filter(v => v.remaining === undefined && v.status) || []) {
+        for (const value of refreshState?.values?.filter(v => v.remaining === undefined && v.status && v.status !== '사용 가능') || []) {
             const row = document.createElement('span')
             row.className = 'ad-now-reset'
             const available = RESET_COPY[this.sidebarLang] ?? RESET_COPY.en

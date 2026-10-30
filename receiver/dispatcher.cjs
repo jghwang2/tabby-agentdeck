@@ -3,6 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), net = require('node:
 const { stateEvent } = require('./state.cjs')
 const { createMetaProcessor } = require('./meta.cjs')
 const { hookContext } = require('./context.cjs')
+const { AliasActivity } = require('./aliasActivity.cjs')
 const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
 class HookDispatcher {
     constructor (root, workerRoot = __dirname, services = {}) {
@@ -20,6 +21,7 @@ class HookDispatcher {
         this.metaProcessors = new Map()
         this.jobs = []
         this.jobTimer = null
+        this.aliasActivity = new AliasActivity(root)
     }
     valid (event) {
         return event?.channel === 'agentdeck-hook' && validId(event.id)
@@ -161,6 +163,7 @@ class HookDispatcher {
     }
     async run (event, contextOnly = false) {
         if (this.services.authorize && !await this.services.authorize(event)) return ''
+        if (!contextOnly) await this.aliasActivity.touch(event.env?.AGENTDECK_TAB, event.ts)
         if (contextOnly) return this.schedule(() => hookContext(event, this.root, this.workerRoot,
             payload => this.services.request ? this.services.request(payload) : this.request(payload)))
         if (event.kind === 'statusline') return this.schedule(() => {

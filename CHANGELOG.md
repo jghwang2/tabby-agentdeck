@@ -5,6 +5,22 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.3.0 — 2026-10-30
+
+- Reduce Windows hook startup overhead with a dedicated Claude/Codex notification executable, preserving durable offline delivery and UTF-8 context responses.
+- Detect hook updates and ask before applying them. On acceptance, clean up recognized historical AgentDeck registrations and install current hooks in one backed-up transaction. Hook history ships with the package; no remote history lookup is required.
+- Preserve user hooks, custom registrations and original Claude status lines. Show only AgentDeck hooks in the hook viewer, with dark code panels and clearer installation/removal controls.
+- Preserve session aliases across windows. Release reservations after 24 hours without a new hook, and recover the prior alias when that session returns if it is still available.
+- Add account usage refresh and remove redundant availability and refresh-success messages.
+
+**한국어**
+
+- Windows에서 Claude·Codex 알림 훅을 전용 실행 파일로 전달해 시작 비용을 줄였습니다. 전송 실패 시 보관·재처리와 한글·이모지 문맥 응답을 유지합니다.
+- 훅 변경을 감지하면 적용 여부를 묻습니다. 동의하면 과거 AgentDeck 등록을 이력으로 정리한 뒤 새 훅을 설치하며, 백업과 실패 시 복구를 함께 처리합니다. 훅 이력은 패키지에 포함되므로 외부 조회가 필요 없습니다.
+- 사용자 훅·직접 수정한 등록·기존 Claude 상태줄을 보존합니다. 훅 보기에는 AgentDeck 항목만 표시하고, 코드 배경을 어둡게 바꾸고 설치·제거 버튼을 정리했습니다.
+- 여러 창에서 세션 별명을 서로 보존합니다. 24시간 새 훅이 없으면 별명 예약을 정리하고, 같은 세션이 돌아오면 사용 가능한 기존 별명을 우선 복원합니다.
+- 계정 사용량 새로고침을 추가하고, 사용 가능·갱신 성공 등 불필요한 문구를 숨겼습니다.
+
 ## 1.2.13 — 2026-10-28
 
 - Fix Claude conversation resume after account switching, including returning to a previously used account and transferring subagent history.

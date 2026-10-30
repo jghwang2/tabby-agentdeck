@@ -2320,6 +2320,14 @@ body.agentdeck-active {
     gap: 6px;
     max-width: 520px;
     justify-content: flex-end;
+    .ad-hook-remove { flex-basis: 100%; text-align: right; }
+    summary { cursor: pointer; padding: 8px 0; }
+    .ad-hook-remove-option {
+        display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 12px;
+        align-items: center; text-align: left; padding: 10px 0; border-top: 1px solid #ffffff22;
+        span { font-size: 12px; line-height: 1.5; }
+        button { white-space: normal; }
+    }
 }
 .ad-hook-preview {
     grid-column: 1 / -1;
@@ -2328,6 +2336,12 @@ body.agentdeck-active {
     border: 1px solid #ffffff33;
     border-radius: 6px;
     min-width: 0;
-    pre { max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+    pre {
+        background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px;
+        padding: 16px; font: 13px/1.65 Consolas, monospace;
+        max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;
+        color-scheme: dark;
+    }
+    summary { cursor: pointer; overflow-wrap: anywhere; padding: 8px 0; }
     [role='status'] { white-space: pre-wrap; overflow-wrap: anywhere; }
 }

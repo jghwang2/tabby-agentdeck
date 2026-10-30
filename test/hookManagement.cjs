@@ -15,10 +15,13 @@ try{
   const home=path.join(root,provider),file=path.join(home,provider==='claude'?'settings.json':'hooks.json'),ledger=path.join(home,'.agentdeck-hook-registry.json')
   const initial={model:'keep',permissions:{allow:['user']},hooks:{Stop:[{matcher:'*',hooks:[foreign,compat]}]},statusLine:{type:'command',command:'echo USER-STATUS'}}
   write(file,initial)
-  const inspect=plan(provider,'view',[home],hooks);assert.equal(inspect.writes.length,0);assert.ok(inspect.preview.includes('echo keep-user-hook'));assert.ok(!fs.existsSync(ledger))
+  const inspect=plan(provider,'view',[home],hooks);assert.equal(inspect.writes.length,0);assert.ok(!inspect.preview.includes('echo keep-user-hook'));assert.ok(!inspect.preview.includes('claude-compat'));assert.ok(!inspect.preview.includes('USER-STATUS'));assert.ok(!fs.existsSync(ledger))
   const install=plan(provider,'apply',[home],hooks);assert.equal(install.canApply,true,install.preview)
   assert.ok(apply(install).length);assert.equal(read(file).model,'keep');assert.deepEqual(read(file).hooks.Stop[0].hooks,[foreign,compat])
   assert.equal(read(ledger).groups.length,provider==='claude'?9:7)
+  const visible=plan(provider,'view',[home],hooks).preview
+  assert.ok(visible.includes(provider==='claude'?'agentdeck-notify.mjs':'agentdeck-codex-notify.mjs'))
+  assert.ok(!visible.includes('keep-user-hook'));assert.ok(!visible.includes('claude-compat'));assert.ok(!visible.includes('USER-STATUS'))
   assert.equal(plan(provider,'apply',[home],hooks).writes.length,0,'reapply idempotent')
   if(provider==='claude')assert.equal(read(path.join(home,'.agentdeck-statusline-inner.json')).command,'echo USER-STATUS')
   // A user changes a recorded group: managed-only removal must preserve the entire changed group.

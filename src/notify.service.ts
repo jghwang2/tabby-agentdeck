@@ -6,6 +6,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { StringDecoder } from 'string_decoder'
 import { HookDispatcher } from '../receiver/dispatcher.cjs'
+import { AliasActivity } from '../receiver/aliasActivity.cjs'
 import { ScheduledTasks } from './scheduledTasks'
 import { AgentEvent, AgentLifecycle, AGENT_IDLE_TIMEOUT_MS, AGENT_RECONCILE_MS, validAgentKey } from './agentLifecycle'
 import { WorkStatusService } from './status.service'
@@ -311,6 +312,36 @@ export class WorkNotifyService {
     private mailboxOwners = new Map<string, { sessionId: string; tab: BaseTabComponent; clientPid: number }>()
     private navigationContext = ''
     private navigationRefresh: (() => void) | null = null
+    onIdentityHook: ((tab: BaseTabComponent) => void) | null = null
+    private nextAliasExpiry = 0
+    private aliasExpiryBusy = false
+
+    private async expireAliases (): Promise<void> {
+        if (this.aliasExpiryBusy || Date.now() < this.nextAliasExpiry) { return }
+        this.nextAliasExpiry = Date.now() + 60000
+        this.aliasExpiryBusy = true
+        try {
+            // Every receiver uses the same hook timestamps; no UI-window election.
+            if (!this.debugPort) { return }
+            const store = this.config.store.agentDeck
+            const records = store.sessionIdentities || []
+            let migrated = false
+            for (const record of records) {
+                if (!Number.isFinite(record.createdAt)) { record.createdAt = Date.now(); migrated = true }
+            }
+            const activity = this.hookDispatcher?.aliasActivity || new AliasActivity(this.root)
+            const expired = new Set(await activity.expired(records))
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000
+            const kept = (store.sessionIdentities || []).filter(record => !expired.has(record.id)
+                || record.createdAt > cutoff || (record.tabIds || []).some(id => (activity.latest.get(id) || 0) > cutoff))
+            if (migrated || kept.length !== store.sessionIdentities.length) {
+                store.sessionIdentities = kept
+                await this.config.save()
+            }
+            await activity.prune()
+        } catch (error) { diagCatch('alias expiry', error) }
+        finally { this.aliasExpiryBusy = false }
+    }
     private mailboxWake: ((message: MailMessage) => WakeResult) | null = null
 
     setMailboxWake (wake: (message: MailMessage) => WakeResult): void { this.mailboxWake = wake }
@@ -565,12 +596,12 @@ export class WorkNotifyService {
         if (!plans.length) { return false }
         const choice = await this.platform.showMessageBox({
             type: 'warning',
-            message: 'AgentDeck — 기존 훅을 새 실행 방식으로 갱신할까요?',
-            detail: 'PowerShell을 거치던 AgentDeck 훅을 Node 직접 실행으로 바꿔 호출 지연을 줄입니다.\n'
-                + '다른 훅과 사용자 설정은 유지하고, 변경 전 백업을 남깁니다.\n'
+            message: 'AgentDeck — 업데이트된 훅을 적용할까요?',
+            detail: '패키지에 포함된 훅 이력으로 과거 AgentDeck 훅을 정리한 뒤 새 훅을 설치합니다.\n'
+                + 'Windows에서는 가벼운 전용 전달기를 사용합니다. 다른 훅과 사용자 설정은 유지하고, 변경 전 백업을 남깁니다.\n'
                 + '실행 중인 CLI는 다시 시작하거나 훅을 다시 불러와야 할 수 있습니다. Codex의 훅 신뢰 확인은 그대로 유지됩니다.\n\n'
                 + plans.map(p => `${p.file} (${p.count})`).join('\n'),
-            buttons: ['갱신한다', '나중에'], defaultId: 0, cancelId: 1,
+            buttons: ['예, 정리 후 적용', '나중에'], defaultId: 0, cancelId: 1,
         })
         if (choice.response === 0) {
             try { applyHookUpgrades(plans) } catch (error: any) {
@@ -1119,6 +1150,7 @@ export class WorkNotifyService {
 
     private poll (): void {
         this.hookDispatcher?.poll()
+        void this.expireAliases()
         // tabId 표는 동기라 매번, 셸 PID 표는 pty 에 물어야 해서 2초마다 — 탭 안에서 셸을 다시 띄우거나 분할하면 바뀐다
         this.refreshTabIds()
         if (Date.now() >= this.nextAgentReconcile) { this.reconcileAgentFiles() }
@@ -1221,6 +1253,7 @@ export class WorkNotifyService {
             return
         }
         this.applied.set(data.sessionId, data.ts)
+        this.onIdentityHook?.(tab)
         if (data.configDir) this.reportedHomes.set(data.sessionId, data.configDir)
         while (this.reportedHomes.size > 1024) this.reportedHomes.delete(this.reportedHomes.keys().next().value!)
         this.registerMailbox(data.sessionId, tab, data.tabId)
@@ -1569,6 +1602,8 @@ export class WorkNotifyService {
                 continue
             }
             this.metaBySession.set(data.sessionId, data)
+            const tab = this.sessionTab.get(data.sessionId)
+            if (tab && data.agent === 'claude' && data.ts > Date.now() - HOOK_HISTORY_TTL_MS) { this.onIdentityHook?.(tab) }
             changed = true
         }
         this.pruneMeta()

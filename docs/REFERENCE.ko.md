@@ -11,6 +11,14 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.3.0
+
+- Windows 전용 알림 전달기로 Claude·Codex 훅 실행 비용을 줄였습니다.
+- 훅 업데이트에 동의하면 패키지에 포함된 이력으로 과거 등록을 정리하고 새 훅을 설치합니다. 사용자 훅·직접 수정한 등록·기존 상태줄은 보존합니다.
+- 훅 보기와 설치·제거 버튼을 정리하고 코드에 어두운 배경을 적용했습니다.
+- 창 간 별명을 보존하고 24시간 새 훅이 없는 별명 예약을 정리합니다. 세션이 돌아오면 기존 별명을 우선 복원합니다.
+- 계정 사용량 새로고침을 추가하고 불필요한 상태 문구를 숨겼습니다.
+
 ## 1.2.13
 
 - Claude 계정을 전환하거나 이전 계정으로 돌아가도 추가된 대화와 하위 에이전트 기록을 이어받습니다.

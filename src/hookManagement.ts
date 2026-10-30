@@ -3,7 +3,7 @@ import * as path from 'path'
 import { randomBytes } from 'crypto'
 import { agentHome, runtimeRoot } from './storagePaths'
 import { accountHome, readAccounts } from './accounts'
-import { HookProvider, HOOK_CATALOG_VERSION, historicalHook, ownedStatusLine, currentHookGroups, hookCommand } from './hookCatalog'
+import { HookProvider, HOOK_CATALOG_VERSION, historicalHook, ownedStatusLine, currentHookGroups, hookCommand, hookRevision } from './hookCatalog'
 
 export type HookAction = 'view' | 'managed' | 'history' | 'reset' | 'apply'
 export interface HookChange { file: string, event: string, decision: string, reason: string, content: any }
@@ -63,7 +63,11 @@ export function planHookManagement (provider: HookProvider, action: HookAction,
             const recordChange = (event: string, decision: string, reason: string, content: any): void => {
                 plan.changes.push({file, event, decision, reason, content})
             }
-            full.push({file, hooks: settings.hooks ?? {}, ...(provider === 'claude' ? {statusLine: settings.statusLine ?? null} : {}), registry: registry ?? null})
+            const visibleHooks = Object.fromEntries(Object.entries(settings.hooks || {}).map(([event, groups]) => [event,
+                Array.isArray(groups) ? groups.map((group: any) => ({...group, hooks: (group.hooks || []).filter((hook: any) =>
+                    !!hookCommand(hook.command) || !!historicalHook(provider, event, group, hook))})).filter((group: any) => group.hooks.length) : [],
+            ]).filter(([, groups]) => (groups as any[]).length))
+            full.push({file, hooks: visibleHooks, ...(provider === 'claude' && ownedStatusLine(settings.statusLine) ? {statusLine: settings.statusLine} : {})})
             for (const [event, groups] of Object.entries(settings.hooks || {})) {
                 if (!Array.isArray(groups)) throw Error('훅 이벤트 형식 오류: ' + event)
                 const kept: any[] = []
@@ -153,22 +157,23 @@ export function planHookManagement (provider: HookProvider, action: HookAction,
             }
             if (action !== 'view') {
                 if (!equal(settings, next)) write(file, next)
-                const nextRegistry = {version: HOOK_CATALOG_VERSION, provider, groups, ...(managedStatus ? {statusLine: managedStatus} : {})}
+                const nextRegistry = {version: HOOK_CATALOG_VERSION, provider, groups,
+                    ...(action === 'apply' ? {revision: hookRevision(provider, hooksDir)} : registry?.revision ? {revision: registry.revision} : {}),
+                    ...(managedStatus ? {statusLine: managedStatus} : {})}
                 if (action === 'apply' || (registry && !equal(registry, nextRegistry))) write(registryFile, nextRegistry)
             }
         } catch (e: any) { plan.blockers.push(file + ': ' + e.message) }
     }
     plan.canApply = action !== 'view' && !!plan.writes.length && !plan.blockers.length
+    const visibleChanges = plan.changes.filter(c => c.decision !== '보존' || !!hookCommand(c.content?.command))
     plan.preview = [
-        '대상: 기본 홈 및 이미 존재하는 저장 계정 홈. 다른 도구의 훅과 일반 설정은 보존합니다.',
-        '관리 단락은 설치 기록으로 식별합니다. CLI 설정에 임의 전용 필드를 추가하지 않습니다.',
         ...plan.blockers.map(b => '중단: ' + b),
-        '\n판정 및 변경 예정 항목\n' + JSON.stringify(plan.changes, null, 2),
-        '\n현재 등록 전문 (읽기 전용)\n' + JSON.stringify(full, null, 2),
+        ...(action === 'view' ? [] : ['변경 예정 항목\n' + JSON.stringify(visibleChanges, null, 2)]),
+        '등록된 AgentDeck 훅\n' + JSON.stringify(full, null, 2),
     ].join('\n')
     if (action === 'view') {
         const name = provider === 'claude' ? 'agentdeck-notify' : 'agentdeck-codex-notify'
-        plan.sources = [name + '.mjs', name + '.ps1', 'agentdeck-relay.mjs', ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])].map(name => {
+        plan.sources = [...(fs.existsSync(path.join(hooksDir, name + '.exe')) ? ['agentdeck-notify.cs'] : [name + '.mjs', name + '.ps1', 'agentdeck-relay.mjs']), ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])].map(name => {
             const file = path.join(hooksDir, name)
             try { return {file, text: fs.readFileSync(file, 'utf8')} }
             catch { return {file, text: '이 설치에서 파일을 읽을 수 없습니다.'} }

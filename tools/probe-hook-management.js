@@ -10,10 +10,10 @@
         ;[...document.querySelectorAll('a,button')].find(e=>e.textContent.trim()==='AgentDeck').click();await wait(500)
     }
     const inspect=()=>document.querySelector('.ad-hook-preview'),text=()=>inspect()?.textContent||''
-    const click=async(provider,action)=>{document.querySelector(`[data-hook-provider="${provider}"] [data-hook-action="${action}"]`).click();await wait(150)}
+    const click=async(provider,action)=>{const area=document.querySelector(`[data-hook-provider="${provider}"]`);if(['managed','history','reset'].includes(action))area.querySelector('details').open=true;area.querySelector(`[data-hook-action="${action}"]`).click();await wait(150)}
     const apply=async()=>{
         document.querySelector('[data-hook-apply]').click()
-        for(let i=0;i<100&&!inspect()?.querySelector('[role="status"]')?.textContent.trim();i++)await wait(50)
+        for(let i=0;i<100&&(document.querySelector('[data-hook-provider] button')?.disabled||!inspect()?.querySelector('[role="status"]')?.textContent.trim());i++)await wait(50)
         await wait(100)
     }
     const settingsFile=(home,provider)=>path.join(home,provider==='claude'?'settings.json':'hooks.json')
@@ -31,10 +31,13 @@
         for(const provider of ['claude','codex']){
             const file=settingsFile(homes[provider],provider),before=fs.readFileSync(file,'utf8')
             check(provider+' five distinct buttons',document.querySelectorAll(`[data-hook-provider="${provider}"] button`).length===5)
-            await click(provider,'view');check(provider+' full text and no writes',text().includes('USER-HOOK')&&fs.readFileSync(file,'utf8')===before&&document.querySelector('[data-hook-apply]').disabled)
+            check(provider+' removal collapsed initially',!document.querySelector(`[data-hook-provider="${provider}"] details`).open)
+            await click(provider,'view');check(provider+' only AgentDeck and no writes',!text().includes('USER-HOOK')&&!text().includes('USER-STATUS')&&fs.readFileSync(file,'utf8')===before&&!document.querySelector('[data-hook-apply]'))
+            check(provider+' dark code background',getComputedStyle(inspect().querySelector('pre')).backgroundColor==='rgb(13, 17, 23)')
             await click(provider,'apply');check(provider+' preview before write',text().includes('추가')&&fs.readFileSync(file,'utf8')===before)
             response=1;await apply();check(provider+' cancel preserves settings',fs.readFileSync(file,'utf8')===before&&text().includes('취소'))
             response=0;await apply()
+            check(provider+' installed hooks visible without foreign hooks',text().includes(provider==='claude'?'agentdeck-notify.exe':'agentdeck-codex-notify.exe')&&!text().includes('USER-HOOK')&&!text().includes('USER-STATUS'))
             for(const home of [homes[provider],saved(provider)]){
                 const current=read(settingsFile(home,provider)),registry=read(path.join(home,'.agentdeck-hook-registry.json'))
                 check(provider+' register and keep foreign '+path.basename(home),registry.groups.length===(provider==='claude'?9:7)&&current.hooks.Stop[0].hooks[0].command==='echo USER-HOOK'&&current.model==='keep')

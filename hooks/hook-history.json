@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "description": "Offline AgentDeck hook history. Append releases and retain retired event/argument profiles; never fetch history from a remote service.",
+  "profiles": {
+    "claude-v1": {
+      "UserPromptSubmit": "-Status running",
+      "Notification": "-Status waiting",
+      "PostToolUse": "-Status running",
+      "PostToolUseFailure": "-Status running",
+      "PermissionDenied": "-Status running",
+      "SubagentStart": "-Subagent start",
+      "SubagentStop": "-Subagent stop",
+      "Stop": "-Status done",
+      "StopFailure": "-Status error"
+    },
+    "codex-v1": {
+      "UserPromptSubmit": "", "PreToolUse": "", "PermissionRequest": "",
+      "PostToolUse": "", "Stop": "", "Interrupt": "", "SessionEnd": ""
+    },
+    "claude-installer-v1": { "UserPromptSubmit": "-Status running -PromptAsLabel" }
+  },
+  "releases": [
+    { "id": "a05e77f", "extension": ".ps1", "claude": "claude-v1", "codex": "codex-v1" },
+    { "id": "a05e77f install.ps1", "extension": ".ps1", "claude": "claude-installer-v1" },
+    { "id": "7c43ecb", "extension": ".mjs", "claude": "claude-v1", "codex": "codex-v1" },
+    { "id": "windows-native-v1", "extension": ".exe", "claude": "claude-v1", "codex": "codex-v1" }
+  ],
+  "statusLine": [{ "script": "agentdeck-statusline.mjs", "arguments": ["", "--inner <quoted-path>"] }]
+}

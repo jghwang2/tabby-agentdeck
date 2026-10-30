@@ -411,9 +411,17 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
         </div>
     </div>
     <div class="ad-hook-actions" data-hook-provider="claude">
-        <button *ngFor="let action of hookActions" class="btn btn-secondary" type="button"
+        <button *ngFor="let action of hookPrimaryActions" class="btn btn-secondary" type="button"
             [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
             (click)="openHookManagement('claude', action.id)">{{action.label}}</button>
+        <details class="ad-hook-remove">
+            <summary>훅 제거</summary>
+            <div *ngFor="let action of hookRemovalActions" class="ad-hook-remove-option">
+                <button class="btn btn-secondary" type="button" [attr.data-hook-action]="action.id"
+                    [disabled]="hookManagementBusy" (click)="openHookManagement('claude', action.id)">{{action.label}}</button>
+                <span>{{action.description}}</span>
+            </div>
+        </details>
     </div>
 </div>
 
@@ -429,22 +437,30 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
         </div>
     </div>
     <div class="ad-hook-actions" data-hook-provider="codex">
-        <button *ngFor="let action of hookActions" class="btn btn-secondary" type="button"
+        <button *ngFor="let action of hookPrimaryActions" class="btn btn-secondary" type="button"
             [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
             (click)="openHookManagement('codex', action.id)">{{action.label}}</button>
+        <details class="ad-hook-remove">
+            <summary>훅 제거</summary>
+            <div *ngFor="let action of hookRemovalActions" class="ad-hook-remove-option">
+                <button class="btn btn-secondary" type="button" [attr.data-hook-action]="action.id"
+                    [disabled]="hookManagementBusy" (click)="openHookManagement('codex', action.id)">{{action.label}}</button>
+                <span>{{action.description}}</span>
+            </div>
+        </details>
     </div>
 </div>
 
 <section class="ad-hook-preview" *ngIf="hookManagementPlan" aria-label="훅 전문과 변경 미리보기">
     <h4>{{hookManagementPlan.provider === 'claude' ? 'Claude' : 'Codex'}} — {{hookManagementTitle}}</h4>
     <p>{{hookManagementDescription}}</p>
-    <p>모든 제거·초기화는 AgentDeck 항목만 대상으로 합니다. 사용자 훅, 출처 미확인 항목과 Codex 신뢰 설정은 보존합니다.</p>
+    <p>AgentDeck 훅만 표시합니다. 제거할 때도 다른 도구의 훅과 Codex 신뢰 설정은 유지합니다.</p>
     <pre tabindex="0">{{hookManagementPlan.preview}}</pre>
     <details *ngFor="let source of hookManagementPlan.sources" class="mb-2">
         <summary>현재 설치된 AgentDeck 전달기 코드 — {{source.file}}</summary>
         <pre tabindex="0">{{source.text}}</pre>
     </details>
-    <button class="btn btn-primary me-2" type="button" data-hook-apply
+    <button *ngIf="hookManagementPlan.action !== 'view'" class="btn btn-primary me-2" type="button" data-hook-apply
         [disabled]="hookManagementBusy || !hookManagementPlan.canApply" (click)="confirmHookManagement()">변경 적용</button>
     <button class="btn btn-secondary me-2" type="button" [disabled]="hookManagementBusy"
         (click)="openHookManagement(hookManagementPlan.provider, hookManagementPlan.action)">다시 불러오기</button>
@@ -583,7 +599,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     storageKeys = STORAGE_KEYS
     storageDefault = storageDefaults()
     storageModel: StorageSettings
-    /** 이 환경에서 훅을 걸 수 있나 (통보 스크립트가 PowerShell 이라 Windows 전용) */
+    /** 현재 훅 설치 기능은 Windows에서 제공한다. */
     hooksSupported = hooksSupported()
     /** 지금 걸려 있나 — 파일을 매번 읽지 않도록 화면용으로 들고 있는다 */
     hooksOn = false
@@ -965,12 +981,14 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
 
     */
     hookActions: {id: HookAction, label: string, description: string}[] = [
-        {id: 'view', label: '훅 전문 보기', description: '등록된 훅 전체와 AgentDeck 판별 근거를 읽기 전용으로 봅니다.'},
-        {id: 'managed', label: '관리 단락 제거', description: '설치 기록과 정확히 일치하는 AgentDeck 단락만 제거합니다. 기록 도입 전 항목이나 수정된 단락은 보존합니다.'},
-        {id: 'history', label: '이력 기반 정리', description: '커밋 이력에서 확인한 과거·현재 등록 형태와 정확히 일치하는 AgentDeck 항목을 정리합니다. 사용자 수정은 보존합니다.'},
-        {id: 'reset', label: 'AgentDeck 전체 초기화', description: '관리 기록과 배포 이력으로 확인한 AgentDeck 항목을 모두 제거합니다. 다른 도구의 훅은 지우지 않습니다.'},
-        {id: 'apply', label: '설치 / 재적용', description: '확인된 AgentDeck 항목을 최신 목록으로 다시 등록하고 관리 기록을 남깁니다. 사용자 훅은 유지하며, 불명확한 기존 등록이 있으면 적용을 중단합니다.'},
+        {id: 'view', label: '훅 보기', description: '기본 설정과 저장된 계정의 AgentDeck 등록 내용 및 실행 코드를 확인합니다.'},
+        {id: 'managed', label: '설치한 항목만 제거', description: '설치 기록과 일치하는 항목만 제거합니다. 기록이 없는 예전 훅은 남습니다.'},
+        {id: 'history', label: '배포 이력으로 찾아 제거', description: '과거·현재 배포 형태와 일치하는 훅을 찾아 제거합니다. 직접 수정한 항목은 남습니다.'},
+        {id: 'reset', label: 'AgentDeck 훅 모두 제거', description: '설치 기록과 배포 이력으로 확인된 훅을 모두 제거합니다. 출처를 확인할 수 없는 항목은 남습니다.'},
+        {id: 'apply', label: '설치 / 다시 설치', description: 'AgentDeck 훅을 최신 구성으로 설치합니다. 이미 설치했다면 확인된 기존 항목을 정리하고 다시 등록합니다.'},
     ]
+    get hookPrimaryActions () { return this.hookActions.filter(a => a.id === 'view' || a.id === 'apply') }
+    get hookRemovalActions () { return this.hookActions.filter(a => a.id !== 'view' && a.id !== 'apply') }
     hookManagementPlan: HookManagementPlan | null = null
     hookManagementBusy = false
     hookManagementMessage = ''

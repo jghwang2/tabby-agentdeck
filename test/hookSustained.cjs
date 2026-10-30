@@ -3,6 +3,8 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { spawn } = require('node:child_process')
 const { HookDispatcher } = require('../receiver/dispatcher.cjs')
 const { service: notify } = require('./notifyFixture.cjs')()
+const native = process.platform === 'win32' ? process.env.AGENTDECK_TEST_NATIVE_HOOK || path.resolve(__dirname, '../.tmp/native-hook-test/agentdeck-notify.exe') : null
+if (native && !process.env.AGENTDECK_TEST_NATIVE_HOOK) require('../tools/build-native-hook.cjs').buildNativeHook(path.dirname(native))
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-sustained-'))
 let pending = [], disabled = false, seq = 0, legacyCalls = 0
 const dispatcher = new HookDispatcher(root, path.resolve(__dirname, '../receiver'), {
@@ -27,7 +29,7 @@ const server = net.createServer(socket => {
 function invoke () {
     return new Promise((resolve, reject) => {
         const started = performance.now()
-        const p = spawn('node', [path.resolve(__dirname, '../hooks/agentdeck-notify.mjs'), '-Status', 'running'], {
+        const p = spawn(native || 'node', [...(native ? [] : [path.resolve(__dirname, '../hooks/agentdeck-notify.mjs')]), '-Status', 'running'], {
             windowsHide: true, env: { ...process.env, AGENTDECK_RUNTIME_ROOT: root, AGENTDECK_TAB: 'test-tab' }, stdio: ['pipe', 'pipe', 'pipe'],
         })
         let output = '', error = ''
@@ -69,11 +71,11 @@ function invoke () {
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'status/parent.json'))).status, 'done')
     assert.equal(legacyCalls, 0)
     assert.equal(fs.readdirSync(dispatcher.inbox).length, 0)
-    const result = { root, wavesMs: waves, eventsPerWave: 128, children: 64, promptChars: promptLengths, sequential, concurrent, legacyCalls }
+    const result = { root, transport: native ? 'windows-native' : 'node', wavesMs: waves, eventsPerWave: 128, children: 64, promptChars: promptLengths, sequential, concurrent, legacyCalls }
     fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify(result, null, 2))
     console.log(JSON.stringify(result))
     assert.ok(ordered[8] < 400, `Actual relay p90 ${ordered[8]}ms exceeds 400ms`)
     assert.ok(sequential.every(x => x.ms < 1000), 'Actual relay exceeds 1000ms')
     assert.ok(concurrent.every(x => x.ms < 2000), 'Concurrent relay exceeds 2000ms')
-    console.log('PASS sustained: 64 children, 10 waves, empty queue, bounded context, actual Node relay')
+    console.log('PASS sustained: 64 children, 10 waves, empty queue, bounded context, actual ' + result.transport + ' relay')
 })().catch(e => { console.error(e); process.exitCode = 1 }).finally(() => server.close())

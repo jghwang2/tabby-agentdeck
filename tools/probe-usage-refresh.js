@@ -36,7 +36,7 @@
         active=claude;deck.renderNow();await sleep(250);deck.renderNow()
         check('late Codex response does not replace Claude',text().includes('28%')&&!text().includes('32%'))
         active=codex;deck.renderNow();check('Codex usage rendered',text().includes('32%')&&text().includes('48%'))
-        check('Codex model availability rendered',text().includes('astra')&&text().includes('사용 가능'))
+        check('model availability and refresh success hidden',!text().includes('사용 가능')&&!text().includes('사용량을 갱신했습니다'))
         deck.usageRefresh.state(codex).retryAt=0;status=429;deck.renderNow();button().click();await sleep(250);deck.renderNow()
         check('failure preserves values and reports failure',text().includes('32%')&&text().includes('갱신하지 못'))
         const count=requests;button().click();await sleep(50);check('rate limit blocks clicks',requests===count&&button().disabled)

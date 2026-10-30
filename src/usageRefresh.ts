@@ -76,7 +76,7 @@ export class UsageRefresh {
                         if (account) { cacheQuotas(account, state.values, state.ts) }
                     } catch { /* A picker storage error must not discard a successful live query. */ }
                 }
-                state.message = state.values.length ? '사용량을 갱신했습니다.' : '사용량 정보 없음'
+                state.message = state.values.length ? '' : '사용량 정보 없음'
                 state.retryAt = Date.now() + 3000
             } catch (error) {
                 state.message = error instanceof AccountRequestError && error.kind === 'auth'

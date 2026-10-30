@@ -50,21 +50,35 @@ const reusedRecords = [
     { id: 'live-29', letter: '', alias: 'E29' },
 ]
 const reused = new SessionIdentities(reusedRecords)
-reused.reconcile(new Set(['live-2', 'live-29']))
+reused.reconcile(new Set(['live-2', 'live-29']), new Set(reusedRecords.map(x => x.id)))
 assert.deepEqual(reusedRecords.map(x => x.alias), ['E2', 'E29'])
 assert.equal(reused.ensure('new', 'E').alias, 'E1')
 assert.equal(reused.ensure('new', 'E').alias, 'E1')
 assert.equal(reused.ensure('another', 'E').alias, 'E3')
-reused.reconcile(new Set(['live-2', 'live-29', 'another']))
+reused.reconcile(new Set(['live-2', 'live-29', 'another']), new Set(reusedRecords.map(x => x.id)))
 assert.equal(reused.ensure('closed-1', 'E').alias, 'E1')
 assert.equal(reused.ensure('live-29', 'renamed').alias, 'E29')
 for (let i = 0; i < 1000; i++) {
-    reused.reconcile(new Set(['live-2', 'live-29']))
+    reused.reconcile(new Set(['live-2', 'live-29']), new Set(reusedRecords.map(x => x.id)))
     assert.equal(reused.ensure(`churn-${i}`, 'E').alias, 'E1')
     assert.equal(reusedRecords.length, 3)
 }
 const restored = new SessionIdentities(JSON.parse(JSON.stringify(reusedRecords)))
-restored.reconcile(new Set(reusedRecords.map(x => x.id)))
+restored.reconcile(new Set(reusedRecords.map(x => x.id)), new Set(reusedRecords.map(x => x.id)))
 assert.equal(restored.ensure('live-29', 'E').alias, 'E29')
 assert.equal(restored.ensure('after-reload', 'E').alias, 'E3')
 console.log('PASS: lowest free alias reused, active names stable, retry/reopen/reload, 1000 close/open cycles bounded')
+const shared = [{id:'a',letter:'',alias:'E1'}, {id:'b',letter:'',alias:'E2'}, {id:'legacy',letter:'',alias:'E3'}]
+const windowA = new SessionIdentities(shared), windowB = new SessionIdentities(shared)
+for (let i=0;i<100;i++) {
+    windowA.reconcile(new Set(['a']), new Set(['a']))
+    windowB.reconcile(new Set(['b']), new Set(['b']))
+    assert.deepEqual(shared.map(x=>x.alias), ['E1','E2','E3'])
+}
+windowA.reconcile(new Set(), new Set(['a']))
+assert.deepEqual(shared.map(x=>x.id), ['b','legacy'])
+assert.equal(windowB.ensure('new','E').alias,'E1')
+assert.equal(windowB.ensure('b','renamed').alias,'E2')
+console.log('PASS: shared windows retain foreign and unknown aliases; only locally closed identities release numbers')
+assert.equal(windowA.ensure('returning','E','Old7').alias,'Old7')
+assert.notEqual(windowA.ensure('conflict','E','Old7').alias,'Old7')

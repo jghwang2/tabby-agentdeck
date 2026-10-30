@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
-import { historicalHook, CODEX_HOOK_EVENTS, currentHookGroups } from './hookCatalog'
+import { historicalHook, CODEX_HOOK_EVENTS, currentHookGroups, notifyCommand } from './hookCatalog'
 import { prepareHookRegistry } from './hookRegistry'
 
 const MARK = 'agentdeck-codex-notify'
@@ -120,7 +120,7 @@ export function stripCodexHooks (settings: any): any {
 
 export function mergeCodexHooks (settings: any, script: string): any {
     const next = stripCodexHooks(settings)
-    const command = `node "${script.replace(/\\/g, '/').replace(/\.ps1$/i, '.mjs')}"`
+    const command = notifyCommand(script)
     for (const event of CODEX_EVENTS) {
         next.hooks[event] = [...(next.hooks[event] ?? []), {
             hooks: [{ type: 'command', command, timeout: 3 }],

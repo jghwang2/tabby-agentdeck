@@ -19,7 +19,9 @@ module.exports = (env = {}) => ({
         { test: /\.ts$/, loader: 'ts-loader' },
         { test: /\.scss$/, use: ['style-loader', 'css-loader', 'sass-loader'] },
     ] },
-    plugins: env.release
+    plugins: [{ apply: compiler => compiler.hooks.beforeRun.tap('BuildNativeHook', () => {
+        require('./tools/build-native-hook.cjs').buildNativeHook(path.resolve(compiler.outputPath, '../hooks'))
+    }) }].concat(env.release
         ? [
             new webpack.NormalModuleReplacementPlugin(/[\\/]devReload\.service$/, './devReload.stub'),
             // **옛 맵은 릴리스 빌드가 직접 치운다.** `devtool: false` 는 새로 만들지 않을 뿐
@@ -34,5 +36,5 @@ module.exports = (env = {}) => ({
                 }),
             },
         ]
-        : [],
+        : []),
 })

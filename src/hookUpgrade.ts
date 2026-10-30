@@ -3,12 +3,13 @@ import * as path from 'path'
 import { createHash } from 'crypto'
 import { agentHome } from './storagePaths'
 import { accountHome, readAccounts } from './accounts'
-import { historicalHook } from './hookCatalog'
+import { historicalHook, hookCommand, notifyCommand } from './hookCatalog'
+import { planHookManagement, applyHookManagement, HookManagementPlan } from './hookManagement'
 
-export interface HookUpgrade { file: string, beforeHash: string, count: number }
+export interface HookUpgrade { file: string, beforeHash: string, count: number, management: HookManagementPlan }
 const hash = (text: string): string => createHash('sha256').update(text).digest('hex')
 
-/** Upgrade only the old, standalone AgentDeck PowerShell transport. Preserve every other setting. */
+/** Upgrade only recognized, standalone AgentDeck transports. Preserve every other setting. */
 export function upgradedHookSettings (settings: any, hooksDir: string): { next: any, count: number } {
     const next = JSON.parse(JSON.stringify(settings))
     let count = 0
@@ -17,17 +18,21 @@ export function upgradedHookSettings (settings: any, hooksDir: string): { next: 
         for (const group of groups) {
             for (const hook of Array.isArray(group?.hooks) ? group.hooks : []) {
                 if (typeof hook?.command !== 'string') { continue }
-                const match = /^\s*(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\s+((?:(?:-NoProfile|-NonInteractive|-ExecutionPolicy\s+Bypass)\s+)+)-File\s+"([^"]+)"((?:\s+-(?:Status|Agent|Subagent|MaxLabel)\s+[\w-]+)*)\s*$/i.exec(hook.command)
-                if (!match) { continue }
-                const oldScript = match[2].replace(/\\/g, '/')
+                const parsed = hookCommand(hook.command)
+                if (!parsed) { continue }
+                const oldScript = parsed.script
                 // Other integrations use the same basename (e.g. claude-compat).
                 if (!/\/tabby-agentdeck\/hooks\/[^/]+$/i.test(oldScript)) { continue }
                 const name = oldScript.split('/').pop()!
-                if (!/^agentdeck-(?:codex-)?notify\.ps1$/i.test(name)) { continue }
+                if (!/^agentdeck-(?:codex-)?notify\.(?:ps1|mjs|exe)$/i.test(name)) { continue }
                 if (!historicalHook(name.toLowerCase().includes('codex') ? 'codex' : 'claude', event, group, hook)) { continue }
-                const script = path.join(hooksDir, name.replace(/\.ps1$/i, '.mjs'))
+                const script = path.join(hooksDir, name.replace(/\.(?:ps1|exe)$/i, '.mjs'))
                 if (!fs.existsSync(script)) { throw new Error('새 AgentDeck 훅 파일을 찾지 못했습니다: ' + script) }
-                hook.command = `node "${script.replace(/\\/g, '/')}"${match[3]}`
+                const command = notifyCommand(script) + (parsed.args ? ' ' + parsed.args.replace(/ -PromptAsLabel$/, '') : '')
+                if (command === hook.command) { continue }
+                // Do not downgrade an already native registration when inspecting an old package.
+                if (/\.exe$/i.test(name) && command.startsWith('node ')) { continue }
+                hook.command = command
                 count++
             }
         }
@@ -49,8 +54,14 @@ export function findHookUpgrades (hooksDir = path.resolve(__dirname, '../hooks')
         if (!fs.existsSync(file)) { continue }
         const text = fs.readFileSync(file, 'utf8')
         const settings = JSON.parse(text.replace(/^\uFEFF/, ''))
-        const { count } = upgradedHookSettings(settings, hooksDir)
-        if (count) { result.push({ file, beforeHash: hash(text), count }) }
+        const provider = path.basename(file).toLowerCase() === 'hooks.json' ? 'codex' : 'claude'
+        const count = Object.entries(settings.hooks || {}).reduce((n, [event, groups]: [string, any]) => n +
+            (Array.isArray(groups) ? groups.reduce((sum, group) => sum + (Array.isArray(group?.hooks)
+                ? group.hooks.filter((hook: any) => !!historicalHook(provider, event, group, hook)).length : 0), 0) : 0), 0)
+        if (!count) continue // Never enroll an integration that the user has not installed.
+        const management = planHookManagement(provider, 'apply', [path.dirname(file)], hooksDir)
+        if (management.blockers.length) throw Error(management.blockers.join('\n'))
+        if (management.canApply) result.push({ file, beforeHash: hash(text), count, management })
     }
     return result
 }
@@ -61,16 +72,15 @@ export function applyHookUpgrades (plans: HookUpgrade[], hooksDir = path.resolve
     const updates = plans.map(plan => {
         const text = fs.readFileSync(plan.file, 'utf8')
         if (hash(text) !== plan.beforeHash) { throw new Error('훅 설정이 변경되었습니다. 다시 확인한 뒤 갱신하세요: ' + plan.file) }
-        const result = upgradedHookSettings(JSON.parse(text.replace(/^\uFEFF/, '')), hooksDir)
-        if (result.count !== plan.count) { throw new Error('갱신할 훅이 변경되었습니다: ' + plan.file) }
-        return { file: plan.file, text, next: JSON.stringify(result.next, null, 2) + '\n' }
+        const current = planHookManagement(plan.management.provider, 'apply', [path.dirname(plan.file)], hooksDir)
+        if (current.blockers.length || JSON.stringify(current.writes) !== JSON.stringify(plan.management.writes)
+            || JSON.stringify(current.snapshots) !== JSON.stringify(plan.management.snapshots)) {
+            throw new Error('갱신할 훅이 변경되었습니다: ' + plan.file)
+        }
+        return current
     })
-    for (const update of updates) {
-        fs.writeFileSync(update.file + '.agentdeck-hook-upgrade-backup', update.text, 'utf8')
-        const tmp = update.file + '.agentdeck-' + process.pid + '.tmp'
-        try {
-            fs.writeFileSync(tmp, update.next, 'utf8')
-            fs.renameSync(tmp, update.file)
-        } finally { if (fs.existsSync(tmp)) { fs.unlinkSync(tmp) } }
-    }
+    if (!updates.length) return
+    // History cleanup and current installation share one preflight/backup/rollback transaction across homes.
+    applyHookManagement({...updates[0], snapshots: updates.flatMap(p => p.snapshots), writes: updates.flatMap(p => p.writes),
+        changes: updates.flatMap(p => p.changes), blockers: [], canApply: true})
 }

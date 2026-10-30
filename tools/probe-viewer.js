@@ -674,21 +674,36 @@
                 const drag = async (want, opts) => {
                     const base = domW()
                     const from = Math.round(hr().left + hr().width / 2)
-                    handle.dispatchEvent(new MouseEvent('mousedown',
-                        { bubbles: true, cancelable: true, clientX: from, clientY: yMid, buttons: 1 }))
-                    // 제자리 move — 튐이 있으면 여기서 드러난다
-                    window.dispatchEvent(new MouseEvent('mousemove',
-                        { bubbles: true, clientX: from, clientY: yMid, buttons: 1 }))
-                    await sleep(150)
-                    const held = domW()
-                    const to = side === 'right' ? from - (want - base) : from + (want - base)
-                    window.dispatchEvent(new MouseEvent('mousemove',
-                        { bubbles: true, clientX: to, clientY: yMid, buttons: 1 }))
-                    await sleep(200)
-                    window.dispatchEvent(new MouseEvent('mouseup',
-                        { bubbles: true, clientX: to, clientY: yMid, buttons: 0 }))
-                    await sleep(300)
-                    return { base, held, jump: held - base, width: cfg.viewerWidth, dom: domW(), ...(opts || {}) }
+                    // Synthetic drag owns its input interval. Real desktop mouse movement
+                    // must not change the coordinates being asserted by this probe.
+                    const externalInput = []
+                    const isolate = event => {
+                        if (!event.isTrusted) return
+                        externalInput.push({type: event.type, x: event.clientX, y: event.clientY})
+                        event.stopImmediatePropagation()
+                    }
+                    window.addEventListener('mousemove', isolate, true)
+                    window.addEventListener('mouseup', isolate, true)
+                    try {
+                        handle.dispatchEvent(new MouseEvent('mousedown',
+                            { bubbles: true, cancelable: true, clientX: from, clientY: yMid, buttons: 1 }))
+                        // 제자리 move — 튐이 있으면 여기서 드러난다
+                        window.dispatchEvent(new MouseEvent('mousemove',
+                            { bubbles: true, clientX: from, clientY: yMid, buttons: 1 }))
+                        await sleep(150)
+                        const held = domW()
+                        const to = side === 'right' ? from - (want - base) : from + (want - base)
+                        window.dispatchEvent(new MouseEvent('mousemove',
+                            { bubbles: true, clientX: to, clientY: yMid, buttons: 1 }))
+                        await sleep(200)
+                        window.dispatchEvent(new MouseEvent('mouseup',
+                            { bubbles: true, clientX: to, clientY: yMid, buttons: 0 }))
+                        await sleep(300)
+                        return { base, held, jump: held - base, width: cfg.viewerWidth, dom: domW(), externalInput, ...(opts || {}) }
+                    } finally {
+                        window.removeEventListener('mousemove', isolate, true)
+                        window.removeEventListener('mouseup', isolate, true)
+                    }
                 }
                 // **정확도는 "줄이기" 로 잰다.** 늘리기는 `extent()` 가 `room`(창폭 − 터미널 최소
                 // − 사이드바 최소)으로 깎으므로 창이 좁으면 목표에 못 미치는 것이 정상이고,
