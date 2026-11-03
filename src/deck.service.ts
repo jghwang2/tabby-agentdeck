@@ -10,6 +10,7 @@ import { installCursorVisibilityFix } from './cursorVisibility'
 import { identifyScreenAgent, isLiveCodexScreen, TerminalAgentTracker } from './screenAgent'
 import { installCodexWheel } from './codexWheel'
 import { installCodexKeys } from './codexKeys'
+import { installFileLinks } from './fileLinks'
 import { installImeCommitGuard } from './imeCommit'
 import { AppService, ConfigService, BaseTabComponent, HostWindowService, HotkeysService, PlatformService, ProfilesService } from 'tabby-core'
 import { SettingsTabComponent } from 'tabby-settings'
@@ -2170,6 +2171,10 @@ export class AgentDeckService {
     }
 
     private installCodexCursorFix (pane: BaseTabComponent): void {
+        installFileLinks((pane as any).frontend,
+            () => ({enabled: this.config.store.agentDeck.enabled !== false,
+                modifier: this.config.store.clickableLinks?.modifier ?? null}),
+            file => this.zone.run(() => this.view?.openFile(file)))
         installImeCommitGuard((pane as any).frontend,
             () => process.platform === 'win32' && this.config.store.agentDeck.imeOrderGuard !== false)
         installCodexKeys((pane as any).frontend,

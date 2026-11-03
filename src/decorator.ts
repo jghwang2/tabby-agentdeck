@@ -3,6 +3,7 @@ import { AppService, BaseTabComponent, ConfigService } from 'tabby-core'
 import { TerminalDecorator, BaseTerminalTabComponent, BaseSession } from 'tabby-terminal'
 import { WorkStatusService } from './status.service'
 import { applyOutput, forgetOutputBuffer } from './detect'
+import { installFileLinks } from './fileLinks'
 
 /**
  * PTY 출력을 훔쳐보며 탭 상태를 추론한다.
@@ -34,6 +35,11 @@ export class AgentDeckDecorator extends TerminalDecorator {
     }
 
     attach (tab: BaseTerminalTabComponent<any>): void {
+        // Linkifier attaches in the same decorator pass; wrap OSC links after it.
+        setTimeout(() => installFileLinks(tab.frontend,
+            () => ({enabled: this.config.store.agentDeck.enabled !== false,
+                modifier: this.config.store.clickableLinks?.modifier ?? null}),
+            file => (window as any).__agentdeck?.openFile(file)), 0)
         this.status.debug.attached++
         if (tab.session) {
             this.attachToSession(tab, tab.session)

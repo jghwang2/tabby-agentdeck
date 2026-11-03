@@ -142,6 +142,7 @@ check('이름이 비슷해도 다른 파일은 띄운다', isAutoFollowable('D:/
 check('package.json 은 띄운다', isAutoFollowable('D:/proj/package.json'), true)
 
 console.log(`\nviewer: ${pass} passed, ${fail} failed`)
+require('./fileLinks.cjs')
 if (fail) {
     process.exit(1)
 }
