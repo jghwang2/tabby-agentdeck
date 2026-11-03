@@ -1,4 +1,36 @@
 import { fileURLToPath } from 'url'
+import * as fs from 'fs'
+import * as path from 'path'
+import { homedir } from 'os'
+
+/** Shared by all providers in a terminal; never blocks the renderer on filesystem I/O. */
+export class FileLinkLookup {
+    private cache = new Map<string, {until: number, pending: Promise<string | null>}>()
+    constructor (private stat: (file: string) => Promise<{isFile(): boolean}> = file => fs.promises.stat(file)) { }
+
+    async resolve (raw: string, cwd: string | null, refresh = false): Promise<string | null> {
+        let file = localLinkPath(raw)
+        if (file && /^~[\\/]/.test(file)) { file = path.join(homedir(), file.slice(2)) }
+        if (!file || (!path.isAbsolute(file) && !cwd)) { return null }
+        // A POSIX server path is not a drive-relative local Windows path.
+        if (process.platform === 'win32' && /^\/(?!\/)/.test(file)) { return null }
+        const absolute = path.resolve(cwd || '', file)
+        let entry = this.cache.get(absolute)
+        if (refresh || !entry || entry.until <= Date.now()) {
+            if (this.cache.size >= 256) { this.cache.delete(this.cache.keys().next().value) }
+            const next = {until: Infinity, pending: null as unknown as Promise<string | null>}
+            next.pending = this.stat(absolute).then(info => info.isFile() ? absolute : null, () => null)
+                .finally(() => { next.until = Date.now() + 1500 })
+            this.cache.set(absolute, next)
+            entry = next
+        }
+        // Slow/network paths cannot hold up the other link providers indefinitely.
+        return new Promise(resolve => {
+            const timer = setTimeout(() => resolve(null), 200)
+            entry!.pending.then(value => { clearTimeout(timer); resolve(value) })
+        })
+    }
+}
 
 export function localLinkPath (raw: string): string | null {
     let value = raw.replace(/(?::\d+(?::\d+)?|#L\d+(?:C\d+)?)$/, '')
@@ -32,14 +64,44 @@ export function fileLinkMatches (text: string): {start: number, end: number, tex
 /** Register on the terminal itself so wrapped lines, scrollback and selection use xterm's link handling. */
 export function installFileLinks (
     frontend: any, settings: () => {enabled: boolean, modifier: string | null}, open: (file: string) => void,
+    cwd?: () => string | null,
 ): void {
     const x = frontend?.xterm
     if (!x?.registerLinkProvider) { return }
+    if (cwd) { frontend.__adFileLinkCwd = cwd }
+    const lookup: FileLinkLookup = frontend.__adFileLinkLookup ??= new FileLinkLookup()
+    const wrapped: WeakSet<object> = frontend.__adCheckedLinkProviders ??= new WeakSet()
     const allowed = (event: MouseEvent): boolean => {
         const cfg = settings()
         return cfg.enabled && event.button === 0 && (!cfg.modifier || !!(event as any)[cfg.modifier])
     }
-    if (!frontend.__adFileLinks) { x.registerLinkProvider({
+    const checkProvider = (provider: any): any => {
+        if (wrapped.has(provider)) { return provider }
+        wrapped.add(provider)
+        const provide = provider.provideLinks.bind(provider)
+        provider.provideLinks = (line: number, callback: (links: any[]) => void) => {
+            const buffer = x.buffer.active
+            const row = buffer.getLine(line - 1)?.translateToString()
+            provide(line, (links: any[] | undefined) => {
+                void Promise.all((links || []).map(async link => {
+                    const target = link.text.replace(/^"|"$/g, '')
+                    const candidate = /^(?:file:\/\/|[a-z]:[\\/]|[\\/]|~[\\/])/i.test(target) ? target
+                        : fileLinkMatches('"' + target + '"').find(match => match.text === target)?.path
+                    if (!candidate) { return link }
+                    if (!settings().enabled) { return null }
+                    const absolute = await lookup.resolve(candidate, frontend.__adFileLinkCwd?.() ?? null)
+                    if (!absolute) { return null }
+                    return {...link, activate: (event: MouseEvent) => {
+                        if (!allowed(event)) { return }
+                        void lookup.resolve(absolute, null, true).then(current => { if (current && allowed(event)) { open(current) } })
+                    }}
+                })).then(links => callback(buffer === x.buffer.active && row === buffer.getLine(line - 1)?.translateToString()
+                    ? links.filter(Boolean) : []), () => callback([]))
+            })
+        }
+        return provider
+    }
+    if (!frontend.__adFileLinks) { x.registerLinkProvider(checkProvider({
         provideLinks: (lineNumber: number, callback: (links: any[]) => void) => {
             if (!settings().enabled) { callback([]); return }
             const buffer = x.buffer.active
@@ -65,7 +127,10 @@ export function installFileLinks (
                 activate: (event: MouseEvent) => { if (allowed(event)) { open(match.path) } },
             })).filter(link => link.range.start.y <= lineNumber && link.range.end.y >= lineNumber))
         },
-    }); frontend.__adFileLinks = true }
+    })); frontend.__adFileLinks = true }
+    // xterm's OSC provider and Tabby's native file provider must also validate:
+    // otherwise they would underline a missing file after our provider declined it.
+    for (const provider of x._core?._linkProviderService?.linkProviders ?? []) { checkProvider(provider) }
     // OSC 8 hyperlinks have priority over providers. Preserve non-file handlers.
     const original = x.options.linkHandler
     if (original === frontend.__adFileLinkHandler) { return }

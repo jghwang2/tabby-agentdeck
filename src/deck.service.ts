@@ -1262,6 +1262,7 @@ export class AgentDeckService {
             },
             view: () => this.view,
             openFile: (file: string) => this.view?.openFile(file),
+            openTerminalFile: (file: string) => this.openTerminalFile(file),
             /**
              * 기동 때 하는 핫키 정리를 **다시 한 번** 돌린다.
              *
@@ -2170,11 +2171,20 @@ export class AgentDeckService {
         this.announceSizeOnOpen(pane)
     }
 
+    private openTerminalFile (file: string): void {
+        this.platform.openPath(file)
+    }
+
     private installCodexCursorFix (pane: BaseTabComponent): void {
         installFileLinks((pane as any).frontend,
             () => ({enabled: this.config.store.agentDeck.enabled !== false,
                 modifier: this.config.store.clickableLinks?.modifier ?? null}),
-            file => this.zone.run(() => this.view?.openFile(file)))
+            file => this.openTerminalFile(file),
+            () => {
+                const root = this.app.getParentTab(pane) ?? pane
+                return this.notify.cwdOf(root) || this.cwdCache.get(root)?.dir
+                    || (pane as any).profile?.options?.cwd || this.config.store.agentDeck.rootProfileCwd || null
+            })
         installImeCommitGuard((pane as any).frontend,
             () => process.platform === 'win32' && this.config.store.agentDeck.imeOrderGuard !== false)
         installCodexKeys((pane as any).frontend,

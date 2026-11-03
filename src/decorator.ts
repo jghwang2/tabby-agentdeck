@@ -39,7 +39,7 @@ export class AgentDeckDecorator extends TerminalDecorator {
         setTimeout(() => installFileLinks(tab.frontend,
             () => ({enabled: this.config.store.agentDeck.enabled !== false,
                 modifier: this.config.store.clickableLinks?.modifier ?? null}),
-            file => (window as any).__agentdeck?.openFile(file)), 0)
+            file => (window as any).__agentdeck?.openTerminalFile(file)), 0)
         this.status.debug.attached++
         if (tab.session) {
             this.attachToSession(tab, tab.session)
