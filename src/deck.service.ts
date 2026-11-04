@@ -983,6 +983,10 @@ export class AgentDeckService {
         // 모델·한도는 상태와 다른 통로로 온다(statusLine 래퍼). 상태가 그대로인 채 한도만
         // 오르는 일이 흔하므로 여기서 따로 렌더를 부른다 — 안 그러면 다음 상태 변화까지 옛 값이 남는다
         this.notify.onMetaChange = () => this.scheduleRender()
+        this.notify.onUsageHook = async meta => {
+            await this.usageRefresh.refresh(meta, 'hook')
+            this.scheduleRender()
+        }
         this.config.changed$.subscribe(() => {
             this.mailboxWake.flushAll()
             this.applyEnabled()

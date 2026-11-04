@@ -50,7 +50,7 @@ function pct (v) {
     return Number.isFinite(n) ? Math.round(n) : null
 }
 
-// Usage API requests belong to the app refresh button, never to statusLine execution.
+// The receiver forwards this snapshot to the app's shared usage refresher.
 function snapshot (data, timestamp) {
     const model = data.model ?? {}
     const ctx = data.context_window ?? {}
@@ -92,6 +92,7 @@ function writeSnapshot (raw, timestamp) {
     const tmp = file + '.' + process.pid + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(snap), 'utf8')
     fs.renameSync(tmp, file)
+    return snap
 }
 
 

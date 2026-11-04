@@ -504,6 +504,7 @@ export class WorkNotifyService {
     private codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')
     /** 모델·한도 값이 바뀌면 부른다 (사이드바 다시 그리기). deck.service 가 꽂는다 */
     onMetaChange: (() => void) | null = null
+    onUsageHook: ((meta: AgentMeta) => Promise<void>) | null = null
     /** 같은 매칭 실패를 폴링마다 diag 에 찍지 않기 위한 마지막 메시지 */
     private lastBindLog = new Map<string, string>()
     /**
@@ -642,6 +643,7 @@ export class WorkNotifyService {
         return new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'), {
             authorize: (event: any) => this.authorizeHook(event),
             report: (payload: any) => this.apply(payload),
+            refreshUsage: (meta: AgentMeta) => this.onUsageHook?.(meta),
             request: (payload: any) => new Promise((resolve, reject) => {
                 const socket = { write: (line: string) => {
                     try { resolve(JSON.parse(line)) } catch (error) { reject(error) }

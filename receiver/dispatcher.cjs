@@ -173,7 +173,11 @@ class HookDispatcher {
                 processor = createMetaProcessor(this.root, { ...process.env, CLAUDE_CONFIG_DIR: key })
                 this.metaProcessors.set(key, processor)
             }
-            processor.writeSnapshot(Buffer.from(JSON.stringify(event.hook)), event.ts)
+            const snapshot = processor.writeSnapshot(Buffer.from(JSON.stringify(event.hook)), event.ts)
+            // Do not hold the hook ACK or the per-session queue on an external API.
+            if (snapshot && Date.now() - event.ts < 60000 && this.services.refreshUsage) {
+                Promise.resolve().then(() => this.services.refreshUsage(snapshot)).catch(() => {})
+            }
             return ''
         })
         const result = await this.schedule(() => {

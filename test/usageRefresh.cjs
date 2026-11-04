@@ -26,11 +26,24 @@ https.get=(url,options,callback)=>{
 }
 ;(async()=>{
     const refresh=new UsageRefresh()
-    const first=refresh.refresh(claude)
+    const first=refresh.refresh(claude,'hook')
     assert.equal(refresh.refresh(claude),first,'concurrent clicks join one request')
     assert.equal(refresh.state(claude).busy,true)
     await first
     assert.equal(count,1);assert.equal(refresh.merge(claude).limits.scopedPct,100)
+    await refresh.refresh({...claude,ts:Date.now()},'hook')
+    assert.equal(count,1,'hook burst shares the account cache')
+    refresh.state(claude).ts=Date.now()-60001;refresh.state(claude).retryAt=0
+    const {HookDispatcher}=require('../receiver/dispatcher.cjs')
+    const dispatcher=new HookDispatcher(path.join(root,'hook-runtime'),undefined,{
+        refreshUsage: value=>refresh.refresh(value,'hook'),
+    })
+    await dispatcher.run({kind:'statusline',ts:Date.now(),env:{CLAUDE_CONFIG_DIR:claude.configDir},hook:{session_id:'hook-usage',context_window:{used_percentage:42}}})
+    await new Promise(resolve=>setTimeout(resolve,20))
+    assert.equal(count,2,'real receiver statusline path invokes the same API refresher')
+    assert.equal(refresh.merge(claude).limits.scopedPct,100)
+    await dispatcher.run({kind:'statusline',ts:Date.now()-120000,env:{CLAUDE_CONFIG_DIR:claude.configDir},hook:{session_id:'old-hook'}})
+    assert.equal(count,2,'old inbox replay does not query usage')
     assert.equal(refresh.merge(claude).contextPct,42)
     await refresh.refresh(codex)
     assert.equal(refresh.merge(codex).limits.fiveHourPct,32)

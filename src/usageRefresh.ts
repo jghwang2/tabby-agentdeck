@@ -50,12 +50,15 @@ export class UsageRefresh {
         return { ...meta, limits }
     }
 
-    refresh (meta: LiveMeta): Promise<void> {
+    refresh (meta: LiveMeta, source: 'manual' | 'hook' = 'manual'): Promise<void> {
         if ((meta.agent !== 'claude' && meta.agent !== 'codex') || !meta.account) { return Promise.resolve() }
         const key = this.key(meta)
         const state = this.states.get(key) || { busy: false, message: '', ts: 0, retryAt: 0 }
         if (state.task) { return state.task }
         if (state.retryAt > Date.now()) { return Promise.resolve() }
+        // Status-line hooks can arrive several times per second across tabs.
+        // Both callers share one request/cache; only automatic calls reuse a fresh result.
+        if (source === 'hook' && state.values && Date.now() - state.ts < 60000) { return Promise.resolve() }
         this.states.set(key, state)
         state.busy = true; state.message = ''
         const provider = meta.agent, id = meta.account
