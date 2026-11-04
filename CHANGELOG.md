@@ -5,6 +5,16 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.3.1 — 2026-11-04
+
+- Restore automatic Claude model-specific usage updates, including Fable. Status-line hooks and the refresh button now share the same API refresh logic, account-scoped cache and retry handling without blocking hooks on network requests.
+- Open existing terminal file links with the operating system's default application. Support relative paths, spaces, Unicode and wrapped links, and ignore paths that do not exist.
+
+**한국어**
+
+- Fable 등 Claude 모델별 사용량이 자동으로 갱신되도록 수정했습니다. 상태줄 훅과 새로고침 버튼이 같은 API 조회·계정별 캐시·재시도 처리를 공유하며, 훅은 네트워크 응답을 기다리지 않습니다.
+- 터미널의 실제 파일 링크를 운영체제 기본 앱으로 엽니다. 상대 경로·공백·한글·줄바꿈을 지원하고 존재하지 않는 경로는 링크에서 제외합니다.
+
 ## 1.3.0 — 2026-10-30
 
 - Reduce Windows hook startup overhead with a dedicated Claude/Codex notification executable, preserving durable offline delivery and UTF-8 context responses.

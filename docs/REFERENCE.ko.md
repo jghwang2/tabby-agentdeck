@@ -11,6 +11,11 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.3.1
+
+- Fable 등 Claude 모델별 사용량을 상태줄 훅과 새로고침 버튼의 공통 API 조회로 갱신합니다. 훅은 응답을 기다리지 않으며, 연속 호출은 계정별 캐시와 재시도 대기를 공유합니다.
+- 터미널의 실제 파일 링크를 운영체제 기본 앱으로 엽니다. 상대 경로·공백·한글·줄바꿈을 지원하고 존재하지 않는 경로는 제외합니다.
+
 ## 1.3.0
 
 - Windows 전용 알림 전달기로 Claude·Codex 훅 실행 비용을 줄였습니다.
