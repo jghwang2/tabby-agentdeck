@@ -951,8 +951,11 @@ export class AgentDeckService {
         })
         // 탭을 바꾸면 그 탭은 숨어 있던 동안 폭 0 이라 refit 을 건너뛰었다 — 지금 맞춰준다
         this.app.activeTabChange$.subscribe(() => {
+            const isSettings = this.app.activeTab instanceof SettingsTabComponent
+            this.view?.setVisible(this.enabled && !isSettings)
             // 미리보기의 최근 목록은 탭마다 따로다 — 보고 있는 탭 것으로 바꿔 준다
             this.view?.setActiveTab(this.app.activeTab ?? null)
+            this.relayout()
             this.scheduleRender()
             this.scheduleRefit()
         })
@@ -3796,12 +3799,14 @@ export class AgentDeckService {
             this.sidebar.style.display = this.enabled ? '' : 'none'
         }
         // 레이아웃을 끄면 미리보기도 같이 숨는다 (열림 상태는 설정에 그대로 남긴다)
-        this.view?.setVisible(this.enabled)
+        const isSettings = this.app.activeTab instanceof SettingsTabComponent
+        this.view?.setVisible(this.enabled && !isSettings)
         if (!this.enabled && this.mainEl) {
             for (const prop of ['flex', 'width', 'max-width', 'height',
                 'margin-left', 'margin-right', 'margin-top', 'margin-bottom']) {
                 this.mainEl.style.removeProperty(prop)
             }
+            document.body.classList.remove('ad-titlebar-covered')
             // 폭을 되돌렸으니 메모도 무효화하고 터미널에 새 폭을 알린다
             this.lastTermW = -1
             this.lastSidebarW = -1
@@ -4009,11 +4014,11 @@ export class AgentDeckService {
         // 미리보기 패널이 먼저 자기 폭을 갖고, 사이드바는 그 나머지 안에서 화면비를 계산한다.
         // **여기서 4:3 이 완화된다** — 패널을 열면 터미널이 그만큼 좁아진다(사이드바는 안 줄어든다).
         // 반대로 하면(터미널 4:3 고정) 창이 좁을 때 패널이 열릴 자리가 없다 (2026-09-08 결정).
+        const isSettings = this.app.activeTab instanceof SettingsTabComponent
         const viewSide = this.viewSide
-        // 패널이 써도 되는 폭 = 창폭 − 터미널 최소 − 사이드바 최소.
-        // 이 계산이 없으면 좁은 창에서 패널이 터미널 자리까지 먹는다
-        const viewRoom = availW - MIN_TERM_W - (horizontal ? MIN_SIDEBAR_W : 0)
-        const viewW = Math.round(this.view?.extent(viewRoom) ?? 0)
+        // 설정 탭에서는 미리보기 패널을 숨기고 폭 계산에서도 뺀다
+        const viewRoom = isSettings ? 0 : availW - MIN_TERM_W - (horizontal ? MIN_SIDEBAR_W : 0)
+        const viewW = isSettings ? 0 : Math.round(this.view?.extent(viewRoom) ?? 0)
         const layoutW = Math.max(availW - viewW, MIN_TERM_W)
         let extent = Math.round(this.sidebarExtent(layoutW, availH, box.height))
         // 사이드바/패널이 가로로 먹는 몫을 빼고 남는 것이 터미널 폭이다
@@ -4087,13 +4092,18 @@ export class AgentDeckService {
         // 미리보기 패널도 사이드바와 같은 자리를 나눠 쓴다 — 같은 쪽에 붙었으면 사이드바가
         // 창 가장자리(바깥), 패널이 터미널 쪽(안)이다
         const viewOuter = side === viewSide ? sideW : 0
+        const viewAtTopRight = viewSide === 'right' && side !== 'right' && viewW > 0
         this.view?.layout(viewSide, {
             left: Math.round(box.left - origin.left
                 + (viewSide === 'left' ? viewOuter : box.width - viewW - viewOuter)),
             top: Math.round(box.top - origin.top),
             width: viewW,
             height: box.height,
-        })
+        }, viewAtTopRight)
+
+        // 창 우상단이 사이드바나 패널로 덮여 있는지 여부 — 덮여 있으면 별도 .ad-window-drag 가 불필요
+        const topCovered = side === 'right' || side === 'top' || viewAtTopRight
+        document.body.classList.toggle('ad-titlebar-covered', topCovered)
 
         const m = this.mainEl.style
         // 폭을 못 박아야 하는 경우: 가로 도킹이거나, 세로 도킹이어도 미리보기 패널이 폭을 먹을 때
@@ -4645,6 +4655,7 @@ export class AgentDeckService {
         }
         const cfg = () => this.config.store.agentDeck
         this.view = new ViewPanel({
+            getLang: () => this.sidebarLang,
             windowEl: this.windowEl,
             getSide: () => this.viewSide,
             getWidth: () => cfg().viewerWidth || 420,

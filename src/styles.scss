@@ -61,6 +61,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     &.ad-dock-top { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     &.ad-dock-bottom { border-top: 1px solid rgba(255, 255, 255, 0.08); }
 
+
     // 상/하 도킹은 세로가 짧으므로 목록을 가로로 흘린다
     &.ad-dock-top,
     &.ad-dock-bottom {
@@ -161,6 +162,9 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     // 상태별 집계 칩 한 줄 — `⏸ 2  ● 3  ○ 1`. 헤더 높이는 총 개수만 있던 때와 같게 유지한다
     .ad-head-title {
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
     }
 
     .ad-head-version {
@@ -965,6 +969,15 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     }
 
     .ad-view-head {
+        -webkit-app-region: drag;
+
+        .ad-view-tools,
+        .ad-view-btn,
+        button,
+        input {
+            -webkit-app-region: no-drag;
+        }
+
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -2057,6 +2070,61 @@ body.agentdeck-active.ad-native-titlebar {
         margin-top: 32px;
         height: calc(100% - 32px) !important;
     }
+
+    &.ad-titlebar-covered {
+        .ad-window-drag {
+            display: none;
+        }
+        .window {
+            margin-top: 0;
+            height: 100% !important;
+        }
+    }
+    #agentdeck-sidebar.ad-dock-right {
+        padding-top: 30px;
+        -webkit-app-region: drag;
+
+        .ad-list,
+        .ad-now,
+        .ad-foot,
+        .ad-resume-drawer,
+        .ad-head-chips,
+        .ad-head-tools,
+        button,
+        input {
+            -webkit-app-region: no-drag;
+        }
+    }
+    #agentdeck-sidebar.ad-dock-top {
+        -webkit-app-region: drag;
+
+        .ad-head {
+            padding-right: 145px;
+        }
+        .ad-list,
+        .ad-foot,
+        .ad-head-chips,
+        .ad-head-tools,
+        button,
+        input {
+            -webkit-app-region: no-drag;
+        }
+    }
+    #agentdeck-view.ad-view-top-right {
+        padding-top: 30px;
+        -webkit-app-region: drag;
+
+        .ad-view-body,
+        .ad-view-foot,
+        .ad-view-path,
+        .ad-view-modes,
+        .ad-view-tools,
+        .ad-view-btn,
+        button,
+        input {
+            -webkit-app-region: no-drag;
+        }
+    }
 }
 
 body.agentdeck-active {
@@ -2073,6 +2141,30 @@ body.agentdeck-active {
         // (--ad-panel-bg 가 있으면 배경 이미지가 이 여백으로도 비친다)
         background: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
     }
+
+    .content.main {
+        tab-body:has(terminal-pane) {
+            background: transparent !important;
+        }
+
+        terminal-pane,
+        .terminal,
+        .xterm,
+        .xterm-viewport {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+    }
+}
+
+// 설정 탭이 활성화되었을 때 미리보기 패널을 숨기고 본문 배경을 유지한다
+body.agentdeck-active:has(settings-tab-body) #agentdeck-view {
+    display: none !important;
+}
+
+settings-tab,
+settings-tab-body {
+    background: var(--bs-body-bg, #1e2127);
 }
 
 // ---------- 드롭 확인 배너 (터미널 위에 파일을 끌어다 놓았을 때) ----------
