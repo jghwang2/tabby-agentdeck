@@ -2047,7 +2047,7 @@ body.ad-resizing {
     }
 }
 
-// AgentDeck 이 켜져 있을 때만 순정 탭바를 감춘다 (사이드바가 그 역할을 대신함)
+// 순정 탭바가 없을 때(전체화면 등)에만 쓰는 창 드래그 바 (ad-native-titlebar 는 탭바가 없을 때만 붙는다)
 .ad-window-drag { display: none; }
 body.agentdeck-active.ad-native-titlebar {
     .ad-window-drag {
@@ -2128,9 +2128,8 @@ body.agentdeck-active.ad-native-titlebar {
 }
 
 body.agentdeck-active {
-    .content.main > .tab-bar {
-        display: none !important;
-    }
+    // 순정 탭바(.content.main > .tab-bar)는 감추지 않는다 — 탭바는 창 전체 폭을 유지하고
+    // AgentDeck 은 그 아래 터미널 영역(.content)만 나눠 쓴다 (deck.service.ts relayout 참고)
 
     .window {
         display: flex;

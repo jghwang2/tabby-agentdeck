@@ -597,6 +597,8 @@ export class AgentDeckService {
     private windowEl: HTMLElement | null = null
     private mainEl: HTMLElement | null = null
     private observer: ResizeObserver | null = null
+    private observedTabBar: HTMLElement | null = null
+    private relayoutRaf = 0
     private editing: BaseTabComponent | null = null
     /**
      * 줄을 끌어 순서를 바꾸는 중일 때의 상태 (null 이면 드래그 중이 아니다).
@@ -1009,8 +1011,16 @@ export class AgentDeckService {
         setInterval(() => this.sweepScreens(), SCREEN_SWEEP_MS)
 
         // 창 크기 변화 -> 4:3 폭 재계산
-        this.observer = new ResizeObserver(() => this.relayout())
+        this.observer = new ResizeObserver(() => this.scheduleRelayout())
         this.observer.observe(this.windowEl)
+        // 탭바는 *ngIf 로 붙었다 떨어진다(전체화면) — 그 변화도 놓치지 않는다 (자식 목록만 본다)
+        if (this.mainEl) {
+            new MutationObserver(() => {
+                this.watchTabBar()
+                this.scheduleRelayout()
+            }).observe(this.mainEl, { childList: true })
+            this.watchTabBar()
+        }
         window.addEventListener('resize', () => this.relayout())
 
         // 핫키 처리는 여기서 — provider 쪽에서 하면 HotkeysService 와 순환 의존이 된다
@@ -3802,9 +3812,11 @@ export class AgentDeckService {
         const isSettings = this.app.activeTab instanceof SettingsTabComponent
         this.view?.setVisible(this.enabled && !isSettings)
         if (!this.enabled && this.mainEl) {
+            this.resetMainInline()
+            const content = this.contentEl()
             for (const prop of ['flex', 'width', 'max-width', 'height',
                 'margin-left', 'margin-right', 'margin-top', 'margin-bottom']) {
-                this.mainEl.style.removeProperty(prop)
+                content?.style.removeProperty(prop)
             }
             document.body.classList.remove('ad-titlebar-covered')
             // 폭을 되돌렸으니 메모도 무효화하고 터미널에 새 폭을 알린다
@@ -3844,7 +3856,7 @@ export class AgentDeckService {
                 clear()
                 return
             }
-            const r = this.mainEl.getBoundingClientRect()
+            const r = (this.contentEl() ?? this.mainEl).getBoundingClientRect()
             if (r.width <= 0 || r.height <= 0) {
                 return
             }
@@ -3916,13 +3928,90 @@ export class AgentDeckService {
         const r = this.windowEl!.getBoundingClientRect()
         const vw = document.documentElement.clientWidth || window.innerWidth || r.width
         const vh = document.documentElement.clientHeight || window.innerHeight || r.height
-        const left = Math.max(r.left, 0)
-        const top = Math.max(r.top, 0)
+        let left = Math.max(r.left, 0)
+        let top = Math.max(r.top, 0)
+        let right = Math.min(r.right, vw)
+        let bottom = Math.min(r.bottom, vh)
+        // 순정 탭바가 보이면 그 몫을 뺀다 — 사이드바/미리보기/도킹 핸들은 탭바 **아래**(세로 탭이면
+        // 옆)의 터미널 영역에서만 나눈다. 탭바 자체는 AgentDeck 이 건드리지 않으므로(`.content.main` 은
+        // 순정 그대로) 이 값이 우리 레이아웃에 되먹임되지 않는다.
+        const tb = this.tabBarEl()
+        if (tb && this.mainEl) {
+            const t = tb.getBoundingClientRect()
+            const mr = this.mainEl.getBoundingClientRect()
+            if (t.width > 0 && t.height > 0) {
+                if (t.width >= mr.width - 1) {
+                    if (t.top - mr.top <= mr.bottom - t.bottom) {
+                        top = Math.max(top, t.bottom)
+                    } else {
+                        bottom = Math.min(bottom, t.top)
+                    }
+                } else if (t.height >= mr.height - 1) {
+                    if (t.left - mr.left <= mr.right - t.right) {
+                        left = Math.max(left, t.right)
+                    } else {
+                        right = Math.min(right, t.left)
+                    }
+                }
+            }
+        }
         return {
             left,
             top,
-            width: Math.max(0, Math.round(Math.min(r.right, vw) - left)),
-            height: Math.max(0, Math.round(Math.min(r.bottom, vh) - top)),
+            width: Math.max(0, Math.round(right - left)),
+            height: Math.max(0, Math.round(bottom - top)),
+        }
+    }
+
+    /** `.content.main` 안의 순정 탭바 (전체화면 등에서 없거나 숨겨졌으면 null) */
+    private tabBarEl (): HTMLElement | null {
+        const el = this.mainEl?.querySelector(':scope > .tab-bar') as HTMLElement | null
+        return el && getComputedStyle(el).display !== 'none' ? el : null
+    }
+
+    /** `.content.main` 안의 터미널 영역 (tab-body 들을 품은 `.content`) */
+    private contentEl (): HTMLElement | null {
+        return (this.mainEl?.querySelector(':scope > .content') as HTMLElement | null) ?? null
+    }
+
+    /** 예전 버전/핫리로드가 `.content.main` 에 남긴 인라인 레이아웃 값을 걷는다 */
+    private resetMainInline (): void {
+        if (!this.mainEl) {
+            return
+        }
+        for (const prop of ['flex', 'width', 'max-width', 'height',
+            'margin-left', 'margin-right', 'margin-top', 'margin-bottom']) {
+            this.mainEl.style.removeProperty(prop)
+        }
+    }
+
+    /**
+     * 레이아웃 재계산을 프레임당 한 번으로 합친다. 탭 애니메이션/탭바 리사이즈가 연달아
+     * 옵저버를 깨워도 relayout 은 rAF 한 번에 한 번만 돈다 — 옵저버 콜백 안에서 곧장
+     * 레이아웃을 바꿔 ResizeObserver 루프를 만들지 않는다.
+     */
+    private scheduleRelayout (): void {
+        if (this.relayoutRaf) {
+            return
+        }
+        this.relayoutRaf = requestAnimationFrame(() => {
+            this.relayoutRaf = 0
+            this.relayout()
+        })
+    }
+
+    /** 탭바는 *ngIf 로 붙었다 떨어지므로 현재 것을 옵저버에 걸어 둔다 */
+    private watchTabBar (): void {
+        const tb = this.tabBarEl()
+        if (tb === this.observedTabBar) {
+            return
+        }
+        if (this.observedTabBar) {
+            this.observer?.unobserve(this.observedTabBar)
+        }
+        this.observedTabBar = tb
+        if (tb) {
+            this.observer?.observe(tb)
         }
     }
 
@@ -3983,8 +4072,11 @@ export class AgentDeckService {
 
     /** 사이드바를 창 한쪽에 붙이고, 남는 자리를 `.content.main` 이 갖게 한다 */
     private relayout (): void {
+        // 순정 탭바가 보이면 그것이 창 드래그 영역/창 컨트롤 자리를 이미 갖고 있다 —
+        // 별도 드래그 바(.ad-window-drag)와 사이드바 상단 패딩은 탭바가 없을 때만 필요하다
         document.body.classList.toggle('ad-native-titlebar', process.platform === 'win32'
-            && this.config.store.appearance?.frame === 'thin' && !this.hostWindow.isFullscreen)
+            && this.config.store.appearance?.frame === 'thin' && !this.hostWindow.isFullscreen
+            && !this.tabBarEl())
         if (!this.enabled || !this.windowEl) {
             this.diagOnce('relayout-skip-enabled', `relayout skipped enabled=${this.enabled} windowEl=${!!this.windowEl}`)
             return
@@ -4003,7 +4095,7 @@ export class AgentDeckService {
         const availW = box.width
         // 화면비로 폭을 역산할 때 쓰는 높이는 터미널이 실제로 쓰는 높이여야 한다.
         // 창 높이를 쓰면 탭바 등을 뺀 만큼 폭이 과대 계산돼 사이드바가 좁아진다
-        const availH = this.mainEl.clientHeight || box.height
+        const availH = this.contentEl()?.clientHeight || box.height
         if (!availW || !availH) {
             return
         }
@@ -4048,7 +4140,7 @@ export class AgentDeckService {
         // 있고(설정 변경), 그때 여기서 되돌아가면 패널이 옛 자리에 남는다 (2026-09-08 실측)
         // 창 박스가 **자리만** 옮긴 경우도 다시 그려야 한다 — 폭·몫이 그대로여도 절대 좌표가
         // 달라지므로, 여기서 되돌아가면 사이드바가 옛 자리에 남는다
-        const boxKey = box.left + ':' + box.top
+        const boxKey = box.left + ':' + box.top + ':' + box.height
         if (termW === this.lastTermW && extent === this.lastSidebarW && side === this.lastDock
             && viewW === this.lastViewW && viewSide === this.lastViewSide && boxKey === this.lastBoxKey) {
             return
@@ -4105,7 +4197,18 @@ export class AgentDeckService {
         const topCovered = side === 'right' || side === 'top' || viewAtTopRight
         document.body.classList.toggle('ad-titlebar-covered', topCovered)
 
-        const m = this.mainEl.style
+        // 폭/여백은 `.content.main` 이 아니라 **그 안의 `.content`(터미널 영역)** 에 쓴다.
+        // `.content.main` 은 순정 `.tab-bar` 와 `.content` 를 함께 품은 상자라, 거기에 폭을 쓰면
+        // 미리보기 패널이 열릴 때마다 탭바가 420px 씩 줄었다 늘었다 하며 탭이 찌그러지고
+        // 리사이즈 되먹임(ResizeObserver 루프)까지 만들었다. main 은 순정 그대로 두고
+        // 탭바는 창 전체 폭을 유지한다.
+        this.resetMainInline()
+        const content = this.contentEl()
+        if (!content) {
+            return
+        }
+        const m = content.style
+        const mainIsRow = getComputedStyle(this.mainEl).flexDirection.startsWith('row')
         // 폭을 못 박아야 하는 경우: 가로 도킹이거나, 세로 도킹이어도 미리보기 패널이 폭을 먹을 때
         if (horizontal || viewW > 0) {
             // 왼쪽에 붙은 것(사이드바/패널)만큼 앞자리를 비운다.
@@ -4113,14 +4216,17 @@ export class AgentDeckService {
             m.marginLeft = leftPad + 'px'
             m.marginRight = '0'
             // 여백을 적은 **뒤에** 실제 시작점을 재서 오른쪽 경계까지 정확히 채운다.
-            // `termW` 는 "보이는 폭에서 몫을 뺀 값" 이라 `.content.main` 이 창 왼쪽에서
-            // 시작한다는 가정이 깔려 있다 — 앞에 형제가 있거나 박스가 어긋나 있으면
-            // 그만큼 오른쪽에 빈 띠가 남는다. 시작점을 재면 그 가정이 필요 없다.
-            const startX = this.mainEl.getBoundingClientRect().left
+            const startX = content.getBoundingClientRect().left
             termW = Math.max(MIN_TERM_W, Math.round(box.left + box.width - rightPad - startX))
-            m.flex = '0 0 ' + termW + 'px'
             m.width = termW + 'px'
             m.maxWidth = termW + 'px'
+            // 세로 탭(row)에서는 주축이 가로라 flex-basis 가 폭이다. 가로 탭(column)에서는
+            // flex-basis 가 높이이므로 건드리면 안 된다.
+            if (mainIsRow) {
+                m.flex = '0 0 ' + termW + 'px'
+            } else {
+                m.removeProperty('flex')
+            }
         } else {
             m.removeProperty('flex')
             m.removeProperty('width')
@@ -4128,21 +4234,11 @@ export class AgentDeckService {
             m.marginLeft = '0'
             m.marginRight = '0'
         }
-        if (horizontal) {
-            m.removeProperty('height')
-            m.marginTop = '0'
-            m.marginBottom = '0'
-        } else {
-            m.marginTop = side === 'top' ? extent + 'px' : '0'
-            m.marginBottom = side === 'bottom' ? extent + 'px' : '0'
-            // **`important` 가 필요하다.** `.content.main` 에는 부트스트랩 `h-100` 클래스가 붙어
-            // 있고 그 규칙이 `height: 100% !important` 라, 평범한 인라인 스타일은 진다.
-            // 그래서 상하 도킹에서 터미널 높이가 전혀 줄지 않았다 — bottom 이면 아래쪽이
-            // 사이드바에 가리고, top 이면 그만큼 창 밖으로 넘쳤다
-            // (2026-09-02 실측, 창 1100x700 / 사이드바 200: 인라인은 `calc(100% - 200px)` 인데
-            //  computed 는 `700px`, host 는 top 에서 `1070x670@y=215` 로 하단 185px 가 잘렸다).
-            m.setProperty('height', 'calc(100% - ' + extent + 'px)', 'important')
-        }
+        // 상하 도킹은 높이를 깎지 않고 여백으로 비운다 — `.content` 는 `h-100` 이 아니라
+        // flex 로 남는 자리를 채우므로 여백만으로 충분하다.
+        m.removeProperty('height')
+        m.marginTop = !horizontal && side === 'top' ? extent + 'px' : '0'
+        m.marginBottom = !horizontal && side === 'bottom' ? extent + 'px' : '0'
 
         this.dock?.syncHandle()
         this.syncBackgroundClip()
