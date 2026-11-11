@@ -19,6 +19,7 @@ import { collectDiagBundle, configStamp, DIAG_PATH, pluginVersion } from './diag
 import { StoragePaths, STORAGE_KEYS, storageDefaults } from './storagePaths'
 import { StorageSettings, storageSettingsFor } from './storageSettings'
 import { storageText } from './storageI18n'
+import { hookText } from './hookI18n'
 import { AgentDeckProfileService } from './profile.service'
 import { HookProvider } from './hookCatalog'
 import { HookAction, HookManagementPlan, planHookManagement, applyHookManagement } from './hookManagement'
@@ -415,7 +416,7 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
             [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
             (click)="openHookManagement('claude', action.id)">{{action.label}}</button>
         <details class="ad-hook-remove">
-            <summary>훅 제거</summary>
+            <summary>{{hookLabel('remove')}}</summary>
             <div *ngFor="let action of hookRemovalActions" class="ad-hook-remove-option">
                 <button class="btn btn-secondary" type="button" [attr.data-hook-action]="action.id"
                     [disabled]="hookManagementBusy" (click)="openHookManagement('claude', action.id)">{{action.label}}</button>
@@ -441,7 +442,7 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
             [attr.data-hook-action]="action.id" [disabled]="hookManagementBusy"
             (click)="openHookManagement('codex', action.id)">{{action.label}}</button>
         <details class="ad-hook-remove">
-            <summary>훅 제거</summary>
+            <summary>{{hookLabel('remove')}}</summary>
             <div *ngFor="let action of hookRemovalActions" class="ad-hook-remove-option">
                 <button class="btn btn-secondary" type="button" [attr.data-hook-action]="action.id"
                     [disabled]="hookManagementBusy" (click)="openHookManagement('codex', action.id)">{{action.label}}</button>
@@ -451,20 +452,20 @@ Legacy grouping controls are retired: fixed slots never reorder by project.
     </div>
 </div>
 
-<section class="ad-hook-preview" *ngIf="hookManagementPlan" aria-label="훅 전문과 변경 미리보기">
+<section class="ad-hook-preview" *ngIf="hookManagementPlan" [attr.aria-label]="hookLabel('preview.aria')">
     <h4>{{hookManagementPlan.provider === 'claude' ? 'Claude' : 'Codex'}} — {{hookManagementTitle}}</h4>
     <p>{{hookManagementDescription}}</p>
-    <p>AgentDeck 훅만 표시합니다. 제거할 때도 다른 도구의 훅과 Codex 신뢰 설정은 유지합니다.</p>
+    <p>{{hookLabel('preview.scope')}}</p>
     <pre tabindex="0">{{hookManagementPlan.preview}}</pre>
     <details *ngFor="let source of hookManagementPlan.sources" class="mb-2">
-        <summary>현재 설치된 AgentDeck 전달기 코드 — {{source.file}}</summary>
+        <summary>{{hookLabel('preview.source', { file: source.file })}}</summary>
         <pre tabindex="0">{{source.text}}</pre>
     </details>
     <button *ngIf="hookManagementPlan.action !== 'view'" class="btn btn-primary me-2" type="button" data-hook-apply
-        [disabled]="hookManagementBusy || !hookManagementPlan.canApply" (click)="confirmHookManagement()">변경 적용</button>
+        [disabled]="hookManagementBusy || !hookManagementPlan.canApply" (click)="confirmHookManagement()">{{hookLabel('preview.apply')}}</button>
     <button class="btn btn-secondary me-2" type="button" [disabled]="hookManagementBusy"
-        (click)="openHookManagement(hookManagementPlan.provider, hookManagementPlan.action)">다시 불러오기</button>
-    <button class="btn btn-secondary" type="button" [disabled]="hookManagementBusy" (click)="hookManagementPlan = null">닫기</button>
+        (click)="openHookManagement(hookManagementPlan.provider, hookManagementPlan.action)">{{hookLabel('preview.reload')}}</button>
+    <button class="btn btn-secondary" type="button" [disabled]="hookManagementBusy" (click)="hookManagementPlan = null">{{hookLabel('preview.close')}}</button>
     <p class="mt-2" role="status">{{hookManagementMessage}}</p>
 </section>
 
@@ -980,13 +981,15 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     }
 
     */
-    hookActions: {id: HookAction, label: string, description: string}[] = [
-        {id: 'view', label: '훅 보기', description: '기본 설정과 저장된 계정의 AgentDeck 등록 내용 및 실행 코드를 확인합니다.'},
-        {id: 'managed', label: '설치한 항목만 제거', description: '설치 기록과 일치하는 항목만 제거합니다. 기록이 없는 예전 훅은 남습니다.'},
-        {id: 'history', label: '배포 이력으로 찾아 제거', description: '과거·현재 배포 형태와 일치하는 훅을 찾아 제거합니다. 직접 수정한 항목은 남습니다.'},
-        {id: 'reset', label: 'AgentDeck 훅 모두 제거', description: '설치 기록과 배포 이력으로 확인된 훅을 모두 제거합니다. 출처를 확인할 수 없는 항목은 남습니다.'},
-        {id: 'apply', label: '설치 / 다시 설치', description: 'AgentDeck 훅을 최신 구성으로 설치합니다. 이미 설치했다면 확인된 기존 항목을 정리하고 다시 등록합니다.'},
-    ]
+    get hookActions (): {id: HookAction, label: string, description: string}[] {
+        return [
+            {id: 'view', label: this.hookLabel('view'), description: this.hookLabel('view.desc')},
+            {id: 'managed', label: this.hookLabel('remove.managed'), description: this.hookLabel('remove.managed.desc')},
+            {id: 'history', label: this.hookLabel('remove.history'), description: this.hookLabel('remove.history.desc')},
+            {id: 'reset', label: this.hookLabel('remove.reset'), description: this.hookLabel('remove.reset.desc')},
+            {id: 'apply', label: this.hookLabel('apply'), description: this.hookLabel('apply.desc')},
+        ]
+    }
     get hookPrimaryActions () { return this.hookActions.filter(a => a.id === 'view' || a.id === 'apply') }
     get hookRemovalActions () { return this.hookActions.filter(a => a.id !== 'view' && a.id !== 'apply') }
     hookManagementPlan: HookManagementPlan | null = null
@@ -1001,11 +1004,11 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         try {
             this.hookManagementPlan = planHookManagement(provider, action)
             if (action !== 'view' && !this.hookManagementPlan.writes.length && !this.hookManagementPlan.blockers.length) {
-                this.hookManagementMessage = '변경할 항목이 없습니다. 현재 등록 전문과 보존 사유를 확인하세요.'
+                this.hookManagementMessage = this.hookLabel('nochanges')
             }
         } catch (e: any) {
             this.hookManagementPlan = {provider, action, changes: [], snapshots: [], writes: [], canApply: false,
-                blockers: [String(e.message)], preview: '설정을 읽지 못했습니다: ' + String(e.message)}
+                blockers: [String(e.message)], preview: this.hookLabel('readerror', { error: String(e.message) })}
         }
     }
 
@@ -1017,15 +1020,15 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
             const removed = plan.changes.filter(c => c.decision === '제거').length
             const added = plan.changes.filter(c => c.decision === '추가').length
             const result = await this.platform.showMessageBox({type: 'warning',
-                message: 'AgentDeck — ' + this.hookManagementTitle,
-                detail: `제거 ${removed}개 · 추가 ${added}개\n미리보기에 표시된 AgentDeck 항목만 변경하고 원본을 백업합니다.\n다른 도구의 훅은 유지합니다. 실행 중인 CLI는 훅 재로드 또는 재시작이 필요할 수 있습니다.\n\n`
+                message: this.hookLabel('confirm.title', { action: this.hookManagementTitle }),
+                detail: this.hookLabel('confirm.detail', { removed, added })
                     + [...new Set(plan.changes.map(c => c.file))].join('\n'),
-                buttons: ['적용', '취소'], defaultId: 1, cancelId: 1})
-            if (result.response !== 0) { this.hookManagementMessage = '취소했습니다. 설정을 변경하지 않았습니다.'; return }
+                buttons: [this.hookLabel('confirm.apply'), this.hookLabel('confirm.cancel')], defaultId: 1, cancelId: 1})
+            if (result.response !== 0) { this.hookManagementMessage = this.hookLabel('cancelled'); return }
             const backups = applyHookManagement(plan)
             this.refreshHooks(); this.syncNotifyChannel()
             this.hookManagementPlan = planHookManagement(plan.provider, 'view')
-            this.hookManagementMessage = '적용했습니다. 백업 ' + backups.length + '개. CLI에서 훅을 다시 불러오거나 새 세션을 시작하세요.'
+            this.hookManagementMessage = this.hookLabel('applied', { count: backups.length })
                 + (backups.length ? '\n' + backups.join('\n') : '')
         } catch (e: any) {
             this.hookManagementMessage = String(e.message)
@@ -1078,7 +1081,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
             this.diagBundlePath = bundle.path
             this.platform.showItemInFolder(bundle.path)
         } catch (e: any) {
-            this.diagError = `모으지 못했다: ${e?.message ?? e}`
+            this.diagError = (this.lang === 'ko' ? '모으지 못했다: ' : 'Failed to collect: ') + (e?.message ?? e)
         }
     }
 
@@ -1130,7 +1133,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
     }
 
     async pickCwd (): Promise<void> {
-        const picked = await (this.platform as any).pickDirectory('작업 폴더 선택')
+        const picked = await (this.platform as any).pickDirectory(this.t('root.cwd.title'))
         if (!picked) {
             return
         }
@@ -1161,6 +1164,7 @@ export class AgentDeckSettingsTabComponent implements AfterViewInit, OnDestroy {
         this.saveRootProfile()
     }
 
+    hookLabel (key: string, params?: Record<string, string | number>): string { return hookText(key, this.lang, params) }
     storageLabel (key: string): string { return storageText(key, this.lang) }
 
     async pickStorage (key: keyof StoragePaths): Promise<void> {

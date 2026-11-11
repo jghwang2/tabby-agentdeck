@@ -15,7 +15,9 @@ accounts/
 auth.json
 .credentials.json
 
-# Local test runners, hook probes, and development notes.
+# Generated hook binaries and C# source
+hooks/*.exe
+hooks/*.cs
 /tools/run-all.ps1
 /tools/test-instance.ps1
 /tools/prepare-test-hooks.cjs

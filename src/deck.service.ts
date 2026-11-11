@@ -992,6 +992,9 @@ export class AgentDeckService {
             await this.usageRefresh.refresh(meta, 'hook')
             this.scheduleRender()
         }
+        this.notify.onFileHook = (tab, file) => {
+            this.view?.noteFile(tab, file)
+        }
         this.config.changed$.subscribe(() => {
             this.mailboxWake.flushAll()
             this.applyEnabled()
@@ -4771,6 +4774,20 @@ export class AgentDeckService {
                 || null,
             // `변경` 탭의 '세션' 목록 — 훅이 보고한 "이번 세션이 고친 파일". 훅이 없는 탭은 빈 배열
             touchedFor: tab => this.notify.touchedOf(tab as BaseTabComponent),
+            screenTextFor: tab => {
+                const anyRoot = tab as any
+                const panes: BaseTabComponent[] = typeof anyRoot?.getAllTabs === 'function'
+                    ? anyRoot.getAllTabs()
+                    : (tab ? [tab as BaseTabComponent] : [])
+                const texts: string[] = []
+                for (const p of panes) {
+                    const read = this.readScreen(p)
+                    if (read?.lines?.length) {
+                        texts.push(read.lines.map(l => l.text).join('\n'))
+                    }
+                }
+                return texts.join('\n')
+            },
             commit: () => this.zone.run(() => this.config.save()),
             relayout: () => this.relayout(),
             setOpen: open => this.zone.run(() => {
@@ -4826,6 +4843,7 @@ export class AgentDeckService {
             if (hit?.dir !== hooked) {
                 this.cwdCache.set(root, { dir: hooked, at: now, misses: 0 })
                 this.scheduleRender()
+                this.view?.syncTabCwd(root)
             }
             return
         }
@@ -4866,6 +4884,7 @@ export class AgentDeckService {
                     // 그룹이 방금 정해졌으면 화면도 그것을 반영해야 한다 — 캐시만 바꾸면
                     // 다음 상태 변화 때까지 사이드바가 옛 그룹을 보여준다 (`render` 는 tick 에서만)
                     this.scheduleRender()
+                    this.view?.syncTabCwd(root)
                 }
             })
             .catch(() => {

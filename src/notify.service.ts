@@ -314,6 +314,7 @@ export class WorkNotifyService {
     private navigationContext = ''
     private navigationRefresh: (() => void) | null = null
     onIdentityHook: ((tab: BaseTabComponent) => void) | null = null
+    onFileHook: ((tab: BaseTabComponent, file: string) => void) | null = null
     private nextAliasExpiry = 0
     private aliasExpiryBusy = false
 
@@ -1354,6 +1355,7 @@ export class WorkNotifyService {
             const list = this.touched.get(tab) ?? []
             const next = [file, ...list.filter(p => p !== file)]
             this.touched.set(tab, next.length > TOUCHED_MAX ? next.slice(0, TOUCHED_MAX) : next)
+            this.onFileHook?.(tab, file)
         }
 
         const label = (data.label || '').trim()

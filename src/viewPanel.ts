@@ -63,6 +63,7 @@ export interface ViewHost {
      * 선택(optional)인 이유는 `sendText` 와 같다 — 배선이 없어도 패널은 동작해야 한다.
      */
     touchedFor? (tab: object): string[]
+    screenTextFor? (tab: object): string
     /** 드래그가 끝났을 때 한 번 — config.save() 를 부르라는 뜻 */
     commit (): void
     /** 크기·열림 상태가 바뀌었으니 레이아웃을 다시 잡으라는 뜻 */
@@ -1177,6 +1178,12 @@ export class ViewPanel {
             return true
         }
         const tab = this.activeTab
+        if (tab) {
+            this.syncTouchedFiles(tab)
+            if (!(this.recent.get(tab)?.length)) {
+                this.scanScreen(tab)
+            }
+        }
         const want = tab
             ? this.lastViewed.get(tab) ?? (this.recent.get(tab) ?? [])[0] ?? null
             : null
@@ -1191,6 +1198,9 @@ export class ViewPanel {
         if (!want) {
             this.unwatch()
             this.renderEmpty()
+            if (tab) {
+                void this.syncGitModified(tab)
+            }
             return true
         }
         this.watch(want)
@@ -1198,15 +1208,135 @@ export class ViewPanel {
         return true
     }
 
-    /** 사람이/훅이 알려 준 파일을 최근 목록에 얹는다 (열지는 않는다) */
+    /** 탭의 cwd 가 정해지거나 갱신되면 최근/만진 목록을 다시 맞춘다 */
+    syncTabCwd (tab: object): void {
+        this.syncTouchedFiles(tab)
+        if (tab === this.activeTab && this.opened && !this.current && this.mode === 'file') {
+            this.applyTabFile()
+        }
+    }
+
+    /** 이번 세션에서 훅이 알려 준 파일을 최근 목록에 얹는다 */
+    private syncTouchedFiles (tab: object): void {
+        const touched = this.host.touchedFor?.(tab) ?? []
+        if (!touched.length) {
+            return
+        }
+        const cwd = this.host.cwdFor(tab)
+        let changed = false
+        const list = this.recent.get(tab) ?? []
+        for (const file of touched) {
+            const abs = this.resolve(file, cwd, false)
+            if (abs && !list.includes(abs)) {
+                list.unshift(abs)
+                changed = true
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+            }
+        }
+    }
+
+    /** 화면에 남아 있는 경로를 긁어 최근 목록에 얹는다 (기동 직후 등 조용한 순간) */
+    private scanScreen (tab: object): void {
+        if (!this.host.screenTextFor) {
+            return
+        }
+        const text = this.host.screenTextFor(tab)
+        if (!text) {
+            return
+        }
+        const cwd = this.host.cwdFor(tab)
+        const list = this.recent.get(tab) ?? []
+        let changed = false
+        let firstAdded: string | null = null
+        for (const token of extractPaths(text)) {
+            const abs = this.resolve(token, cwd)
+            if (!abs) {
+                continue
+            }
+            if (isInstructionFile(abs) && !list.includes(abs)
+                && !(this.host.touchedFor?.(tab) ?? []).some(file => this.resolve(file, cwd, false) === abs)) {
+                continue
+            }
+            if (!list.includes(abs)) {
+                list.unshift(abs)
+                changed = true
+                if (!firstAdded && isAutoFollowable(abs)) {
+                    firstAdded = abs
+                }
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+                if (!this.current && firstAdded && this.mode === 'file') {
+                    this.openFile(firstAdded)
+                }
+            }
+        }
+    }
+
+    /** git 저장소인데 최근 목록이 비어 있으면 커밋 안 된 변경 파일들을 목록에 채운다 */
+    private async syncGitModified (tab: object): Promise<void> {
+        if (this.gitBusy || this.mode !== 'file' || this.current) {
+            return
+        }
+        const dir = this.host.cwdFor(tab)
+        if (!dir || !isDir(dir)) {
+            return
+        }
+        const status = await this.runGit(dir, ['status', '--porcelain'])
+        if (!status.ok || !status.out.trim()) {
+            return
+        }
+        if (this.current || this.activeTab !== tab) {
+            return
+        }
+        const list = this.recent.get(tab) ?? []
+        let changed = false
+        let firstFile: string | null = null
+        const lines = status.out.replace(/\r\n?/g, '\n').split('\n')
+        for (const line of lines) {
+            const token = line.slice(3).trim().replace(/^"|"$/g, '')
+            if (!token) continue
+            const abs = this.resolve(token, dir, false)
+            if (abs && !list.includes(abs)) {
+                list.push(abs)
+                changed = true
+                if (!firstFile && isAutoFollowable(abs)) {
+                    firstFile = abs
+                }
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+                if (!this.current && firstFile && this.mode === 'file') {
+                    this.openFile(firstFile)
+                }
+            }
+        }
+    }
+
+    /** 사람이/훅이 알려 준 파일을 최근 목록에 얹는다 */
     noteFile (tab: object, file: string): void {
-        const abs = this.resolve(file, this.host.cwdFor(tab))
+        const abs = this.resolve(file, this.host.cwdFor(tab), false)
         if (!abs) {
             return
         }
-        this.recent.set(tab, pushRecent(this.recent.get(tab) ?? [], abs, this.host.getRecentMax()))
+        const list = this.recent.get(tab) ?? []
+        this.recent.set(tab, pushRecent(list, abs, this.host.getRecentMax()))
         if (tab === this.activeTab && this.opened) {
             this.renderTabs()
+            if (!this.current && this.mode === 'file') {
+                this.openFile(abs)
+            }
         }
     }
 
