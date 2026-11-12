@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { requirePython } from './pythonRuntime'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
 import { claudeSettingsHomes, readClaudeSettings, writeClaudeSettings } from './claudeSettings'
@@ -62,7 +63,7 @@ export function claudeSettingsPath (): string {
 
 /** 훅 스크립트의 실제 경로. dist/index.js 기준으로 한 단계 위가 패키지 뿌리다 */
 export function notifyScriptPath (): string {
-    return path.join(__dirname, '..', 'hooks', 'agentdeck-notify.mjs')
+    return path.join(__dirname, '..', 'hooks', 'agentdeck-notify.py')
 }
 
 /** 현재 훅 설치 기능은 Windows에서 제공한다. */
@@ -149,6 +150,7 @@ export function hooksInstalled (): boolean {
 
 /** 훅을 등록한다 */
 export function installHooks (homes = claudeSettingsHomes()): void {
+    requirePython()
     const script = notifyScriptPath()
     if (!fs.existsSync(script)) {
         throw new Error(`훅 스크립트를 찾지 못했다: ${script}`)

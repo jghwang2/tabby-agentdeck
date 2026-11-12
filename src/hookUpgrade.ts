@@ -24,9 +24,9 @@ export function upgradedHookSettings (settings: any, hooksDir: string): { next: 
                 // Other integrations use the same basename (e.g. claude-compat).
                 if (!/\/tabby-agentdeck\/hooks\/[^/]+$/i.test(oldScript)) { continue }
                 const name = oldScript.split('/').pop()!
-                if (!/^agentdeck-(?:codex-)?notify\.(?:ps1|mjs|exe)$/i.test(name)) { continue }
+                if (!/^agentdeck-(?:codex-)?notify\.(?:ps1|mjs|exe|py)$/i.test(name)) { continue }
                 if (!historicalHook(name.toLowerCase().includes('codex') ? 'codex' : 'claude', event, group, hook)) { continue }
-                const script = path.join(hooksDir, name.replace(/\.(?:ps1|exe)$/i, '.mjs'))
+                const script = path.join(hooksDir, name.replace(/\.(?:ps1|exe|mjs)$/i, '.py'))
                 if (!fs.existsSync(script)) { throw new Error('새 AgentDeck 훅 파일을 찾지 못했습니다: ' + script) }
                 const command = notifyCommand(script) + (parsed.args ? ' ' + parsed.args.replace(/ -PromptAsLabel$/, '') : '')
                 if (command === hook.command) { continue }

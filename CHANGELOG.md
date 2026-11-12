@@ -5,6 +5,16 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.3.2 — 2026-11-12
+
+- Use Python as the default Claude/Codex notification transport and remove the Windows notification executables from the package. Preserve UTF-8 responses, bounded acknowledgement waits, offline delivery and replay deduplication.
+- Upgrade recognized executable, Node and PowerShell notification registrations to Python through the existing backed-up hook update flow. Check that Python 3.8 or newer is available before changing settings; keep user hooks and status-line configuration.
+
+**한국어**
+
+- Claude·Codex 알림을 Python으로 직접 전달하고 Windows 알림 exe를 배포물에서 제거했습니다. 한글 응답, 응답 대기 시간 제한, 전송 실패 시 보관·재처리를 유지합니다.
+- 기존 exe·Node·PowerShell 알림 등록을 백업 후 Python으로 갱신합니다. 설정을 바꾸기 전에 Python 3.8 이상이 실행되는지 확인하며 사용자 훅과 상태줄 설정을 보존합니다.
+
 ## 1.3.1 — 2026-11-04
 
 - Restore automatic Claude model-specific usage updates, including Fable. Status-line hooks and the refresh button now share the same API refresh logic, account-scoped cache and retry handling without blocking hooks on network requests.

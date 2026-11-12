@@ -11,6 +11,11 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.3.2
+
+- 기본 알림 전달기를 Python으로 전환하고 알림 exe를 제거했습니다. Python 3.8 이상을 설치하고 PATH에 추가한 뒤 훅 업데이트를 적용하세요.
+- 기존 등록을 백업하고 Python으로 교체하며, 한글 응답과 전송 실패 시 보관·재처리를 유지합니다.
+
 ## 1.3.1
 
 - Fable 등 Claude 모델별 사용량을 상태줄 훅과 새로고침 버튼의 공통 API 조회로 갱신합니다. 훅은 응답을 기다리지 않으며, 연속 호출은 계정별 캐시와 재시도 대기를 공유합니다.

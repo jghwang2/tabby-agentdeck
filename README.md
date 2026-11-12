@@ -53,6 +53,10 @@ Search runs locally in a background Node.js process, with a disk cache refreshed
 
 ## Install
 
+Notification hooks require **Python 3.8+ on PATH** (Windows: python). Version 1.3.2
+replaces the notification executables with Python. Apply the hook update after
+upgrading; see [Python hooks](docs/PYTHON-HOOKS.md).
+
 Inside Tabby: Settings → Plugins → search `agentdeck` → Install → restart Tabby.
 Sessions use automatic permanent job aliases beside their original titles. Drag to reorder; numeric shortcuts follow visible order.
 The optional [session communication MCP](docs/SESSION-COMMUNICATION.md) sends and receives by actual session ID only. Human numbers never address the MCP server.

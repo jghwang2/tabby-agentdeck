@@ -29,6 +29,9 @@ jobs:
         if: github.ref_type == 'tag'
         run: node -e "const v = require('./package.json').version; const tag = process.env.GITHUB_REF_NAME; if (!/^v\d+\.\d+\.\d+$/.test(tag) || tag !== 'v' + v) { console.error('Release tag must equal v' + v + ', got ' + tag); process.exit(1); }"
       - run: npm ci --ignore-scripts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - run: node tools/sync-version.js --check
       - run: node --test test/releaseNotes.test.js
       - name: Validate current release notes before publishing

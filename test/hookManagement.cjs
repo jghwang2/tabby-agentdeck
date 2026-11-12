@@ -20,7 +20,7 @@ try{
   assert.ok(apply(install).length);assert.equal(read(file).model,'keep');assert.deepEqual(read(file).hooks.Stop[0].hooks,[foreign,compat])
   assert.equal(read(ledger).groups.length,provider==='claude'?9:7)
   const visible=plan(provider,'view',[home],hooks).preview
-  assert.ok(visible.includes(provider==='claude'?'agentdeck-notify.mjs':'agentdeck-codex-notify.mjs'))
+  assert.ok(visible.includes(provider==='claude'?'agentdeck-notify.py':'agentdeck-codex-notify.py'))
   assert.ok(!visible.includes('keep-user-hook'));assert.ok(!visible.includes('claude-compat'));assert.ok(!visible.includes('USER-STATUS'))
   assert.equal(plan(provider,'apply',[home],hooks).writes.length,0,'reapply idempotent')
   if(provider==='claude')assert.equal(read(path.join(home,'.agentdeck-statusline-inner.json')).command,'echo USER-STATUS')

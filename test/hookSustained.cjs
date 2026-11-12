@@ -3,8 +3,8 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { spawn } = require('node:child_process')
 const { HookDispatcher } = require('../receiver/dispatcher.cjs')
 const { service: notify } = require('./notifyFixture.cjs')()
-const native = process.platform === 'win32' ? process.env.AGENTDECK_TEST_NATIVE_HOOK || path.resolve(__dirname, '../.tmp/native-hook-test/agentdeck-notify.exe') : null
-if (native && !process.env.AGENTDECK_TEST_NATIVE_HOOK) require('../tools/build-native-hook.cjs').buildNativeHook(path.dirname(native))
+const python = process.env.AGENTDECK_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
+const script = process.env.AGENTDECK_TEST_PYTHON_HOOK || path.resolve(__dirname, '../hooks/agentdeck-notify.py')
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-sustained-'))
 let pending = [], disabled = false, seq = 0, legacyCalls = 0
 const dispatcher = new HookDispatcher(root, path.resolve(__dirname, '../receiver'), {
@@ -29,7 +29,7 @@ const server = net.createServer(socket => {
 function invoke () {
     return new Promise((resolve, reject) => {
         const started = performance.now()
-        const p = spawn(native || 'node', [...(native ? [] : [path.resolve(__dirname, '../hooks/agentdeck-notify.mjs')]), '-Status', 'running'], {
+        const p = spawn(python, [script, '-Status', 'running'], {
             windowsHide: true, env: { ...process.env, AGENTDECK_RUNTIME_ROOT: root, AGENTDECK_TAB: 'test-tab' }, stdio: ['pipe', 'pipe', 'pipe'],
         })
         let output = '', error = ''
@@ -71,7 +71,7 @@ function invoke () {
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'status/parent.json'))).status, 'done')
     assert.equal(legacyCalls, 0)
     assert.equal(fs.readdirSync(dispatcher.inbox).length, 0)
-    const result = { root, transport: native ? 'windows-native' : 'node', wavesMs: waves, eventsPerWave: 128, children: 64, promptChars: promptLengths, sequential, concurrent, legacyCalls }
+    const result = { root, transport: 'python', wavesMs: waves, eventsPerWave: 128, children: 64, promptChars: promptLengths, sequential, concurrent, legacyCalls }
     fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify(result, null, 2))
     console.log(JSON.stringify(result))
     const relayLimitMs = 3000

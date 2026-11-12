@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Local AgentDeck transport. State and deduplication remain in the receiver."""
+"""AgentDeck notification transport. State and deduplication stay in the receiver."""
 import hashlib
 import json
 import os

@@ -1,0 +1,3 @@
+*.exe
+agentdeck-notify.cs
+__pycache__/

@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { randomBytes } from 'crypto'
+import { requirePython } from './pythonRuntime'
 import { agentHome, runtimeRoot } from './storagePaths'
 import { accountHome, readAccounts } from './accounts'
 import { HookProvider, HOOK_CATALOG_VERSION, historicalHook, ownedStatusLine, currentHookGroups, hookCommand, hookRevision } from './hookCatalog'
@@ -136,7 +137,7 @@ export function planHookManagement (provider: HookProvider, action: HookAction,
                     && (/tabby-agentdeck[\\/]hooks[\\/]/i.test(String(c.content.command)) || !!hookCommand(c.content.command)))
                 if (uncertain.length) plan.blockers.push(file + ': 수정되었거나 출처가 불명확한 AgentDeck 명령을 먼저 확인하세요.')
                 const installed = currentHookGroups(provider, hooksDir)
-                for (const name of [provider === 'claude' ? 'agentdeck-notify.mjs' : 'agentdeck-codex-notify.mjs', ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])]) {
+                for (const name of [provider === 'claude' ? 'agentdeck-notify.py' : 'agentdeck-codex-notify.py', 'agentdeck_relay.py', ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])]) {
                     if (!fs.existsSync(path.join(hooksDir, name))) throw Error('전달기 파일 없음: ' + name)
                 }
                 next.hooks = next.hooks || {}
@@ -173,7 +174,7 @@ export function planHookManagement (provider: HookProvider, action: HookAction,
     ].join('\n')
     if (action === 'view') {
         const name = provider === 'claude' ? 'agentdeck-notify' : 'agentdeck-codex-notify'
-        plan.sources = [...(fs.existsSync(path.join(hooksDir, name + '.exe')) ? ['agentdeck-notify.cs'] : [name + '.mjs', name + '.ps1', 'agentdeck-relay.mjs']), ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])].map(name => {
+        plan.sources = [name + '.py', 'agentdeck_relay.py', ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])].map(name => {
             const file = path.join(hooksDir, name)
             try { return {file, text: fs.readFileSync(file, 'utf8')} }
             catch { return {file, text: '이 설치에서 파일을 읽을 수 없습니다.'} }
@@ -185,6 +186,9 @@ export function planHookManagement (provider: HookProvider, action: HookAction,
 /** Preflight every input, back up every original, and roll back prior writes on failure. */
 export function applyHookManagement (plan: HookManagementPlan): string[] {
     if (!plan.canApply) throw Error('적용할 수 없는 계획입니다. 미리보기를 다시 확인하세요.')
+    // Only installation probes the interpreter. Viewing/removing hooks and the
+    // per-event authorization path must never start a process.
+    if (plan.action === 'apply') requirePython()
     const readText = (file: string): string | null => { try { return fs.readFileSync(file, 'utf8') } catch (e: any) { if (e.code === 'ENOENT') return null; throw e } }
     for (const s of plan.snapshots) if (readText(s.file) !== s.text) throw Error('설정이 변경되었습니다. 전문을 다시 불러오세요: ' + s.file)
     const suffix = '.agentdeck-backup-' + Date.now() + '-' + randomBytes(4).toString('hex')

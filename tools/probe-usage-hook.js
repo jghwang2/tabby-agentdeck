@@ -21,7 +21,7 @@
     const env = { ...process.env, CLAUDE_CONFIG_DIR: home, AGENTDECK_TAB: tabId,
         AGENTDECK_RUNTIME_ROOT: path.dirname(ad.runtimePaths().status) }
     const run = (file, input, args = []) => new Promise((resolve, reject) => {
-        const child = cp.spawn(file.endsWith('.mjs') ? 'node.exe' : file, file.endsWith('.mjs') ? [file,...args] : args,
+        const child = cp.spawn(file.endsWith('.py') ? 'python' : file.endsWith('.mjs') ? 'node.exe' : file, /\.(py|mjs)$/.test(file) ? [file,...args] : args,
             { env, windowsHide: true, stdio: ['pipe','pipe','pipe'] })
         let err = ''; child.stderr.on('data', x => err += x); child.stdout.resume()
         child.on('error', reject); child.on('close', code => code ? reject(Error(err)) : resolve())
@@ -46,7 +46,7 @@
         rate_limits: { five_hour: { used_percentage: 18 }, seven_day: { used_percentage: 58 } } })
     const text = () => document.querySelector('.ad-now').textContent
     try {
-        await run(path.join(stage, 'hooks/agentdeck-notify.exe'), { session_id: sid, hook_event_name: 'PreToolUse' }, ['-Status','running'])
+        await run(path.join(stage, 'hooks/agentdeck-notify.py'), { session_id: sid, hook_event_name: 'PreToolUse' }, ['-Status','running'])
         await hook()
         await until(() => requests > 0)
         check('hook returns while usage API is pending', pending === 1)

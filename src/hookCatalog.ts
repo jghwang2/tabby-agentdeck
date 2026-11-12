@@ -25,10 +25,11 @@ export function hookCommand (command: unknown): { script: string, args: string, 
     const node = /^node(?:\.exe)?\s+"([^"]+\.mjs)"(?:\s+(.*))?\s*$/i.exec(command)
     const ps = /^(?:powershell|powershell\.exe|pwsh|pwsh\.exe)\s+(?:(?:-NoProfile|-NonInteractive|-ExecutionPolicy\s+Bypass)\s+)*-File\s+"([^"]+\.ps1)"(?:\s+(.*))?\s*$/i.exec(command)
     const native = /^"([^"]+\.exe)"(?:\s+(.*))?\s*$/i.exec(command)
-    const match = node || ps || native
+    const python = /^(?:python(?:3)?(?:\.exe)?|"[^"\r\n]*[\\/]python(?:3)?(?:\.exe)?")\s+"([^"\r\n]+\.py)"(?:\s+(.*))?\s*$/i.exec(command)
+    const match = python || node || ps || native
     if (!match) return null
     const script = match[1].replace(/\\/g, '/')
-    if ((!path.isAbsolute(script) && !/^[a-z]:\//i.test(script)) || !/\/hooks\/agentdeck-(?:codex-notify|notify|statusline)\.(?:ps1|mjs|exe)$/i.test(script)) return null
+    if ((!path.isAbsolute(script) && !/^[a-z]:\//i.test(script)) || !/\/hooks\/agentdeck-(?:codex-notify|notify|statusline)\.(?:ps1|mjs|exe|py)$/i.test(script)) return null
     const root = path.dirname(path.dirname(script))
     let packageOwned = path.basename(root).toLowerCase() === 'tabby-agentdeck'
     try { packageOwned = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).name === 'tabby-agentdeck' }
@@ -66,18 +67,16 @@ export function currentHookGroups (provider: HookProvider, hooksDir: string): Re
     }]]))
 }
 
-/** Use the packaged Windows transport; keep Node available for older packages/platforms. */
+/** Invoke Python directly: no shell launcher, managed executable, or extra worker. */
 export function notifyCommand (script: string): string {
-    const normalized = script.replace(/\\/g, '/').replace(/\.(?:ps1|exe)$/i, '.mjs')
-    const native = normalized.replace(/\.mjs$/i, '.exe')
-    return process.platform === 'win32' && fs.existsSync(native) ? `"${native}"` : `node "${normalized}"`
+    const normalized = script.replace(/\\/g, '/').replace(/\.(?:ps1|exe|mjs)$/i, '.py')
+    return `${process.platform === 'win32' ? 'python' : 'python3'} "${normalized}"`
 }
 
 /** Source revision changes trigger one consented reinstall even when the command path stays the same. */
 export function hookRevision (provider: HookProvider, hooksDir: string): string {
     const digest = createHash('sha256').update(JSON.stringify({history, provider, groups: currentHookGroups(provider, hooksDir)}))
-    const native = process.platform === 'win32' && fs.existsSync(path.join(hooksDir, 'agentdeck-notify.exe'))
-    const names = native ? ['agentdeck-notify.cs'] : ['agentdeck-notify.mjs', 'agentdeck-codex-notify.mjs', 'agentdeck-relay.mjs']
+    const names = ['agentdeck-notify.py', 'agentdeck-codex-notify.py', 'agentdeck_relay.py']
     for (const name of [...names, 'agentdeck-runtime.cjs', ...(provider === 'claude' ? ['agentdeck-statusline.mjs'] : [])]) {
         digest.update(name).update(fs.readFileSync(path.join(hooksDir, name)))
     }

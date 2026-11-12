@@ -23,7 +23,8 @@
     { "id": "a05e77f", "extension": ".ps1", "claude": "claude-v1", "codex": "codex-v1" },
     { "id": "a05e77f install.ps1", "extension": ".ps1", "claude": "claude-installer-v1" },
     { "id": "7c43ecb", "extension": ".mjs", "claude": "claude-v1", "codex": "codex-v1" },
-    { "id": "windows-native-v1", "extension": ".exe", "claude": "claude-v1", "codex": "codex-v1" }
+    { "id": "windows-native-v1", "extension": ".exe", "claude": "claude-v1", "codex": "codex-v1" },
+    { "id": "python-v1", "extension": ".py", "claude": "claude-v1", "codex": "codex-v1" }
   ],
   "statusLine": [{ "script": "agentdeck-statusline.mjs", "arguments": ["", "--inner <quoted-path>"] }]
 }

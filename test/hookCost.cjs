@@ -13,7 +13,8 @@ for(const [agent,merge,count] of [['claude',mergeHooks,9],['codex',mergeCodexHoo
  const settings=merge({},'C:/fixture/hooks/agentdeck-notify.mjs'),commands=Object.values(settings.hooks).flatMap(g=>g.flatMap(x=>x.hooks.map(h=>h.command)))
  assert.equal(commands.length,count,agent+' hook count budget')
  lengths[agent]=commands.map(c=>Buffer.byteLength(c))
- assert.ok(lengths[agent].every(n=>n<=(agent==='claude'?60:44)),agent+' normalized hook command grew beyond baseline')
+ const limit = (agent==='claude'?61:45) + (process.platform==='win32'?0:1)
+ assert.ok(lengths[agent].every(n=>n<=limit),agent+' normalized Python hook command grew beyond baseline')
 }
 ;(async()=>{
  const times=[]

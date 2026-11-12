@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), os = require('node:os'), path = require('node:path'), net = require('node:net')
 const { spawn } = require('node:child_process')
-const repo = path.resolve(__dirname, '../..')
-const python = process.env.AGENTDECK_PYTHON || 'python'
+const repo = path.resolve(__dirname, '..')
+const python = process.env.AGENTDECK_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
 const { HookDispatcher } = require(path.join(repo, 'receiver/dispatcher.cjs'))
 if (process.platform !== 'win32') { console.log('SKIP Windows Python hook'); process.exit(0) }
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-python-'))
@@ -26,7 +26,7 @@ function run (native, provider, raw, extraEnv = {}, args = []) {
     return new Promise((resolve, reject) => {
         const script = 'agentdeck-' + (provider === 'codex' ? 'codex-' : '') + 'notify'
         const p = spawn(native ? python : process.execPath,
-            native ? [path.join(__dirname, script + '.py'), ...args] : [path.join(repo, 'hooks', script + '.mjs'), ...args], {
+            native ? [path.join(repo, 'hooks', script + '.py'), ...args] : [path.join(repo, 'hooks', script + '.mjs'), ...args], {
                 windowsHide: true, env: { ...process.env, AGENTDECK_RUNTIME_ROOT: root, AGENTDECK_TAB: 'test-tab', ...extraEnv }, stdio: ['pipe', 'pipe', 'pipe'],
             })
         const chunks = []; let err = ''

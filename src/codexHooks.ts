@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import { requirePython } from './pythonRuntime'
 import { agentHome } from './storagePaths'
 import * as path from 'path'
 import { historicalHook, CODEX_HOOK_EVENTS, currentHookGroups, notifyCommand } from './hookCatalog'
@@ -146,8 +147,9 @@ function readCodexHooks (): any {
 }
 
 export function setCodexHooks (enabled: boolean): void {
+    if (enabled) requirePython()
     const file = codexHooksPath()
-    const script = path.join(__dirname, '..', 'hooks', MARK + '.mjs')
+    const script = path.join(__dirname, '..', 'hooks', MARK + '.py')
     if (enabled && !fs.existsSync(script)) { throw new Error(`Missing hook: ${script}`) }
     const current = readCodexHooks()
     const next = enabled ? mergeCodexHooks(current, script) : stripCodexHooks(current)

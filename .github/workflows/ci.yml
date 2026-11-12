@@ -20,6 +20,9 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - run: node tools/sync-version.js --check
       - run: node --test test/releaseNotes.test.js
       - run: npm run typecheck

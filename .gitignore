@@ -24,3 +24,4 @@ auth.json
 /tools/regress-hook-onboarding.cjs
 /docs/DEVELOPMENT.md
 /docs/REGRESSION.md
+__pycache__/

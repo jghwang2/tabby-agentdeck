@@ -18,7 +18,7 @@ try{
  for(let i=0;i<files.length;i++){
   const next=JSON.parse(fs.readFileSync(files[i]));const handlers=next.hooks.PostToolUse[0].hooks
   const current=next.hooks.PostToolUse[1].hooks[0]
-  assert.match(current.command,/^node ".*\.mjs"/);assert.ok(!current.command.includes('powershell'))
+  assert.match(current.command,/^python3? ".*\.py"/);assert.ok(!current.command.includes('powershell'))
   assert.equal(current.timeout,i?3:5)
   assert.deepEqual(handlers,[originals[i].hooks.PostToolUse[0].hooks[0],originals[i].hooks.PostToolUse[0].hooks[2]])
   if(i)assert.deepEqual(next.statusLine,originals[i].statusLine)

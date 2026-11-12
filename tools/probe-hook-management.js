@@ -37,7 +37,7 @@
             await click(provider,'apply');check(provider+' preview before write',text().includes('추가')&&fs.readFileSync(file,'utf8')===before)
             response=1;await apply();check(provider+' cancel preserves settings',fs.readFileSync(file,'utf8')===before&&text().includes('취소'))
             response=0;await apply()
-            check(provider+' installed hooks visible without foreign hooks',text().includes(provider==='claude'?'agentdeck-notify.exe':'agentdeck-codex-notify.exe')&&!text().includes('USER-HOOK')&&!text().includes('USER-STATUS'))
+            check(provider+' installed hooks visible without foreign hooks',text().includes(provider==='claude'?'agentdeck-notify.py':'agentdeck-codex-notify.py')&&!text().includes('USER-HOOK')&&!text().includes('USER-STATUS'))
             for(const home of [homes[provider],saved(provider)]){
                 const current=read(settingsFile(home,provider)),registry=read(path.join(home,'.agentdeck-hook-registry.json'))
                 check(provider+' register and keep foreign '+path.basename(home),registry.groups.length===(provider==='claude'?9:7)&&current.hooks.Stop[0].hooks[0].command==='echo USER-HOOK'&&current.model==='keep')

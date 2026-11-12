@@ -61,6 +61,10 @@ Windows의 얇은 창 테두리에서는 상단 제목 표시줄 전체를 드�
 
 ## 설치
 
+알림 훅은 **PATH에 등록된 Python 3.8 이상**이 필요합니다. 1.3.2부터 알림 exe 대신
+Python을 사용합니다. 업그레이드 후 훅 업데이트를 적용하세요.
+[Python 훅 안내](docs/PYTHON-HOOKS.md)
+
 Tabby 안에서: 설정 → 플러그인 → `agentdeck` 검색 → 설치 → Tabby 재시작.
 탭은 작업에 따른 고정 별명을 사용하며 드래그로 순서를 바꿀 수 있습니다. 숫자 이동키는 현재 화면 순서를 따릅니다.
 선택적으로 연결하는 [세션 통신 MCP](docs/SESSION-COMMUNICATION.md)는 실제 세션 ID로만 송수신합니다. 사람용 번호는 MCP 주소가 아닙니다.
