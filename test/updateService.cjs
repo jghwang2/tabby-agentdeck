@@ -15,6 +15,7 @@ const policy = compile('src/update.ts')
 const { AgentDeckUpdateService } = compile('src/update.service.ts', {
     '@angular/core': { Injectable: () => x => x }, 'tabby-core': {}, './reload.service': {},
     './diag': { diag () {}, diagCatch () {}, pluginVersion: () => '1.2.5' }, './update': policy,
+    './i18n': { pickLang: l => String(l || '').toLowerCase().startsWith('ko') ? 'ko' : 'en' },
 })
 async function main () {
     let ready, checks = 0
