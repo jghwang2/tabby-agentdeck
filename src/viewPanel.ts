@@ -17,6 +17,8 @@
 import { execFile } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
+import { Lang } from './i18n'
+import { viewText, viewMarkup, localizeDiffStat, localizeStageSummary, localizeCommitReason } from './viewI18n'
 import { renderMarkdown, escapeHtml } from './markdown'
 import {
     classify, isKnownExt, extractPaths, pushRecent, parseDelimited, delimiterFor, formatBytes,
@@ -61,6 +63,7 @@ export interface ViewHost {
      * 선택(optional)인 이유는 `sendText` 와 같다 — 배선이 없어도 패널은 동작해야 한다.
      */
     touchedFor? (tab: object): string[]
+    screenTextFor? (tab: object): string
     /** 드래그가 끝났을 때 한 번 — config.save() 를 부르라는 뜻 */
     commit (): void
     /** 크기·열림 상태가 바뀌었으니 레이아웃을 다시 잡으라는 뜻 */
@@ -77,6 +80,7 @@ export interface ViewHost {
      * **선택(optional)인 이유** — 배선이 아직 없어도 패널은 동작해야 한다(참조만 못 넣는다).
      */
     sendText? (text: string): boolean
+    getLang? (): Lang
 }
 
 export const VIEW_ID = 'agentdeck-view'
@@ -177,11 +181,11 @@ function firstLine (s: string): string {
  * 사람에게 남는 유일한 단서다. 시각은 날짜를 빼고 시:분만 — 이 목록은 지금 도는 세션의
  * 것이라 오늘 안이고, 폭이 좁은 패널에서 날짜까지 넣으면 경로가 밀린다.
  */
-function fileNote (target: string): string {
+export function fileNote (target: string, lang: Lang = 'ko'): string {
     try {
         const st = fs.statSync(target)
         if (st.isDirectory()) {
-            return '폴더'
+            return viewText('폴더', lang)
         }
         const t = new Date(st.mtimeMs)
         const hh = String(t.getHours()).padStart(2, '0')
@@ -190,7 +194,7 @@ function fileNote (target: string): string {
     } catch {
         // 만졌지만 지금은 없다 — 에이전트가 지웠거나 옮겼다. 목록에서 빼지 않는다:
         // "사라졌다" 는 것 자체가 사람이 알아야 할 변화다
-        return '지금은 없다'
+        return viewText('지금은 없다', lang)
     }
 }
 
@@ -402,6 +406,18 @@ export class ViewPanel {
 
     constructor (private host: ViewHost) { }
 
+    private get lang (): Lang {
+        return this.host.getLang?.() ?? 'en'
+    }
+
+    private ui (key: string, params?: Record<string, string | number>): string {
+        return viewText(key, this.lang, params)
+    }
+
+    private uiMarkup (html: string): string {
+        return viewMarkup(html, this.lang)
+    }
+
     // ---------- 열고 닫기 ----------
 
     get isOpen (): boolean {
@@ -481,7 +497,7 @@ export class ViewPanel {
         const el = document.createElement('div')
         el.id = VIEW_ID
         el.style.display = this.opened ? 'flex' : 'none'
-        el.innerHTML = [
+        el.innerHTML = this.uiMarkup([
             '<div class="ad-view-head">',
             '  <span class="ad-view-title">미리보기</span>',
             '  <span class="ad-view-tools">',
@@ -541,7 +557,7 @@ export class ViewPanel {
             '</div>',
             '<div class="ad-view-foot"></div>',
             '<div class="ad-view-resize"></div>',
-        ].join('\n')
+        ].join('\n'))
         this.host.windowEl.appendChild(el)
 
         this.el = el
@@ -795,7 +811,7 @@ export class ViewPanel {
      * 네 값 모두 **컨테이닝 블록 좌표로 이미 풀린 실좌표**다 — 예전처럼 `right: outerOffset` 으로
      * 가장자리에 붙이면 그 가장자리가 화면 밖일 때 패널도 같이 밀려난다 (deck.service anchorOrigin).
      */
-    layout (side: ViewSide, rect: { left: number, top: number, width: number, height: number }): void {
+    layout (side: ViewSide, rect: { left: number, top: number, width: number, height: number }, atTopRight?: boolean): void {
         if (!this.el) {
             return
         }
@@ -809,6 +825,7 @@ export class ViewPanel {
         s.height = rect.height + 'px'
         this.el.classList.toggle('ad-view-left', side === 'left')
         this.el.classList.toggle('ad-view-right', side === 'right')
+        this.el.classList.toggle('ad-view-top-right', !!atTopRight)
     }
 
     private togglePathRow (force?: boolean): void {
@@ -855,18 +872,18 @@ export class ViewPanel {
 
         const absolute = path.isAbsolute(raw) || /^[A-Za-z]:[\\/]/.test(raw)
         if (!absolute && !cwd) {
-            this.setPathNote('상대경로를 풀 작업 폴더를 모른다 — 절대경로로 넣는다')
+            this.setPathNote(this.ui('상대경로를 풀 작업 폴더를 모른다 — 절대경로로 넣는다'))
             return
         }
         const target = path.normalize(absolute ? raw : path.join(cwd!, raw))
         // 폴더를 파일로 만들려는 것은 막는다 (경로 끝의 구분자나 실제 폴더)
         if (/[\\/]$/.test(raw)) {
-            this.setPathNote('폴더 경로다 — 파일 이름까지 넣는다')
+            this.setPathNote(this.ui('폴더 경로다 — 파일 이름까지 넣는다'))
             return
         }
         try {
             if (fs.statSync(target).isDirectory()) {
-                this.setPathNote('폴더다 — 파일 이름까지 넣는다')
+                this.setPathNote(this.ui('폴더다 — 파일 이름까지 넣는다'))
                 return
             }
         } catch {
@@ -875,14 +892,14 @@ export class ViewPanel {
 
         if (this.pathCreateArmed !== target) {
             this.pathCreateArmed = target
-            this.setPathNote('없는 파일이다 — Enter 를 한 번 더 치면 새로 만든다')
+            this.setPathNote(this.ui('없는 파일이다 — Enter 를 한 번 더 치면 새로 만든다'))
             return
         }
         try {
             fs.mkdirSync(path.dirname(target), { recursive: true })
             fs.writeFileSync(target, '', { encoding: 'utf8', flag: 'wx' })
         } catch (err: any) {
-            this.setPathNote('만들지 못했다: ' + String(err?.message ?? err))
+            this.setPathNote(this.ui('만들지 못했다: {error}', { error: String(err?.message ?? err) }))
             return
         }
         this.pathCreateArmed = null
@@ -942,11 +959,11 @@ export class ViewPanel {
             return
         }
         const session = this.diffScope === 'session'
-        this.scopeBtn.textContent = session ? '세션' : '전체'
+        this.scopeBtn.textContent = this.ui(session ? '세션' : '전체')
         this.scopeBtn.classList.toggle('ad-view-scope-all', !session)
         this.scopeBtn.title = session
-            ? '이 세션이 만진 파일만 보고 있다 — 누르면 저장소 전체'
-            : '저장소의 커밋 안 된 변경 전부를 보고 있다 — 누르면 이 세션이 만진 것만'
+            ? this.ui('이 세션이 만진 파일만 보고 있다 — 누르면 저장소 전체')
+            : this.ui('저장소의 커밋 안 된 변경 전부를 보고 있다 — 누르면 이 세션이 만진 것만')
     }
 
     setMode (mode: ViewMode): void {
@@ -956,7 +973,7 @@ export class ViewPanel {
         // 편집 중 모드 전환도 파일 전환과 같은 규칙이다 (openFile 주석 참조)
         if (this.editing) {
             if (this.editArea && this.editOrigin && this.editArea.value !== this.editOrigin.text) {
-                this.setEditNote('저장하지 않은 편집이 있다 — 저장하거나 취소한 뒤에 모드를 옮긴다')
+                this.setEditNote(this.ui('저장하지 않은 편집이 있다 — 저장하거나 취소한 뒤에 모드를 옮긴다'))
                 return
             }
             this.cancelEdit()
@@ -1157,10 +1174,16 @@ export class ViewPanel {
         }
         if (this.editing) {
             // 편집 중에는 본문을 건드리지 않는다 — 저장/취소 뒤에 따라온다
-            this.setEditNote('다른 탭으로 옮겼다 — 저장하거나 취소하면 그 탭 파일로 넘어간다')
+            this.setEditNote(this.ui('다른 탭으로 옮겼다 — 저장하거나 취소하면 그 탭 파일로 넘어간다'))
             return true
         }
         const tab = this.activeTab
+        if (tab) {
+            this.syncTouchedFiles(tab)
+            if (!(this.recent.get(tab)?.length)) {
+                this.scanScreen(tab)
+            }
+        }
         const want = tab
             ? this.lastViewed.get(tab) ?? (this.recent.get(tab) ?? [])[0] ?? null
             : null
@@ -1175,6 +1198,9 @@ export class ViewPanel {
         if (!want) {
             this.unwatch()
             this.renderEmpty()
+            if (tab) {
+                void this.syncGitModified(tab)
+            }
             return true
         }
         this.watch(want)
@@ -1182,15 +1208,135 @@ export class ViewPanel {
         return true
     }
 
-    /** 사람이/훅이 알려 준 파일을 최근 목록에 얹는다 (열지는 않는다) */
+    /** 탭의 cwd 가 정해지거나 갱신되면 최근/만진 목록을 다시 맞춘다 */
+    syncTabCwd (tab: object): void {
+        this.syncTouchedFiles(tab)
+        if (tab === this.activeTab && this.opened && !this.current && this.mode === 'file') {
+            this.applyTabFile()
+        }
+    }
+
+    /** 이번 세션에서 훅이 알려 준 파일을 최근 목록에 얹는다 */
+    private syncTouchedFiles (tab: object): void {
+        const touched = this.host.touchedFor?.(tab) ?? []
+        if (!touched.length) {
+            return
+        }
+        const cwd = this.host.cwdFor(tab)
+        let changed = false
+        const list = this.recent.get(tab) ?? []
+        for (const file of touched) {
+            const abs = this.resolve(file, cwd, false)
+            if (abs && !list.includes(abs)) {
+                list.unshift(abs)
+                changed = true
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+            }
+        }
+    }
+
+    /** 화면에 남아 있는 경로를 긁어 최근 목록에 얹는다 (기동 직후 등 조용한 순간) */
+    private scanScreen (tab: object): void {
+        if (!this.host.screenTextFor) {
+            return
+        }
+        const text = this.host.screenTextFor(tab)
+        if (!text) {
+            return
+        }
+        const cwd = this.host.cwdFor(tab)
+        const list = this.recent.get(tab) ?? []
+        let changed = false
+        let firstAdded: string | null = null
+        for (const token of extractPaths(text)) {
+            const abs = this.resolve(token, cwd)
+            if (!abs) {
+                continue
+            }
+            if (isInstructionFile(abs) && !list.includes(abs)
+                && !(this.host.touchedFor?.(tab) ?? []).some(file => this.resolve(file, cwd, false) === abs)) {
+                continue
+            }
+            if (!list.includes(abs)) {
+                list.unshift(abs)
+                changed = true
+                if (!firstAdded && isAutoFollowable(abs)) {
+                    firstAdded = abs
+                }
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+                if (!this.current && firstAdded && this.mode === 'file') {
+                    this.openFile(firstAdded)
+                }
+            }
+        }
+    }
+
+    /** git 저장소인데 최근 목록이 비어 있으면 커밋 안 된 변경 파일들을 목록에 채운다 */
+    private async syncGitModified (tab: object): Promise<void> {
+        if (this.gitBusy || this.mode !== 'file' || this.current) {
+            return
+        }
+        const dir = this.host.cwdFor(tab)
+        if (!dir || !isDir(dir)) {
+            return
+        }
+        const status = await this.runGit(dir, ['status', '--porcelain'])
+        if (!status.ok || !status.out.trim()) {
+            return
+        }
+        if (this.current || this.activeTab !== tab) {
+            return
+        }
+        const list = this.recent.get(tab) ?? []
+        let changed = false
+        let firstFile: string | null = null
+        const lines = status.out.replace(/\r\n?/g, '\n').split('\n')
+        for (const line of lines) {
+            const token = line.slice(3).trim().replace(/^"|"$/g, '')
+            if (!token) continue
+            const abs = this.resolve(token, dir, false)
+            if (abs && !list.includes(abs)) {
+                list.push(abs)
+                changed = true
+                if (!firstFile && isAutoFollowable(abs)) {
+                    firstFile = abs
+                }
+            }
+        }
+        if (changed) {
+            this.recent.set(tab, list.slice(0, this.host.getRecentMax()))
+            if (tab === this.activeTab && this.opened) {
+                this.renderTabs()
+                if (!this.current && firstFile && this.mode === 'file') {
+                    this.openFile(firstFile)
+                }
+            }
+        }
+    }
+
+    /** 사람이/훅이 알려 준 파일을 최근 목록에 얹는다 */
     noteFile (tab: object, file: string): void {
-        const abs = this.resolve(file, this.host.cwdFor(tab))
+        const abs = this.resolve(file, this.host.cwdFor(tab), false)
         if (!abs) {
             return
         }
-        this.recent.set(tab, pushRecent(this.recent.get(tab) ?? [], abs, this.host.getRecentMax()))
+        const list = this.recent.get(tab) ?? []
+        this.recent.set(tab, pushRecent(list, abs, this.host.getRecentMax()))
         if (tab === this.activeTab && this.opened) {
             this.renderTabs()
+            if (!this.current && this.mode === 'file') {
+                this.openFile(abs)
+            }
         }
     }
 
@@ -1205,7 +1351,7 @@ export class ViewPanel {
         // 글자가 소리 없이 사라진다. 고친 것이 없으면 그냥 편집을 접고 넘어간다
         if (this.editing) {
             if (this.editArea && this.editOrigin && this.editArea.value !== this.editOrigin.text) {
-                this.setEditNote('저장하지 않은 편집이 있다 — 저장하거나 취소한 뒤에 다른 파일을 연다')
+                this.setEditNote(this.ui('저장하지 않은 편집이 있다 — 저장하거나 취소한 뒤에 다른 파일을 연다'))
                 return
             }
             this.cancelEdit()
@@ -1221,7 +1367,7 @@ export class ViewPanel {
         this.applyMode('file')
         if (!abs) {
             this.setOpen(true)
-            this.renderMessage('파일을 찾지 못했다', raw)
+            this.renderMessage(this.ui('파일을 찾지 못했다'), raw)
             return
         }
         this.current = abs
@@ -1300,8 +1446,8 @@ export class ViewPanel {
         if (!this.bodyEl) {
             return
         }
-        this.setTitle('미리보기', '')
-        this.bodyEl.innerHTML = [
+        this.setTitle(this.ui('미리보기'), '')
+        this.bodyEl.innerHTML = this.uiMarkup([
             '<div class="ad-view-empty">',
             '  <p>에이전트가 만진 파일이 여기 쌓인다.</p>',
             '  <ul>',
@@ -1310,7 +1456,7 @@ export class ViewPanel {
             '    <li><b>＋</b> 를 눌러 경로를 직접 넣을 수 있다</li>',
             '  </ul>',
             '</div>',
-        ].join('')
+        ].join(''))
         this.setFoot('')
     }
 
@@ -1370,7 +1516,7 @@ export class ViewPanel {
         try {
             st = fs.statSync(file)
         } catch {
-            this.renderMessage('파일이 사라졌다', file)
+            this.renderMessage(this.ui('파일이 사라졌다'), file)
             return
         }
         this.setTitle(path.basename(file), file)
@@ -1394,7 +1540,7 @@ export class ViewPanel {
                     this.renderBinary(file, st)
             }
         } catch (err: any) {
-            this.renderMessage('읽지 못했다', String(err?.message ?? err))
+            this.renderMessage(this.ui('읽지 못했다'), String(err?.message ?? err))
         }
         this.bodyEl.scrollTop = 0
         this.syncEditButton()
@@ -1406,7 +1552,7 @@ export class ViewPanel {
     private renderImage (file: string, st: fs.Stats): void {
         const url = dataUrl(file, MAX_IMAGE_BYTES)
         if (!url) {
-            this.renderMessage('이미지가 너무 크다', formatBytes(st.size) + ' — ' + file)
+            this.renderMessage(this.ui('이미지가 너무 크다'), formatBytes(st.size) + ' — ' + file)
             return
         }
         this.bodyEl!.innerHTML = '<div class="ad-view-image"><img src="' + url + '" alt=""></div>'
@@ -1426,7 +1572,7 @@ export class ViewPanel {
             },
         })
         this.bodyEl!.innerHTML = '<div class="ad-view-md">' + html
-            + (truncated ? '<p class="ad-view-dim">… 앞부분만 보여준다 (' + formatBytes(MAX_TEXT_BYTES) + ')</p>' : '')
+            + (truncated ? '<p class="ad-view-dim">' + escapeHtml(this.ui('… 앞부분만 보여준다 ({size})', { size: formatBytes(MAX_TEXT_BYTES) })) + '</p>' : '')
             + '</div>'
     }
 
@@ -1434,7 +1580,7 @@ export class ViewPanel {
         const { text, truncated } = readTextHead(file, MAX_TEXT_BYTES)
         const rows = parseDelimited(text, delimiterFor(file))
         if (!rows.length) {
-            this.renderMessage('빈 파일', file)
+            this.renderMessage(this.ui('빈 파일'), file)
             return
         }
         const head = rows[0].slice(0, MAX_TABLE_COLS)
@@ -1447,7 +1593,7 @@ export class ViewPanel {
                 + head.map((_h, c) => cell(r[c])).join('') + '</tr>').join('')
             + '</tbody></table>'
             + (rows.length > MAX_TABLE_ROWS + 1 || truncated
-                ? '<p class="ad-view-dim">' + MAX_TABLE_ROWS + '행까지만 보여준다 (전체 ' + (rows.length - 1) + '행)</p>'
+                ? '<p class="ad-view-dim">' + escapeHtml(this.ui('{n}행까지만 보여준다 (전체 {total}행)', { n: MAX_TABLE_ROWS, total: rows.length - 1 })) + '</p>'
                 : '')
             + '</div>'
     }
@@ -1457,13 +1603,6 @@ export class ViewPanel {
         const lines = text.split('\n')
         const shown = lines.slice(0, MAX_TEXT_LINES)
         const cut = truncated || lines.length > MAX_TEXT_LINES
-        // 줄 번호를 같이 보여준다 — 코드 리뷰 때 `파일:라인` 을 확인하는 자리가 된다.
-        //
-        // **`<pre>` 두 장이 아니라 줄마다 한 칸(`.ad-cl`)으로 그린다** — 어느 줄을 눌렀는지
-        // 알아야 참조를 만들 수 있고, 좌우로 놓은 `<pre>` 안에서는 클릭 지점을 줄로 되돌릴
-        // 방법이 없다(글꼴 높이를 재서 나누는 것은 줄바꿈·확대에서 곧 어긋난다).
-        // 마크다운·표는 대상이 아니다 — md 는 렌더된 문서라 줄 좌표가 없고, 표는 헤더 때문에
-        // 표 행번호와 파일 줄번호가 어긋난다.
         const rows: string[] = ['<div class="ad-view-code ad-view-code-rows" data-ad-ref-file="'
             + escapeHtml(file) + '">']
         shown.forEach((text, i) => {
@@ -1474,14 +1613,14 @@ export class ViewPanel {
         })
         rows.push('</div>')
         this.bodyEl!.innerHTML = rows.join('')
-            + (cut ? '<p class="ad-view-dim">… ' + MAX_TEXT_LINES + '줄까지만 보여준다 (전체 ' + lines.length + '줄)</p>' : '')
+            + (cut ? '<p class="ad-view-dim">' + escapeHtml(this.ui('{n}줄까지만 보여준다 (전체 {total}줄)', { n: MAX_TEXT_LINES, total: lines.length })) + '</p>' : '')
         // 다시 그렸으니 고른 줄의 강조를 되돌린다 (파일 감시가 부른 재렌더에서도 선택이 산다)
         this.applyRefSel()
     }
 
     private renderBinary (file: string, st: fs.Stats): void {
         this.bodyEl!.innerHTML = '<div class="ad-view-empty"><p>' + escapeHtml(path.basename(file)) + '</p>'
-            + '<p class="ad-view-dim">미리보기를 지원하지 않는 형식 · ' + formatBytes(st.size) + '</p></div>'
+            + '<p class="ad-view-dim">' + escapeHtml(this.ui('미리보기를 지원하지 않는 형식 · {size}', { size: formatBytes(st.size) })) + '</p></div>'
     }
 
     // ---------- 편집 ----------
@@ -1511,7 +1650,7 @@ export class ViewPanel {
         const usable = this.canEdit()
         btn.classList.toggle('ad-view-btn-on', this.editing)
         btn.style.opacity = usable || this.editing ? '' : '0.35'
-        btn.title = this.editing ? '보기로 (Esc)' : usable ? '편집 (저장 Ctrl+S)' : '편집할 수 없는 형식이다'
+        btn.title = this.editing ? this.ui('보기로 (Esc)') : usable ? this.ui('편집 (저장 Ctrl+S)') : this.ui('편집할 수 없는 형식이다')
     }
 
     private toggleEdit (): void {
@@ -1528,7 +1667,7 @@ export class ViewPanel {
         }
         const file = this.current
         if (!file || !this.canEdit()) {
-            this.setEditNote('이 형식은 편집할 수 없다')
+            this.setEditNote(this.ui('이 형식은 편집할 수 없다'))
             return
         }
         let read: { text: string, truncated: boolean, bom: boolean, crlf: boolean }
@@ -1537,12 +1676,12 @@ export class ViewPanel {
             st = fs.statSync(file)
             read = readTextAll(file, MAX_EDIT_BYTES)
         } catch (err: any) {
-            this.setEditNote('읽지 못했다: ' + String(err?.message ?? err))
+            this.setEditNote(this.ui('읽지 못했다: {error}', { error: String(err?.message ?? err) }))
             return
         }
         if (read.truncated) {
             // 앞부분만 들고 저장하면 뒤가 날아간다 — 열지 않는 것이 유일하게 안전한 답이다
-            this.setEditNote('너무 커서 편집할 수 없다 (' + formatBytes(MAX_EDIT_BYTES) + ' 넘음) — 보기 전용')
+            this.setEditNote(this.ui('너무 커서 편집할 수 없다 ({size} 넘음) — 보기 전용', { size: formatBytes(MAX_EDIT_BYTES) }))
             this.showEditBar(true)
             return
         }
@@ -1603,7 +1742,7 @@ export class ViewPanel {
         const origin = this.editOrigin
         const next = this.editArea.value
         if (next === origin.text && !this.editStale) {
-            this.setEditNote('바뀐 것이 없다')
+            this.setEditNote(this.ui('바뀐 것이 없다'))
             return
         }
 
@@ -1617,7 +1756,7 @@ export class ViewPanel {
         }
         if (outside && !this.editOverwriteArmed) {
             this.editOverwriteArmed = true
-            this.setEditNote('밖에서 바뀐 파일이다 — 다시 누르면 덮어쓴다')
+            this.setEditNote(this.ui('밖에서 바뀐 파일이다 — 다시 누르면 덮어쓴다'))
             return
         }
 
@@ -1629,7 +1768,7 @@ export class ViewPanel {
             const code = String(err?.code ?? '')
             const denied = code === 'EPERM' || code === 'EACCES' || code === 'EROFS'
             if (!denied) {
-                this.setEditNote('저장하지 못했다: ' + String(err?.message ?? err))
+                this.setEditNote(this.ui('저장하지 못했다: {error}', { error: String(err?.message ?? err) }))
                 return
             }
             // 읽기 전용이다. **말없이 속성을 풀지 않는다** — 이 환경에서 그 정체는 대개 P4 에서
@@ -1638,14 +1777,14 @@ export class ViewPanel {
             // 그래서 사실을 말하고, 그래도 쓰겠다면 두 번째 누름에서만 속성을 푼다
             if (!this.editForceArmed) {
                 this.editForceArmed = true
-                this.setEditNote('읽기 전용이다 (P4 면 p4 edit 먼저) — 다시 누르면 속성을 풀고 저장한다')
+                this.setEditNote(this.ui('읽기 전용이다 (P4 면 p4 edit 먼저) — 다시 누르면 속성을 풀고 저장한다'))
                 return
             }
             try {
                 fs.chmodSync(origin.file, 0o666)
                 write()
             } catch (err2: any) {
-                this.setEditNote('저장하지 못했다: ' + String(err2?.message ?? err2))
+                this.setEditNote(this.ui('저장하지 못했다: {error}', { error: String(err2?.message ?? err2) }))
                 return
             }
         }
@@ -1660,7 +1799,7 @@ export class ViewPanel {
         this.setEditNote('')
         this.syncEditButton()
         this.renderCurrent()
-        this.setFootNote('저장했다')
+        this.setFootNote(this.ui('저장했다'))
     }
 
     private showEditBar (on: boolean): void {
@@ -1703,11 +1842,11 @@ export class ViewPanel {
         marks.push(this.editOrigin.crlf ? 'CRLF' : 'LF')
         // 읽기 전용은 **열자마자** 말한다 — 저장할 때 알면 그때까지 친 것이 헛일이 된다
         if (this.editOrigin.readOnly) {
-            marks.push('읽기 전용')
+            marks.push(this.ui('읽기 전용'))
         }
-        marks.push(dirty ? '고침' : '그대로')
+        marks.push(this.ui(dirty ? '고침' : '그대로'))
         if (this.editStale) {
-            marks.push('밖에서 바뀜')
+            marks.push(this.ui('밖에서 바뀜'))
         }
         this.setEditNote(marks.join(' · '))
     }
@@ -1900,7 +2039,7 @@ export class ViewPanel {
 
     private setFindCount (nth: number, total: number): void {
         if (this.findCountEl) {
-            this.findCountEl.textContent = total ? nth + '/' + total : '없음'
+            this.findCountEl.textContent = total ? nth + '/' + total : this.ui('없음')
         }
     }
 
@@ -1954,11 +2093,11 @@ export class ViewPanel {
             return
         }
         const dir = this.host.cwdFor(this.activeTab ?? {})
-        this.setTitle('변경', dir ?? '')
+        this.setTitle(this.ui('변경'), dir ?? '')
         if (!dir) {
             this.setStatus([])
-            this.renderDiffNote('작업 폴더를 모른다',
-                '이 탭의 cwd 를 아직 잡지 못했다 — 터미널에서 명령을 한 번 실행하면 잡힌다')
+            this.renderDiffNote(this.ui('작업 폴더를 모른다'),
+                this.ui('이 탭의 cwd 를 아직 잡지 못했다 — 터미널에서 명령을 한 번 실행하면 잡힌다'))
             return
         }
         if (!isDir(dir)) {
@@ -1966,14 +2105,14 @@ export class ViewPanel {
             // 그 원문을 그대로 보여 주면 무슨 일인지 알 수 없다. cwd 가 어떻게 파일이 되는지는
             // deck.service `touchCwd` 주석 참고 (Tabby 의 윈도우 cwd 추정)
             this.setStatus([])
-            this.renderDiffNote('작업 폴더가 폴더가 아니다', dir)
+            this.renderDiffNote(this.ui('작업 폴더가 폴더가 아니다'), dir)
             return
         }
         const seq = ++this.diffSeq
         this.diffAutoAt = Date.now()
         if (!this.bodyEl.querySelector('.ad-view-diff')) {
             // 첫 진입에만 안내를 띄운다 — 갱신마다 화면을 비우면 스크롤이 튄다
-            this.renderDiffNote('변경을 읽고 있다', dir)
+            this.renderDiffNote(this.ui('변경을 읽고 있다'), dir)
         }
 
         Promise.all([
@@ -1985,13 +2124,13 @@ export class ViewPanel {
             if (!diff.ok) {
                 const msg = diff.err
                 if (/not a git repository/i.test(msg)) {
-                    this.noGit(seq, 'git 저장소가 아니다', dir,
-                        '이 폴더는 git 으로 관리되지 않는다 — 무엇이 바뀌었는지(diff)는 비교할 기준이 없다')
+                    this.noGit(seq, this.ui('git 저장소가 아니다'), dir,
+                        this.ui('이 폴더는 git 으로 관리되지 않는다 — 무엇이 바뀌었는지(diff)는 비교할 기준이 없다'))
                     return
                 }
                 if (/ENOENT|not recognized|command not found/i.test(msg)) {
-                    this.noGit(seq, 'git 을 찾지 못했다', 'PATH 에 git 이 있어야 변경 내용을 비교할 수 있다',
-                        'git 이 없어 diff 는 만들 수 없다')
+                    this.noGit(seq, this.ui('git 을 찾지 못했다'), this.ui('PATH 에 git 이 있어야 변경 내용을 비교할 수 있다'),
+                        this.ui('git 이 없어 diff 는 만들 수 없다'))
                     return
                 }
                 if (/ambiguous argument .?HEAD|unknown revision|bad revision/i.test(msg)) {
@@ -1999,11 +2138,11 @@ export class ViewPanel {
                     const first = await this.runGit(dir, ['diff', '--no-color'])
                     text = first.out
                     if (!first.ok && !text) {
-                        this.failDiff(seq, '변경을 읽지 못했다', first.err)
+                        this.failDiff(seq, this.ui('변경을 읽지 못했다'), first.err)
                         return
                     }
                 } else if (!text) {
-                    this.failDiff(seq, '변경을 읽지 못했다', msg)
+                    this.failDiff(seq, this.ui('변경을 읽지 못했다'), msg)
                     return
                 }
             }
@@ -2033,7 +2172,7 @@ export class ViewPanel {
             })
         }).catch((err: any) => {
             // 파싱까지 포함해 어디서 터져도 패널은 문장을 남긴다
-            this.failDiff(seq, '변경을 읽지 못했다', String(err?.message ?? err))
+            this.failDiff(seq, this.ui('변경을 읽지 못했다'), String(err?.message ?? err))
         })
     }
 
@@ -2091,17 +2230,17 @@ export class ViewPanel {
             this.setCommitVisible(false)
             const out: string[] = ['<div class="ad-view-diff">']
             out.push('<div class="ad-view-diff-sum">'
-                + escapeHtml('이 세션이 만진 파일 ' + touched.length + '개') + '</div>')
+                + escapeHtml(this.ui('이 세션이 만진 파일 {count}개', { count: touched.length })) + '</div>')
             out.push('<p class="ad-view-dim">' + escapeHtml(title + ' — ' + why) + '</p>')
             out.push('<div class="ad-view-diff-list">')
             for (const abs of touched.slice(0, MAX_DIFF_FILES)) {
                 const shown = refPathFrom(abs, cwd)
                 out.push('<div class="ad-view-diff-u" data-ad-open="' + escapeHtml(abs) + '">'
                     + escapeHtml(shown) + ' <span class="ad-view-dim">'
-                    + escapeHtml(fileNote(abs)) + '</span></div>')
+                    + escapeHtml(fileNote(abs, this.lang)) + '</span></div>')
             }
             if (touched.length > MAX_DIFF_FILES) {
-                out.push('<p class="ad-view-dim">… 이후 생략</p>')
+                out.push('<p class="ad-view-dim">' + escapeHtml(this.ui('… 이후 생략')) + '</p>')
             }
             out.push('</div></div>')
             this.bodyEl!.innerHTML = out.join('')
@@ -2134,23 +2273,23 @@ export class ViewPanel {
         // 요약줄에 **지금 보고 있는 범위**를 함께 적는다 — 숫자만 있으면 "이게 전부인가" 를
         // 알 수 없다. 좁혀서 가려진 게 있을 때만 그 수를 말한다(0 이면 군더더기다)
         const scopeNote = this.diffScope === 'session' && this.diffHidden > 0
-            ? ' · 이 세션이 만진 것만 (' + this.diffHidden + '개 숨김)'
+            ? this.ui(' · 이 세션이 만진 것만 ({count}개 숨김)', { count: this.diffHidden })
             : ''
-        out.push('<div class="ad-view-diff-sum">' + escapeHtml(formatStat(files) + scopeNote) + '</div>')
+        out.push('<div class="ad-view-diff-sum">' + escapeHtml(this.formatDiffStat(files) + scopeNote) + '</div>')
 
         if (shownFiles.length) {
             out.push('<div class="ad-view-diff-list">')
             shownFiles.forEach((f, i) => {
                 out.push('<button class="ad-view-diff-item" data-ad-diff="ad-diff-' + i + '">'
                     + '<span class="ad-view-diff-st ad-view-diff-st-' + f.status + '">'
-                    + escapeHtml(statusLabel(f)) + '</span>'
+                    + escapeHtml(this.ui(statusLabel(f))) + '</span>'
                     + this.stageChipHtml(f.path)
                     + '<span class="ad-view-diff-name">' + escapeHtml(f.path) + '</span>'
                     + '<span class="ad-view-diff-num"><b class="ad-plus">+' + f.added + '</b>'
                     + '<b class="ad-minus">-' + f.removed + '</b></span></button>')
             })
             if (files.length > shownFiles.length) {
-                out.push('<p class="ad-view-dim">… 이후 생략 (전체 ' + files.length + '개 파일)</p>')
+                out.push('<p class="ad-view-dim">' + escapeHtml(this.ui('… 이후 생략 (전체 {count}개 파일)', { count: files.length })) + '</p>')
             }
             out.push('</div>')
         }
@@ -2158,8 +2297,8 @@ export class ViewPanel {
         if (untracked.length) {
             // 내용은 붙이지 않는다 (gitDiff.parseUntracked 주석 참고) — 이름만 알려 준다
             const list = untracked.slice(0, MAX_UNTRACKED)
-            out.push('<div class="ad-view-diff-untracked"><div class="ad-view-diff-sub">추적 안 됨 · '
-                + untracked.length + '개</div>')
+            out.push('<div class="ad-view-diff-untracked"><div class="ad-view-diff-sub">'
+                + escapeHtml(this.ui('추적 안 됨 · {count}개', { count: untracked.length })) + '</div>')
             for (const p of list) {
                 // `?? dir/` 은 폴더 하나로 묶여서 온다 — 폴더는 열 수 없으니 이름만 보여준다
                 const open = p.endsWith('/') ? '' : ' data-ad-open="' + escapeHtml(this.absOf(p)) + '"'
@@ -2171,7 +2310,7 @@ export class ViewPanel {
                     + ' ' + escapeHtml(p) + '</div>')
             }
             if (untracked.length > list.length) {
-                out.push('<p class="ad-view-dim">… 이후 생략</p>')
+                out.push('<p class="ad-view-dim">' + escapeHtml(this.ui('… 이후 생략')) + '</p>')
             }
             out.push('</div>')
         }
@@ -2181,9 +2320,9 @@ export class ViewPanel {
             // 말하면 저장소에 변경이 없다는 거짓말이 되고, 사람은 `전체` 버튼을 누를 생각을 못 한다
             const narrowed = this.diffScope === 'session' && this.diffHidden > 0
             out.push('<div class="ad-view-empty"><p>'
-                + (narrowed ? '이 세션이 만진 파일은 아직 없다' : '변경 없음') + '</p>'
+                + escapeHtml(narrowed ? this.ui('이 세션이 만진 파일은 아직 없다') : this.ui('변경 없음')) + '</p>'
                 + '<p class="ad-view-dim">' + escapeHtml(narrowed
-                    ? '저장소에는 ' + this.diffHidden + '개의 변경이 있다 — `전체` 로 보면 나온다'
+                    ? this.ui('저장소에는 {count}개의 변경이 있다 — `전체` 로 보면 나온다', { count: this.diffHidden })
                     : dir) + '</p></div>')
         }
 
@@ -2195,9 +2334,9 @@ export class ViewPanel {
             out.push('<div class="ad-view-diff-fhead" data-ad-open="' + escapeHtml(this.absOf(f.path))
                 + '" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</div>')
             if (f.binary) {
-                out.push('<div class="ad-view-diff-note">바이너리 · 내용 비교 없음</div>')
+                out.push('<div class="ad-view-diff-note">' + escapeHtml(this.ui('바이너리 · 내용 비교 없음')) + '</div>')
             } else if (!f.lines.length) {
-                out.push('<div class="ad-view-diff-note">내용 변경 없음</div>')
+                out.push('<div class="ad-view-diff-note">' + escapeHtml(this.ui('내용 변경 없음')) + '</div>')
             } else {
                 const cap = Math.min(f.lines.length, MAX_DIFF_FILE_LINES, Math.max(budget, 0))
                 // 줄 참조가 어느 파일의 줄인지는 이 상자가 말한다 — git 이 낸 **저장소 루트 기준**
@@ -2210,7 +2349,7 @@ export class ViewPanel {
                 out.push('</div>')
                 budget -= cap
                 if (cap < f.lines.length) {
-                    out.push('<div class="ad-view-diff-note">… 이후 생략 (전체 ' + f.lines.length + '줄)</div>')
+                    out.push('<div class="ad-view-diff-note">' + escapeHtml(this.ui('… 이후 생략 (전체 {count}줄)', { count: f.lines.length })) + '</div>')
                 }
             }
             out.push('</div>')
@@ -2221,7 +2360,9 @@ export class ViewPanel {
         // **자동 갱신이 방금 본문을 통째로 덮었다** — 고른 줄의 강조를 여기서 되돌린다.
         // 선택은 클래스 필드(refSel)에 있으므로 갱신을 몇 번 거쳐도 살아 있다
         this.applyRefSel()
-        this.setFoot(formatStat(files) + ' · ' + new Date().toLocaleTimeString() + ' 기준 · ' + dir)
+        const timeStr = new Date().toLocaleTimeString()
+        const footMid = this.lang === 'ko' ? ` · ${timeStr} 기준 · ` : ` · as of ${timeStr} · `
+        this.setFoot(this.formatDiffStat(files) + footMid + dir)
     }
 
     /**
@@ -2294,8 +2435,8 @@ export class ViewPanel {
         const del = row.getAttribute('data-ad-ref-del')
         if (del !== null) {
             this.setRefNote(del === 'hunk'
-                ? '헝크 머리줄은 내용이 아니다 — 아래 줄을 고르면 그 자리를 가리킨다'
-                : '삭제된 줄은 지금 파일에 없다 — 옆 문맥줄을 고르면 그 자리를 가리킨다')
+                ? this.ui('헝크 머리줄은 내용이 아니다 — 아래 줄을 고르면 그 자리를 가리킨다')
+                : this.ui('삭제된 줄은 지금 파일에 없다 — 옆 문맥줄을 고르면 그 자리를 가리킨다'))
             return
         }
         const no = Number(row.getAttribute('data-ad-ref-line'))
@@ -2305,7 +2446,7 @@ export class ViewPanel {
         const box = row.closest('[data-ad-ref-file]') as HTMLElement | null
         const key = box?.getAttribute('data-ad-ref-file') ?? ''
         if (!key) {
-            this.setRefNote('어느 파일의 줄인지 몰라 참조를 만들지 못했다')
+            this.setRefNote(this.ui('어느 파일의 줄인지 몰라 참조를 만들지 못했다'))
             return
         }
 
@@ -2363,13 +2504,13 @@ export class ViewPanel {
         const cwd = this.host.cwdFor(this.activeTab ?? {})
         const text = formatLineRef(refPathFrom(joinRefPath(this.diffRoot, key), cwd), from, to)
         if (!text) {
-            this.setRefNote('참조를 만들지 못했다 — 경로가 비어 있다')
+            this.setRefNote(this.ui('참조를 만들지 못했다 — 경로가 비어 있다'))
             return
         }
         if (!this.host.sendText) {
             // 배선이 없어도 패널은 동작한다(ViewHost.sendText 가 optional 인 이유) — 다만
             // 사람이 눌렀는데 아무 일도 안 일어나면 안 되므로 사실을 문장으로 말한다
-            this.setRefNote('터미널에 넣지 못했다 — 넣을 자리가 배선되지 않았다 · ' + text)
+            this.setRefNote(this.ui('터미널에 넣지 못했다 — 넣을 자리가 배선되지 않았다 · {text}', { text }))
             return
         }
 
@@ -2389,18 +2530,18 @@ export class ViewPanel {
         try {
             ok = !!this.host.sendText(payload)
         } catch (err: any) {
-            this.setRefNote('터미널에 넣지 못했다 · ' + String(err?.message ?? err))
+            this.setRefNote(this.ui('터미널에 넣지 못했다 · {error}', { error: String(err?.message ?? err) }))
             return
         }
         if (!ok) {
             // 보낼 팬이 없다(탭이 없거나 터미널이 아니다) — 넣은 것으로 기억하지 않는다.
             // 기억해 두면 다음 누름이 "꼬리만" 을 보내 프롬프트에 `-20` 만 남는다
-            this.setRefNote('터미널에 넣지 못했다 — 넣을 터미널이 없다 · ' + text)
+            this.setRefNote(this.ui('터미널에 넣지 못했다 — 넣을 터미널이 없다 · {text}', { text }))
             return
         }
         // 터미널에 지금 남아 있는 것은 (꼬리만 보냈어도) 참조 전체다
         this.refLastSent = { text, at: now }
-        this.setRefNote('넣었다 · ' + text + (chain ? ' (꼬리만)' : ''), true)
+        this.setRefNote(this.ui('넣었다 · {text}', { text: text + (chain ? this.ui(' (꼬리만)') : '') }), true)
     }
 
     /**
@@ -2447,15 +2588,15 @@ export class ViewPanel {
         const act = entry.state === 'staged' ? 'reset' : 'add'
         let tip: string
         if (act === 'reset') {
-            tip = '누르면 스테이지에서 내린다 — git reset -q -- ' + rel
+            tip = this.ui('누르면 스테이지에서 내린다 — git reset -q -- {path}', { path: rel })
         } else if (entry.state === 'conflict') {
-            tip = '누르면 충돌 해결로 표시한다 — git add -- ' + rel
+            tip = this.ui('누르면 충돌 해결로 표시한다 — git add -- {path}', { path: rel })
         } else {
-            tip = '누르면 스테이지에 올린다 — git add -- ' + rel
+            tip = this.ui('누르면 스테이지에 올린다 — git add -- {path}', { path: rel })
         }
         return '<span class="ad-view-stage ad-view-stage-' + entry.state + '"'
             + ' data-ad-stage="' + escapeHtml(rel) + '" data-ad-stage-act="' + act + '"'
-            + ' title="' + escapeHtml(tip) + '">' + escapeHtml(stageLabel(entry.state)) + '</span>'
+            + ' title="' + escapeHtml(tip) + '">' + escapeHtml(this.ui(stageLabel(entry.state))) + '</span>'
     }
 
     /**
@@ -2470,7 +2611,7 @@ export class ViewPanel {
             this.statusByPath.set(e.path, e)
         }
         if (this.commitSumEl) {
-            this.commitSumEl.textContent = formatStageSummary(entries)
+            this.commitSumEl.textContent = this.formatStageSummaryText(entries)
         }
         this.syncCommitButton()
     }
@@ -2484,11 +2625,11 @@ export class ViewPanel {
         // **메시지가 비면 아예 못 누른다** — 우발 커밋을 막는 첫 잠금이다 (둘째는 확인 대기,
         // 셋째는 gitCommit.commitArgs 가 빈 배열을 내는 것)
         btn.disabled = !validateMessage(this.commitInput?.value ?? '').ok || this.gitBusy
-        btn.textContent = this.commitArmed ? '커밋 확인' : '커밋'
+        btn.textContent = this.commitArmed ? this.ui('커밋 확인') : this.ui('커밋')
         btn.classList.toggle('ad-view-commit-armed', this.commitArmed)
         btn.title = this.commitArmed
-            ? '한 번 더 누르면 실제로 커밋한다 (Esc 취소)'
-            : '메시지를 넣고 두 번 눌러야 커밋된다 — git commit -m'
+            ? this.ui('한 번 더 누르면 실제로 커밋한다 (Esc 취소)')
+            : this.ui('메시지를 넣고 두 번 눌러야 커밋된다 — git commit -m')
     }
 
     private setCommitNote (text: string): void {
@@ -2516,7 +2657,7 @@ export class ViewPanel {
         }
         const dir = this.diffRoot ?? this.host.cwdFor(this.activeTab ?? {})
         if (!dir) {
-            this.setCommitNote('작업 폴더를 몰라 스테이지를 바꾸지 못한다')
+            this.setCommitNote(this.ui('작업 폴더를 몰라 스테이지를 바꾸지 못한다'))
             return
         }
         const args = act === 'add' ? stageArgs([rel]) : unstageArgs([rel])
@@ -2534,11 +2675,11 @@ export class ViewPanel {
                 r = await this.runGit(dir, unstageFallbackArgs([rel]))
             }
             this.setCommitNote(r.ok
-                ? (act === 'add' ? '스테이지에 올렸다 · ' : '스테이지에서 내렸다 · ') + rel
-                : '스테이지를 바꾸지 못했다 · ' + (firstLine(r.err) || firstLine(r.out)))
+                ? (act === 'add' ? this.ui('스테이지에 올렸다 · {path}', { path: rel }) : this.ui('스테이지에서 내렸다 · {path}', { path: rel }))
+                : this.ui('스테이지를 바꾸지 못했다 · {error}', { error: firstLine(r.err) || firstLine(r.out) }))
         } catch (err: any) {
             // 예외로 죽지 않는다 — 실패도 문장으로 끝난다 (runGit 과 같은 규칙)
-            this.setCommitNote('스테이지를 바꾸지 못했다 · ' + String(err?.message ?? err))
+            this.setCommitNote(this.ui('스테이지를 바꾸지 못했다 · {error}', { error: String(err?.message ?? err) }))
         } finally {
             this.gitBusy = false
             this.syncCommitButton()
@@ -2558,20 +2699,20 @@ export class ViewPanel {
         const v = validateMessage(msg)
         if (!v.ok) {
             this.disarmCommit()
-            this.setCommitNote(v.reason ?? '커밋 메시지를 확인해야 한다')
+            this.setCommitNote(this.localizeCommitReason(v.reason) || this.ui('커밋 메시지를 확인해야 한다'))
             return
         }
         if (!hasStaged(this.statusEntries)) {
             // git 도 거절하지만 이유를 여기서 먼저 말한다 — "커밋했다" 를 기다리다 실패 문장을
             // 보는 것보다, 무엇을 해야 하는지(딱지를 눌러 올려라)를 듣는 것이 낫다
             this.disarmCommit()
-            this.setCommitNote('스테이지에 올린 것이 없다 — 파일 목록의 딱지를 눌러 올려라')
+            this.setCommitNote(this.ui('스테이지에 올린 것이 없다 — 파일 목록의 딱지를 눌러 올려라'))
             return
         }
         if (!this.commitArmed) {
             this.commitArmed = true
             this.syncCommitButton()
-            this.setCommitNote('다시 누르면 커밋한다 (Esc 취소) · ' + formatStageSummary(this.statusEntries))
+            this.setCommitNote(this.ui('다시 누르면 커밋한다 (Esc 취소) · {summary}', { summary: this.formatStageSummaryText(this.statusEntries) }))
             return
         }
         this.runCommit(msg)
@@ -2583,13 +2724,13 @@ export class ViewPanel {
         if (!args.length) {
             // 세 번째 잠금 — 여기까지 잘못 들어와도 인자가 없어 커밋이 만들어지지 않는다
             this.disarmCommit()
-            this.setCommitNote('커밋 메시지를 확인해야 한다')
+            this.setCommitNote(this.ui('커밋 메시지를 확인해야 한다'))
             return
         }
         const dir = this.diffRoot ?? this.host.cwdFor(this.activeTab ?? {})
         if (!dir) {
             this.disarmCommit()
-            this.setCommitNote('작업 폴더를 몰라 커밋하지 못한다')
+            this.setCommitNote(this.ui('작업 폴더를 몰라 커밋하지 못한다'))
             return
         }
         this.gitBusy = true
@@ -2601,19 +2742,31 @@ export class ViewPanel {
                 if (this.commitInput) {
                     this.commitInput.value = ''
                 }
-                this.setCommitNote('커밋했다 · ' + (firstLine(r.out) || firstLine(r.err)))
+                this.setCommitNote(this.ui('커밋했다 · {detail}', { detail: firstLine(r.out) || firstLine(r.err) }))
             } else {
                 // 훅 거부·user.name 없음·스테이지 비었음 — git 은 이유를 stdout 에 쓰는 경우가 있다
-                this.setCommitNote('커밋하지 못했다 · ' + (firstLine(r.err) || firstLine(r.out)))
+                this.setCommitNote(this.ui('커밋하지 못했다 · {detail}', { detail: firstLine(r.err) || firstLine(r.out) }))
             }
         } catch (err: any) {
-            this.setCommitNote('커밋하지 못했다 · ' + String(err?.message ?? err))
+            this.setCommitNote(this.ui('커밋하지 못했다 · {detail}', { detail: String(err?.message ?? err) }))
         } finally {
             this.gitBusy = false
             this.commitArmed = false
             this.syncCommitButton()
         }
         this.refreshDiff()
+    }
+
+    private formatDiffStat (files: DiffFile[]): string {
+        return localizeDiffStat(formatStat(files), this.lang)
+    }
+
+    private formatStageSummaryText (entries: readonly StatusEntry[]): string {
+        return localizeStageSummary(formatStageSummary(entries), this.lang)
+    }
+
+    private localizeCommitReason (reason?: string): string {
+        return localizeCommitReason(reason, this.lang)
     }
 
     dispose (): void {

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core'
 import { AppService, BaseTabComponent, ConfigService, PlatformService } from 'tabby-core'
+import { pickLang, Lang } from './i18n'
 import * as fs from 'fs'
 import * as net from 'net'
 import * as os from 'os'
@@ -313,6 +314,7 @@ export class WorkNotifyService {
     private navigationContext = ''
     private navigationRefresh: (() => void) | null = null
     onIdentityHook: ((tab: BaseTabComponent) => void) | null = null
+    onFileHook: ((tab: BaseTabComponent, file: string) => void) | null = null
     private nextAliasExpiry = 0
     private aliasExpiryBusy = false
 
@@ -528,6 +530,10 @@ export class WorkNotifyService {
         private platform: PlatformService,
     ) { }
 
+    private get lang (): Lang {
+        return pickLang(this.config.store.language || (typeof navigator !== 'undefined' ? navigator.language : 'en'))
+    }
+
     /**
      * 훅이 안 걸려 있으면 기동할 때 한 번 물어본다.
      *
@@ -550,19 +556,30 @@ export class WorkNotifyService {
             return
         }
 
+        const ko = this.lang === 'ko'
         const r = await this.platform.showMessageBox({
-            // 이 타입에는 'question' 이 없다 (tabby-core MessageBoxOptions) — 경고로 띄우면
-            // 필요 이상으로 겁을 주므로 'warning' 대신 형만 맞추고 문구로 성격을 드러낸다
             type: 'warning',
-            message: 'AgentDeck — Claude Code 상태 통보를 연결할까요?',
-            detail: [
-                '연결하면 에이전트가 "지시를 받았다 / 승인을 기다린다 / 끝났다" 를 사이드바에 직접 알려줍니다.',
-                '연결하지 않아도 동작은 하지만, 화면에 그려진 글자를 보고 추측하는 방식이라 상태가 부정확할 수 있습니다.',
-                '',
-                `설치 위치: ${claudeSettingsPath()}`,
-                '기존 훅은 건드리지 않고, 쓰기 전에 같은 폴더에 백업을 남깁니다. 설정 창에서 언제든 제거할 수 있습니다.',
-            ].join('\n'),
-            buttons: ['연결한다', '나중에', '다시 묻지 않기'],
+            message: ko
+                ? 'AgentDeck — Claude Code 상태 통보를 연결할까요?'
+                : 'AgentDeck — Connect Claude Code status notifications?',
+            detail: ko
+                ? [
+                    '연결하면 에이전트가 "지시를 받았다 / 승인을 기다린다 / 끝났다" 를 사이드바에 직접 알려줍니다.',
+                    '연결하지 않아도 동작은 하지만, 화면에 그려진 글자를 보고 추측하는 방식이라 상태가 부정확할 수 있습니다.',
+                    '',
+                    `설치 위치: ${claudeSettingsPath()}`,
+                    '기존 훅은 건드리지 않고, 쓰기 전에 같은 폴더에 백업을 남깁니다. 설정 창에서 언제든 제거할 수 있습니다.',
+                ].join('\n')
+                : [
+                    'Connecting allows agents to notify the sidebar directly when they receive instructions, wait for approval, or finish.',
+                    'AgentDeck works without this, but relies on terminal screen scraping which can be less accurate.',
+                    '',
+                    `Install location: ${claudeSettingsPath()}`,
+                    'Existing hooks are preserved, and a backup is saved in the same directory before writing. You can remove hooks at any time from Settings.',
+                ].join('\n'),
+            buttons: ko
+                ? ['연결한다', '나중에', '다시 묻지 않기']
+                : ['Connect', 'Later', "Don't ask again"],
             defaultId: 0,
             cancelId: 1,
         })
@@ -577,9 +594,9 @@ export class WorkNotifyService {
             } catch (e: any) {
                 await this.platform.showMessageBox({
                     type: 'error',
-                    message: 'AgentDeck — 훅을 설치하지 못했습니다.',
+                    message: ko ? 'AgentDeck — 훅을 설치하지 못했습니다.' : 'AgentDeck — Failed to install hooks.',
                     detail: `${e?.message ?? e}`,
-                    buttons: ['확인'],
+                    buttons: [ko ? '확인' : 'OK'],
                 })
             }
             return
@@ -595,19 +612,37 @@ export class WorkNotifyService {
         let plans: HookUpgrade[]
         try { plans = findHookUpgrades() } catch (error) { diagCatch('hook upgrade detection', error); return false }
         if (!plans.length) { return false }
+        const ko = this.lang === 'ko'
         const choice = await this.platform.showMessageBox({
             type: 'warning',
-            message: 'AgentDeck — 업데이트된 훅을 적용할까요?',
-            detail: '패키지에 포함된 훅 이력으로 과거 AgentDeck 훅을 정리한 뒤 새 훅을 설치합니다.\n'
-                + 'Windows에서는 가벼운 전용 전달기를 사용합니다. 다른 훅과 사용자 설정은 유지하고, 변경 전 백업을 남깁니다.\n'
-                + '실행 중인 CLI는 다시 시작하거나 훅을 다시 불러와야 할 수 있습니다. Codex의 훅 신뢰 확인은 그대로 유지됩니다.\n\n'
-                + plans.map(p => `${p.file} (${p.count})`).join('\n'),
-            buttons: ['예, 정리 후 적용', '나중에'], defaultId: 0, cancelId: 1,
+            message: ko
+                ? 'AgentDeck — 업데이트된 훅을 적용할까요?'
+                : 'AgentDeck — Apply updated hooks?',
+            detail: ko
+                ? '패키지에 포함된 훅 이력으로 과거 AgentDeck 훅을 정리한 뒤 새 훅을 설치합니다.\n'
+                    + 'Windows에서는 가벼운 전용 전달기를 사용합니다. 다른 훅과 사용자 설정은 유지하고, 변경 전 백업을 남깁니다.\n'
+                    + '실행 중인 CLI는 다시 시작하거나 훅을 다시 불러와야 할 수 있습니다. Codex의 훅 신뢰 확인은 그대로 유지됩니다.\n\n'
+                    + plans.map(p => `${p.file} (${p.count})`).join('\n')
+                : 'Cleans up previous AgentDeck hooks using package history and installs updated hooks.\n'
+                    + 'On Windows, a lightweight dedicated dispatcher is used. Other hooks and custom settings are preserved, and a backup is saved before making changes.\n'
+                    + 'Running CLIs may need to be restarted or reload hooks. Codex hook trust verification is preserved.\n\n'
+                    + plans.map(p => `${p.file} (${p.count})`).join('\n'),
+            buttons: ko
+                ? ['예, 정리 후 적용', '나중에']
+                : ['Yes, clean and upgrade', 'Later'],
+            defaultId: 0,
+            cancelId: 1,
         })
         if (choice.response === 0) {
             try { applyHookUpgrades(plans) } catch (error: any) {
-                await this.platform.showMessageBox({ type: 'error', message: 'AgentDeck — 훅 갱신을 완료하지 못했습니다.',
-                    detail: String(error?.message || error), buttons: ['확인'] })
+                await this.platform.showMessageBox({
+                    type: 'error',
+                    message: ko
+                        ? 'AgentDeck — 훅 갱신을 완료하지 못했습니다.'
+                        : 'AgentDeck — Failed to update hooks.',
+                    detail: String(error?.message || error),
+                    buttons: [ko ? '확인' : 'OK'],
+                })
             }
         }
         return true
@@ -1320,6 +1355,7 @@ export class WorkNotifyService {
             const list = this.touched.get(tab) ?? []
             const next = [file, ...list.filter(p => p !== file)]
             this.touched.set(tab, next.length > TOUCHED_MAX ? next.slice(0, TOUCHED_MAX) : next)
+            this.onFileHook?.(tab, file)
         }
 
         const label = (data.label || '').trim()
