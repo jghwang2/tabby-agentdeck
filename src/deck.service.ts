@@ -3735,7 +3735,7 @@ export class AgentDeckService {
         if (!target || typeof target.closest !== 'function') {
             return false
         }
-        return !!target.closest('.content.main') && !target.closest(`#${SIDEBAR_ID}`)
+        return !!target.closest('terminaltab, terminal-pane') && !target.closest(`#${SIDEBAR_ID}`)
     }
 
     private async handleRightClick (ev: MouseEvent, heldMs: number): Promise<void> {
