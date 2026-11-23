@@ -3729,13 +3729,23 @@ export class AgentDeckService {
         }, { capture: true })
     }
 
-    /** 사이드바가 아니라 터미널 뷰포트 안에서 일어난 이벤트인지 */
+    /**
+     * 탭 본문(터미널 뷰포트) 안에서 일어난 이벤트인지.
+     *
+     * `.content.main` 으로 가르면 안 된다 — 그 상자는 순정 `.tab-bar` 까지 품고 있어서, 레이아웃을
+     * 꺼 탭바가 보일 때 탭을 우클릭하면 붙여넣기로 먹히고 Tabby 의 탭 메뉴가 뜨지 않는다
+     * (GitHub PR #5 제보).
+     *
+     * 탭 종류(`terminalTab` 등)를 나열해도 안 된다 — `ssh-tab`·`serial-tab`·`telnet-tab` 이 빠지면
+     * 그 탭에서는 우클릭이 아예 죽는다(Tabby 자체 처리는 `claimRightClick` 이 꺼 두었다).
+     * 어떤 탭이든 내용은 `tab-body` 아래에 붙으므로 그것 하나로 가른다.
+     */
     private inTerminalArea (ev: MouseEvent): boolean {
         const target = ev.target as HTMLElement | null
         if (!target || typeof target.closest !== 'function') {
             return false
         }
-        return !!target.closest('.content.main') && !target.closest(`#${SIDEBAR_ID}`)
+        return !!target.closest('tab-body') && !target.closest(`#${SIDEBAR_ID}`)
     }
 
     private async handleRightClick (ev: MouseEvent, heldMs: number): Promise<void> {
