@@ -8,6 +8,7 @@ import * as os from 'os'
 import * as path from 'path'
 
 import { diag, diagCatch, pluginVersion } from './diag'
+import { pickLang, Lang } from './i18n'
 import { AgentDeckReloadService } from './reload.service'
 import {
     PACKAGE_NAME,
@@ -163,23 +164,40 @@ export class AgentDeckUpdateService {
         return result
     }
 
+    private get lang (): Lang {
+        return pickLang(this.config?.store?.language || (typeof navigator !== 'undefined' ? navigator.language : 'en'))
+    }
+
     /** ② 물어보고 ③ 제자리에 깐 뒤 ④ 창만 새로 고친다 */
     private async confirmAndInstall (current: string, latest: string): Promise<UpdateOutcome> {
+        const ko = this.lang === 'ko'
         const r = await this.platform.showMessageBox({
             // Tabby 의 `MessageBoxOptions.type` 은 `warning | error` 둘뿐이다
             // (node_modules/tabby-core/typings/api/platform.d.ts) — electron 의 `question` 은 없다.
             // 둘 중에서는 `warning` 이 낫다: `error` 는 빨간 아이콘이라 "업데이트할까요" 가
             // 사고처럼 읽힌다
             type: 'warning',
-            message: `AgentDeck ${latest} 로 업데이트할까요? (지금 ${current})`,
-            detail: [
-                '누르면 이렇게 됩니다:',
-                '  1. 백그라운드에서 새 버전을 내려받아 설치합니다',
-                '  2. 창을 한 번 새로 고쳐 새 버전으로 갈아탑니다 (몇 초)',
-                '',
-                '열린 탭과 돌고 있는 세션은 그대로 유지됩니다 — Tabby 는 닫히지 않습니다.',
-            ].join('\n'),
-            buttons: ['지금 업데이트', '나중에', '다시 묻지 않기'],
+            message: ko
+                ? `AgentDeck ${latest} 로 업데이트할까요? (지금 ${current})`
+                : `Update AgentDeck to ${latest}? (Current: ${current})`,
+            detail: ko
+                ? [
+                    '누르면 이렇게 됩니다:',
+                    '  1. 백그라운드에서 새 버전을 내려받아 설치합니다',
+                    '  2. 창을 한 번 새로 고쳐 새 버전으로 갈아탑니다 (몇 초)',
+                    '',
+                    '열린 탭과 돌고 있는 세션은 그대로 유지됩니다 — Tabby 는 닫히지 않습니다.',
+                ].join('\n')
+                : [
+                    'What happens next:',
+                    '  1. Downloads and installs the new version in the background',
+                    '  2. Reloads the window to switch to the new version (a few seconds)',
+                    '',
+                    'Open tabs and running sessions are preserved — Tabby will not close.',
+                ].join('\n'),
+            buttons: ko
+                ? ['지금 업데이트', '나중에', '다시 묻지 않기']
+                : ['Update now', 'Later', "Don't ask again"],
             defaultId: 0,
             cancelId: 1,
         })
@@ -210,7 +228,11 @@ export class AgentDeckUpdateService {
      * 깔면 그 안에는 이 코드가 없어서, 리로드 뒤 복구를 맡을 쪽이 옛 코드가 된다.
      */
     async installAndReload (current: string, latest: string, spec?: string): Promise<UpdateOutcome> {
-        this.notifications.info(`AgentDeck ${latest} 를 설치하는 중…`, '끝나면 창을 한 번 새로 고친다')
+        const ko = this.lang === 'ko'
+        this.notifications.info(
+            ko ? `AgentDeck ${latest} 를 설치하는 중…` : `Installing AgentDeck ${latest}…`,
+            ko ? '끝나면 창을 한 번 새로 고친다' : 'Window will reload once finished.',
+        )
 
         let code: number | null = null
         try {
@@ -218,8 +240,10 @@ export class AgentDeckUpdateService {
         } catch (e: any) {
             diagCatch('update 설치 스크립트 기동', e)
             this.notifications.error(
-                '업데이트를 시작하지 못했다',
-                `${e?.message ?? e} — 설정 → 플러그인 에서 직접 업데이트할 수 있다.`,
+                ko ? '업데이트를 시작하지 못했다' : 'Failed to start update',
+                ko
+                    ? `${e?.message ?? e} — 설정 → 플러그인 에서 직접 업데이트할 수 있다.`
+                    : `${e?.message ?? e} — You can update manually in Settings → Plugins.`,
             )
             return 'failed'
         }
@@ -230,8 +254,10 @@ export class AgentDeckUpdateService {
         if (!installSucceeded(latest, onDisk)) {
             diag(`update install failed exit=${code} onDisk=${onDisk ?? '?'} want=${latest}`)
             this.notifications.error(
-                `AgentDeck ${latest} 설치에 실패했다`,
-                `지금도 ${onDisk ?? current} 다 — %LOCALAPPDATA%\\tabby-agentdeck\\update.log 에 npm 출력이 남는다.`,
+                ko ? `AgentDeck ${latest} 설치에 실패했다` : `Failed to install AgentDeck ${latest}`,
+                ko
+                    ? `지금도 ${onDisk ?? current} 다 — %LOCALAPPDATA%\\tabby-agentdeck\\update.log 에 npm 출력이 남는다.`
+                    : `Still at ${onDisk ?? current} — Check %LOCALAPPDATA%\\tabby-agentdeck\\update.log for npm output.`,
             )
             return 'failed'
         }
@@ -251,8 +277,10 @@ export class AgentDeckUpdateService {
             // 설치는 됐으니 잃은 것은 없다. 다음 기동에 적용된다고 알려 주고 끝낸다
             diag(`update reload skipped ${latest} — 다음 기동에 적용`)
             this.notifications.info(
-                `AgentDeck ${latest} 설치 완료`,
-                'Tabby 를 다시 켜면 적용된다 (창을 새로 고치지 못했다).',
+                ko ? `AgentDeck ${latest} 설치 완료` : `AgentDeck ${latest} installed`,
+                ko
+                    ? 'Tabby 를 다시 켜면 적용된다 (창을 새로 고치지 못했다).'
+                    : 'Restart Tabby to apply (automatic reload was skipped).',
             )
             return 'installed'
         }
@@ -269,9 +297,10 @@ export class AgentDeckUpdateService {
      * 없어졌고(파일이 잠기지 않는다), 다시 띄울 이유도 없다(닫지 않는다).
      */
     private runUpdater (version: string, spec?: string): Promise<number | null> {
+        const ko = this.lang === 'ko'
         const src = path.join(__dirname, '..', 'updater', 'agentdeck-update.ps1')
         if (!fs.existsSync(src)) {
-            throw new Error(`설치 스크립트를 찾지 못했다: ${src}`)
+            throw new Error(ko ? `설치 스크립트를 찾지 못했다: ${src}` : `Update script not found: ${src}`)
         }
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-up-'))
         const script = path.join(dir, 'agentdeck-update.ps1')
@@ -279,7 +308,7 @@ export class AgentDeckUpdateService {
 
         const pluginsDir = this.pluginsDir()
         if (!pluginsDir) {
-            throw new Error('Tabby 플러그인 폴더를 찾지 못했다')
+            throw new Error(ko ? 'Tabby 플러그인 폴더를 찾지 못했다' : 'Could not locate Tabby plugins directory')
         }
 
         const args = [
@@ -301,7 +330,7 @@ export class AgentDeckUpdateService {
         return new Promise((resolve, reject) => {
             const done = setTimeout(() => {
                 child.kill()
-                reject(new Error('설치가 시간 안에 끝나지 않았다'))
+                reject(new Error(ko ? '설치가 시간 안에 끝나지 않았다' : 'Installation timed out'))
             }, INSTALL_TIMEOUT_MS)
             child.on('error', e => {
                 clearTimeout(done)
@@ -381,6 +410,7 @@ export class AgentDeckUpdateService {
 
     /** GET 한 번. 리다이렉트는 따라가지 않는다 — 레지스트리 `/latest` 는 200 으로 답한다 */
     private fetch (url: string): Promise<string> {
+        const ko = this.lang === 'ko'
         return new Promise((resolve, reject) => {
             const mod: any = url.startsWith('http://') ? http : https
             const req = mod.get(url, { headers: { accept: 'application/json' } }, (res: any) => {
@@ -394,12 +424,12 @@ export class AgentDeckUpdateService {
                 res.on('data', (chunk: string) => {
                     body += chunk
                     if (body.length > MAX_BODY_BYTES) {
-                        req.destroy(new Error('응답이 너무 크다'))
+                        req.destroy(new Error(ko ? '응답이 너무 크다' : 'Response too large'))
                     }
                 })
                 res.on('end', () => resolve(body))
             })
-            req.setTimeout(FETCH_TIMEOUT_MS, () => req.destroy(new Error('시간 초과')))
+            req.setTimeout(FETCH_TIMEOUT_MS, () => req.destroy(new Error(ko ? '시간 초과' : 'Request timed out')))
             req.on('error', reject)
         })
     }

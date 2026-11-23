@@ -4655,6 +4655,7 @@ export class AgentDeckService {
         }
         const cfg = () => this.config.store.agentDeck
         this.view = new ViewPanel({
+            getLang: () => this.sidebarLang,
             windowEl: this.windowEl,
             getSide: () => this.viewSide,
             getWidth: () => cfg().viewerWidth || 420,
