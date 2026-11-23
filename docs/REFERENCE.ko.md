@@ -11,6 +11,12 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.3.3
+
+- Codex 훅이 오면 Codex 계정 사용량을 자동으로 갱신합니다. Claude 상태줄과 같은 조회·60초 재사용·재시도 대기를 공유하며, 옛 세션 기록의 한도가 최신 조회 결과를 덮어쓰지 않습니다.
+- UI 언어가 한국어가 아니면 미리보기 패널, 설정의 훅 관리, 업데이트 안내, 훅 설치 안내를 영어로 표시합니다. 한국어 화면은 그대로입니다.
+- AgentDeck 레이아웃을 끈 상태에서 탭을 우클릭하면 Tabby 탭 메뉴가 뜨지 않고 터미널에 붙여넣기가 되던 문제를 고쳤습니다.
+
 ## 1.3.2
 
 - 기본 알림 전달기를 Python으로 전환하고 알림 exe를 제거했습니다. Python 3.8 이상을 설치하고 PATH에 추가한 뒤 훅 업데이트를 적용하세요.

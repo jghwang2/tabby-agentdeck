@@ -5,6 +5,18 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.3.3 — 2026-11-23
+
+- Refresh Codex account usage automatically when a Codex hook arrives, sharing the refresh logic, 60-second reuse and retry handling with Claude status lines. A newer usage result is no longer replaced by an older session record after a model or effort change.
+- Show the preview panel, the hook management area in Settings, the update dialogs and the hook install prompts in English when the UI language is not Korean. Korean stays as it was. Thanks to @WouterVanGoey (#4).
+- Fix right-clicking a tab pasting into the terminal instead of opening Tabby's tab menu while the AgentDeck layout is turned off. Right-click handling now applies only inside tab bodies, for every tab type. Reported by @WouterVanGoey (#5).
+
+**한국어**
+
+- Codex 훅이 오면 Codex 계정 사용량을 자동으로 갱신합니다. Claude 상태줄과 같은 조회·60초 재사용·재시도 대기를 공유합니다. 모델이나 effort를 바꾼 뒤 옛 세션 기록의 한도가 최신 조회 결과를 덮어쓰던 문제도 고쳤습니다.
+- UI 언어가 한국어가 아니면 미리보기 패널, 설정의 훅 관리, 업데이트 안내, 훅 설치 안내를 영어로 표시합니다. 한국어 화면은 그대로입니다. (@WouterVanGoey, #4)
+- AgentDeck 레이아웃을 끈 상태에서 탭을 우클릭하면 Tabby 탭 메뉴가 뜨지 않고 터미널에 붙여넣기가 되던 문제를 고쳤습니다. 우클릭 처리는 탭 종류와 관계없이 탭 본문 안에서만 동작합니다. (@WouterVanGoey, #5)
+
 ## 1.3.2 — 2026-11-12
 
 - Use Python as the default Claude/Codex notification transport and remove the Windows notification executables from the package. Preserve UTF-8 responses, bounded acknowledgement waits, offline delivery and replay deduplication.
