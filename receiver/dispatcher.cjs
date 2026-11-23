@@ -33,6 +33,7 @@ class HookDispatcher {
     }
     async submit (event) {
         if (!this.valid(event)) return { id: event?.id, accepted: false }
+        this.usagePulse(event)
         if (this.services.authorize && !await this.services.authorize(event)) return { id: event.id, accepted: true, output: '' }
         // accept() durably saves before returning. State processing need not hold
         // the caller open; only the small context response shares its deadline.
@@ -47,6 +48,17 @@ class HookDispatcher {
         // ancestry has been observed. Replayed events still require identity.
         if (event.kind === 'notify' && !event.env?.AGENTDECK_TAB) await pending
         return { id: event.id, accepted: true, output }
+    }
+    // Codex has no status line: a live hook is its only "usage just moved" signal.
+    // Usage belongs to the account, so this runs before tab ownership is decided.
+    // A subagent thread or nested CLI spends the same quota as the tab's session.
+    usagePulse (event) {
+        if (event.kind !== 'notify' || event.options?.Agent !== 'codex' || !this.services.refreshUsage
+            || Date.now() - event.ts >= 60000) return
+        const meta = { agent: 'codex', sessionId: event.hook.session_id || event.options.SessionId || '',
+            configDir: typeof event.env?.CODEX_HOME === 'string' ? event.env.CODEX_HOME : '' }
+        // Do not hold the hook ACK on an external API.
+        Promise.resolve().then(() => this.services.refreshUsage(meta)).catch(() => {})
     }
     accept (event) {
         if (!this.valid(event)) return Promise.resolve({ id: event?.id, accepted: false })

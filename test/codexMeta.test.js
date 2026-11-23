@@ -62,6 +62,21 @@ check('빈 한도는 직전 값을 안 지운다', [codexLimits(s).fiveHourPct, 
 feedCodexLine(s, turn('gpt-6-astra-mini', null))
 check('effort 가 null 이면 직전 값 유지', s.effort, 'high')
 
+// ---- 한도의 나이 = Codex 가 기록한 시각 (읽은 시각이 아니다) ----
+// 실측 0.171.0: 줄마다 `timestamp` 가 있다. 옛 기록을 지금 읽어도 값의 나이는 그 시각이다
+const aged = createCodexState()
+const stamped = (timestamp, line) => JSON.stringify({ timestamp, ...JSON.parse(line) })
+check('한도 보고가 없으면 시각도 없다', aged.limitsAt, 0)
+feedCodexLine(aged, stamped('2026-11-20T10:02:46.000Z', tokens(null, W7D, 1)))
+check('한도의 시각 = 그 줄의 timestamp', aged.limitsAt, Date.parse('2026-11-20T10:02:46.000Z'))
+feedCodexLine(aged, stamped('2026-11-20T11:00:00.000Z', tokens(null, null, 2)))
+feedCodexLine(aged, stamped('2026-11-20T11:00:01.000Z', turn('gpt-6-astra', 'high')))
+check('빈 한도·다른 줄은 시각을 안 올린다', aged.limitsAt, Date.parse('2026-11-20T10:02:46.000Z'))
+feedCodexLine(aged, tokens(W5H, null, 3))
+check('timestamp 없는 줄은 직전 시각을 안 지운다', aged.limitsAt, Date.parse('2026-11-20T10:02:46.000Z'))
+feedCodexLine(aged, stamped('2026-11-20T17:06:00.000Z', tokens(W5H, null, 4)))
+check('새 한도가 오면 시각도 따라간다', aged.limitsAt, Date.parse('2026-11-20T17:06:00.000Z'))
+
 // ---- 모르면 null (지어내지 않는다) ----
 const bare = createCodexState()
 feedCodexChunk(bare, turn('gpt-6-astra', 'low') + '\n')

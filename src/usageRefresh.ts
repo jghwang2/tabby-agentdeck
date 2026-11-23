@@ -3,7 +3,7 @@ import { cacheQuotas, getAccountQuotas, registerAccountSource } from './accountS
 import { agentHome } from './storagePaths'
 import { MetaInput } from './meta'
 
-type LiveMeta = MetaInput & { ts?: number, configDir?: string }
+type LiveMeta = MetaInput & { ts?: number, limitsTs?: number, configDir?: string }
 interface RefreshState {
     busy: boolean
     message: string
@@ -42,7 +42,8 @@ export class UsageRefresh {
         if (!meta || !state?.values) { return meta }
         const limits = quotaLimits(state.values)
         // Later passive CLI values can update shared windows without losing API-only scoped limits.
-        if (Number(meta.ts) > state.ts) {
+        // "Later" is when the CLI recorded them: a Codex rollout read now may hold days-old limits.
+        if (Number(meta.limitsTs || meta.ts) > state.ts) {
             for (const [key, value] of Object.entries(meta.limits || {})) {
                 if (value !== null && value !== undefined && value !== '') { (limits as any)[key] = value }
             }

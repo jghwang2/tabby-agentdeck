@@ -45,8 +45,32 @@ https.get=(url,options,callback)=>{
     await dispatcher.run({kind:'statusline',ts:Date.now()-120000,env:{CLAUDE_CONFIG_DIR:claude.configDir},hook:{session_id:'old-hook'}})
     assert.equal(count,2,'old inbox replay does not query usage')
     assert.equal(refresh.merge(claude).contextPct,42)
+    // Codex has no status line: a live hook is the pulse, and the app fills in the account.
+    const pulses=[],denied=new HookDispatcher(path.join(root,'codex-runtime'),undefined,{
+        authorize: ()=>false,
+        refreshUsage: value=>{pulses.push(value);return refresh.refresh({...value,account:codex.account},'hook')},
+    })
+    const notify=(agent,session,ts=Date.now())=>({channel:'agentdeck-hook',id:'usage-'+pulses.length+'-'+session+'-'+ts,kind:'notify',ts,
+        env:{CODEX_HOME:codex.configDir,AGENTDECK_TAB:'tab'},options:{Agent:agent},hook:{session_id:session,hook_event_name:'PostToolUse'}})
+    const settle=()=>new Promise(resolve=>setTimeout(resolve,20))
+    assert.equal((await denied.submit(notify('codex','subagent-thread'))).accepted,true)
+    await settle()
+    assert.deepEqual(pulses,[{agent:'codex',sessionId:'subagent-thread',configDir:codex.configDir}],'Codex hook reports session and home only')
+    assert.equal(count,3,'Codex hook queries usage even when the tab belongs to another session')
+    assert.equal(refresh.merge(codex).limits.fiveHourPct,32,'hook result is the state the button and sidebar read')
+    await denied.submit(notify('codex','parent'));await settle()
+    assert.equal(pulses.length,2);assert.equal(count,3,'Codex hook burst shares the account cache')
+    await denied.submit(notify('codex','parent',Date.now()-120000));await settle()
+    await denied.submit(notify('claude','parent'));await settle()
+    assert.equal(pulses.length,2,'old Codex replay and Claude notify hooks do not pulse')
+    refresh.state(codex).retryAt=0
     await refresh.refresh(codex)
+    assert.equal(count,4,'manual refresh still queries inside the hook reuse window')
     assert.equal(refresh.merge(codex).limits.fiveHourPct,32)
+    // A rollout read after the API result may still hold limits recorded long before it.
+    const stale={...codex,ts:Date.now()+100,limitsTs:Date.now()-3600000,limits:{fiveHourPct:9}}
+    assert.equal(refresh.merge(stale).limits.fiveHourPct,32,'old recorded limits never replace a newer API result')
+    assert.equal(refresh.merge({...stale,limitsTs:Date.now()+100}).limits.fiveHourPct,9,'limits recorded after the API result win')
     assert.equal(refresh.merge(claude).limits.fiveHourPct,28)
     assert.equal(refresh.merge({...claude,account:'other@example.test'}).limits.fiveHourPct,1,'account identity isolation')
     const later=refresh.merge({...claude,ts:Date.now()+100,limits:{fiveHourPct:40,scopedName:'',scopedPct:null}})
@@ -55,6 +79,8 @@ https.get=(url,options,callback)=>{
     session.cacheQuotas(saved,[{label:'5시간',remaining:72},{label:'Fable',remaining:0}],Date.now()-1000)
     session.recordAccountUsage(saved,{...claude,ts:Date.now(),limits:{fiveHourPct:40}})
     assert.equal(session.cachedAccountQuotas(saved).values.find(x=>x.label==='Fable').remaining,0,'picker retains API-only limits after passive updates')
+    session.recordAccountUsage(saved,{...claude,ts:Date.now()+100,limitsTs:Date.now()-3600000,limits:{fiveHourPct:99}})
+    assert.equal(session.cachedAccountQuotas(saved).values.find(x=>x.label==='5시간').remaining,60,'picker ignores limits recorded before its cache')
     refresh.state(codex).retryAt=0;status=429
     await refresh.refresh(codex)
     const before=count;await refresh.refresh(codex)

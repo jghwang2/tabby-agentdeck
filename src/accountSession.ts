@@ -223,10 +223,11 @@ export function cacheQuotas (account: SavedAccount, values: AccountQuota[], ts =
     return { values, ts, stale: Date.now() - ts > 120000 }
 }
 
-export function recordAccountUsage (account: SavedAccount, meta: MetaInput & { ts?: number, configDir?: string }): void {
+export function recordAccountUsage (account: SavedAccount, meta: MetaInput & { ts?: number, limitsTs?: number, configDir?: string }): void {
     if (meta.agent !== account.provider || meta.account?.toLowerCase() !== account.id.toLowerCase()) { return }
     registerAccountSource(account, meta.configDir)
-    const ts = Number(meta.ts)
+    // Age of the limits, not of the read: an old Codex rollout must not replace a newer API result.
+    const ts = Number(meta.limitsTs || meta.ts)
     if (!Number.isFinite(ts) || ts <= 0 || ts > Date.now() + 60000 || (cachedAccountQuotas(account)?.ts || 0) >= ts) { return }
     const lim = meta.limits, values: AccountQuota[] = []
     for (const [label, pct, reset] of [

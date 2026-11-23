@@ -225,6 +225,11 @@ export interface AgentMeta {
         scopedPct?: number | null
         scopedResetsAt?: number
     }
+    /**
+     * `limits` 를 원천이 기록한 시각 (epoch ms). `ts` 와 다를 때만 싣는다 — Codex 는 옛 기록을
+     * 지금 읽으므로 `ts`(읽은 시각)로는 값의 나이를 알 수 없다 (`CodexState.limitsAt`).
+     */
+    limitsTs?: number
 }
 
 /** Codex 세션 기록 하나의 증분 스캔 상태 (`SubagentScan` 과 같은 구조·같은 이유) */
@@ -673,11 +678,28 @@ export class WorkNotifyService {
         return true
     }
 
+    /**
+     * 훅이 알린 "방금 사용량이 움직였다" 를 계정 사용량 조회로 넘긴다 (조회·60초 재사용은 `UsageRefresh`).
+     *
+     * Claude 는 statusLine 스냅샷에 계정이 실려 오지만 **Codex 훅에는 계정이 없다.** 화면(`codexMetaOf`)이
+     * 쓰는 것과 같은 홈·계정으로 채운다 — 그래야 ↻ 버튼·화면과 같은 조회 상태(`UsageRefresh.key`)를 쓴다.
+     * 세션이 탭에 묶였는지는 보지 않는다: 서브에이전트 스레드도 같은 계정의 한도를 쓴다.
+     */
+    private usageHook (meta: AgentMeta): Promise<void> | undefined {
+        if (meta.agent === 'codex' && !meta.account) {
+            const home = meta.configDir || this.reportedHomes.get(meta.sessionId) || this.codexHome
+            const account = this.codexAccount(home)
+            if (!account) { return undefined } // 로그인 기록이 없으면 조회할 계정도 없다
+            meta = { ...meta, account, configDir: home }
+        }
+        return this.onUsageHook?.(meta)
+    }
+
     private createHookDispatcher (): any {
         return new HookDispatcher(this.root, path.join(__dirname, '..', 'receiver'), {
             authorize: (event: any) => this.authorizeHook(event),
             report: (payload: any) => this.apply(payload),
-            refreshUsage: (meta: AgentMeta) => this.onUsageHook?.(meta),
+            refreshUsage: (meta: AgentMeta) => this.usageHook(meta),
             request: (payload: any) => new Promise((resolve, reject) => {
                 const socket = { write: (line: string) => {
                     try { resolve(JSON.parse(line)) } catch (error) { reject(error) }
@@ -1743,6 +1765,7 @@ export class WorkNotifyService {
             cwd: state.cwd,
             contextPct: codexContextPct(state),
             limits: codexLimits(state),
+            ...(state.limitsAt ? { limitsTs: state.limitsAt } : {}),
         }
     }
 

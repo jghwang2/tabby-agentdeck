@@ -43,6 +43,14 @@ export interface CodexState {
     primary: CodexWindow | null
     secondary: CodexWindow | null
     /**
+     * 한도 값을 **Codex 가 기록한 시각** (epoch ms, 줄의 `timestamp`). 모르면 0.
+     *
+     * 읽은 시각이 아니다 — 며칠 전 세션을 이어받으면 옛 기록을 지금 읽는다. 읽은 시각으로 치면
+     * 그 옛 값이 방금 받은 계정 사용량 조회 결과보다 "새것" 이 되어 화면을 되돌린다
+     * (`UsageRefresh.merge`). 서브에이전트만 도는 동안 메인 기록이 멈춰 있는 경우도 같다.
+     */
+    limitsAt: number
+    /**
      * 개행으로 끝나지 않은 마지막 조각 — 다음 청크 앞에 이어 붙인다.
      *
      * **증분 읽기에는 이게 반드시 있어야 한다.** 서비스는 2초마다 `size - lastSize` 만큼 읽는데
@@ -69,7 +77,7 @@ export function createCodexState (): CodexState {
     return {
         model: '', effort: '', cwd: '', cliVersion: '',
         contextWindow: 0, lastTokens: 0,
-        primary: null, secondary: null, pending: '', lines: 0, skipped: 0, dropped: 0,
+        primary: null, secondary: null, limitsAt: 0, pending: '', lines: 0, skipped: 0, dropped: 0,
     }
 }
 
@@ -131,8 +139,13 @@ export function feedCodexLine (state: CodexState, line: string): void {
         const limits = payload.rate_limits
         if (limits) {
             // **비어 온 한도는 직전 값을 지우지 않는다** — Codex 는 `primary: null` 인 token_count 도 보낸다
-            state.primary = windowOf(limits.primary) ?? state.primary
-            state.secondary = windowOf(limits.secondary) ?? state.secondary
+            const primary = windowOf(limits.primary), secondary = windowOf(limits.secondary)
+            state.primary = primary ?? state.primary
+            state.secondary = secondary ?? state.secondary
+            if (primary || secondary) {
+                // 시각이 없는 줄(옛 버전)은 직전 시각을 지우지 않는다
+                state.limitsAt = Date.parse(String(rec.timestamp ?? '')) || state.limitsAt
+            }
         }
         // 0.154.0 부터 창 크기가 여기로 왔다 (`session_meta.context_window` 는 객체가 됐다).
         // 옛 버전에는 이 키가 없으므로 값이 있을 때만 덮는다 — 없다고 지우면 안 된다
