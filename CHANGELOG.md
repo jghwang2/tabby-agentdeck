@@ -5,6 +5,16 @@ The tag points at the commit that first introduced that version, and `test/tags.
 
 Korean release notes for the current version are at the top of [`docs/REFERENCE.ko.md`](docs/REFERENCE.ko.md).
 
+## 1.3.4 — 2026-11-27
+
+- The Past Sessions drawer renders the rows in and around the visible area as you scroll. You can still search and scroll through the full history.
+- The drawer checks for background updates every 10 seconds. Session changes, searches and hide actions update the list immediately.
+
+**한국어**
+
+- 지난 세션을 펼치면 화면에 보이는 행과 그 주변만 그립니다. 전체 기록을 검색하거나 스크롤로 끝까지 볼 수 있습니다.
+- 지난 세션의 정기 갱신 주기를 10초로 늘렸습니다. 세션 변경, 검색, 숨기기는 즉시 반영합니다.
+
 ## 1.3.3 — 2026-11-23
 
 - Refresh Codex account usage automatically when a Codex hook arrives, sharing the refresh logic, 60-second reuse and retry handling with Claude status lines. A newer usage result is no longer replaced by an older session record after a model or effort change.

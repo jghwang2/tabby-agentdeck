@@ -102,7 +102,7 @@
 
             // 기본은 접힘 — 사이드바의 주인공은 살아 있는 탭이다
             add('RS4', '바닥 서랍 1개 · 기본은 접힘 (머리 1줄, 목록 0줄)',
-                !!drawer() && !drawer().hidden && heads().length === 1 && rows().length === 0,
+                !!drawer() && !drawer().hidden && heads().length === 1 && drawer().querySelector('.ad-resume-rows').hidden,
                 { drawer: !!drawer(), heads: heads().length, rows: rows().length })
 
             // 개수 칩이 제품 계산과 같은가 (검색이 안 걸린 화면이라 `보이는수/전체` 가 아니다)
@@ -114,13 +114,13 @@
             // 눌러서 편다
             heads()[0].click()
             const waited = await waitFor(() => rows().length > 0, 3000, 100)
-            // **잘라내지 않는다** — 기록이 몇 개든 전부 들어가고 화면은 스크롤로 감당한다
-            add('RS6', '누르면 펴지고 기록을 전부 건다', rows().length === target.rows.length,
+            // The complete model remains available; only viewport rows are mounted.
+            add('RS6', '누르면 펴지고 보이는 기록을 그린다', rows().length > 0 && rows().length <= Math.min(12, target.rows.length),
                 { rows: rows().length, expected: target.rows.length, waitedMs: waited })
 
             // 화면의 줄 순서·글자가 제품 계산과 같은가 (라벨이 빈 세션은 `세션 xxxxxxxx` 로 그린다)
             const domTitles = rows().map(r => (r.querySelector('.ad-title') || {}).textContent || '')
-            const wantTitles = target.rows.map(r => r.label || `세션 ${r.sessionId.slice(0, 8)}`)
+            const wantTitles = target.rows.slice(0, rows().length).map(r => r.label || `세션 ${r.sessionId.slice(0, 8)}`)
             add('RS7', '줄 내용·순서가 제품 계산과 같다',
                 JSON.stringify(domTitles) === JSON.stringify(wantTitles),
                 { dom: domTitles.slice(0, 3), want: wantTitles.slice(0, 3) })
@@ -134,9 +134,14 @@
                     '지금 열린 Claude 세션이 없다 (훅이 안 걸렸거나 claude 가 안 돌고 있다)')
             } else {
                 const i = target.rows.indexOf(liveRow)
+                const box = drawer().querySelector('.ad-resume-rows')
+                box.scrollTop = i * rows()[0].getBoundingClientRect().height
+                box.dispatchEvent(new Event('scroll'))
                 add('RS8', '열린 세션은 `.open` 으로 구분',
-                    rows()[i] && rows()[i].classList.contains('open'),
+                    rows().some(row => row.dataset.sessionId === liveRow.sessionId && row.classList.contains('open')),
                     { index: i, sid: liveRow.sessionId.slice(0, 8) })
+                box.scrollTop = 0
+                box.dispatchEvent(new Event('scroll'))
             }
 
             // ---------- RS9: 숨기기 ----------
@@ -152,7 +157,7 @@
             const after = ad.sessions()
             // Different sessions can have the same title. Compare the complete remaining list,
             // while the model assertion below checks the hidden session's unique identity.
-            const afterTitles = after.rows.map(r => r.label || `세션 ${r.sessionId.slice(0, 8)}`)
+            const afterTitles = after.rows.slice(0, rows().length).map(r => r.label || `세션 ${r.sessionId.slice(0, 8)}`)
             const actualTitles = rows().map(r => ((r.querySelector('.ad-title') || {}).textContent || ''))
             const domGone = JSON.stringify(actualTitles) === JSON.stringify(afterTitles)
             add('RS9', '숨긴 세션은 목록에서 빠진다',

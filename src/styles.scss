@@ -451,7 +451,16 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         max-height: 200px;
         overflow-y: auto;
         overscroll-behavior: contain;
-        padding: 4px 4px 0;
+        padding: 0 4px;
+        overflow-anchor: none;
+
+        > .ad-resume {
+            box-sizing: border-box;
+            margin: 0;
+            overflow: hidden;
+            .ad-title { line-height: 18px; }
+            .ad-meta { line-height: 12px; }
+        }
     }
 
     .ad-resume-empty {

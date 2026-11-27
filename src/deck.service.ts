@@ -43,6 +43,7 @@ import { projectRootCacheSnapshot, projectRootOf } from './project-root'
 import { JUMP_SLOTS, NavRow, navRowsOf, pickCloseTarget, pickJumpTarget, stepNavIndex } from './nav'
 import { SessionLedgerService } from './sessionLedger.service'
 import { SessionSearchPanel } from './sessionSearchPanel'
+import { ResumeViewport } from './resumeViewport'
 import { ResumeRow, formatWhen, resumeCommand, resumeRowsFor } from './sessionLedger'
 import { ViewPanel, ViewSide, MIN_VIEW_W } from './viewPanel'
 import { followModeOf, migrateFollow } from './viewer'
@@ -593,6 +594,11 @@ export class AgentDeckService {
     private usageRefresh = new UsageRefresh()
     /** 지난 세션 서랍 — 목록 **밖**, "지금 이 탭" 줄 바로 위. 펼치면 위로 자란다 */
     private resumeEl: HTMLElement | null = null
+    private resumeViewport: ResumeViewport | null = null
+    private resumeRenderedAt = -Infinity
+    private resumeRenderKey = ''
+    private resumeRenderedElement: HTMLElement | null = null
+    private resumeActiveTab: BaseTabComponent | null = null
     private historySearchPanel: SessionSearchPanel | null = null
     private windowEl: HTMLElement | null = null
     private mainEl: HTMLElement | null = null
@@ -871,7 +877,10 @@ export class AgentDeckService {
             })
             installErrorCapture()
             // 원장 스캔이 끝나면 다시 그린다 — 스캔은 비동기라 첫 렌더에는 목록이 비어 있다
-            this.ledger.onChange = () => this.scheduleRender()
+            this.ledger.onChange = () => {
+                this.resumeRenderedAt = -Infinity
+                this.scheduleRender()
+            }
             // setup 도중 예외가 나면 그 뒤 배선(탭 감시, 흔들기 예약)이 통째로 죽는데
             // 콘솔을 안 보면 알 길이 없다. 진단 파일에 남겨 밖에서 읽을 수 있게 한다
             try {
@@ -5485,12 +5494,25 @@ export class AgentDeckService {
      * 서랍을 통째로 감췄는데(걸러진 화면에 안 걸러진 줄이 섞이면 "검색 결과" 가 깨진다),
      * 이제는 늘 보이는 자리라 감추면 "검색하면 지난 세션이 사라진다" 가 된다.
      */
-    private renderResumeDrawer (): void {
+    private renderResumeDrawer (force = false): void {
         const el = this.resumeEl
         if (!el) {
             return
         }
         const cfg = this.config.store.agentDeck
+        const expanded = this.isResumeExpanded(null)
+        const live = this.liveSessionIds()
+        const key = JSON.stringify([cfg.resumeList, expanded, cfg.resumeHidden, this.sidebarLang,
+            this.historySearchPanel?.active ?? false, [...live]])
+        const now = performance.now()
+        if (!force && key === this.resumeRenderKey && this.resumeActiveTab === this.app.activeTab
+            && this.resumeRenderedElement === el && now - this.resumeRenderedAt < 10000) {
+            return
+        }
+        this.resumeRenderKey = key
+        this.resumeRenderedElement = el
+        this.resumeActiveTab = this.app.activeTab
+        this.resumeRenderedAt = now
         if (cfg.resumeList === false) {
             el.hidden = true
             return
@@ -5502,7 +5524,7 @@ export class AgentDeckService {
             groupKeys: null,
             keyOf: cwd => groupKeyOf(cwd, projectRootOf),
             fold: foldGroupKey,
-            live: this.liveSessionIds(),
+            live,
             days: 0,
             limit: 0,
             hidden: new Set<string>(Array.isArray(cfg.resumeHidden) ? cfg.resumeHidden : []),
@@ -5511,7 +5533,6 @@ export class AgentDeckService {
         const rows = all
         // Search remains reachable even when the recent-list filters hide every row.
         el.hidden = false
-        const expanded = this.isResumeExpanded(null)
         el.classList.toggle('expanded', expanded)
 
         const headEl = el.querySelector('.ad-resume-head') as HTMLElement
@@ -5523,7 +5544,7 @@ export class AgentDeckService {
                 sources: () => this.ledger.historySources(),
                 korean: () => this.sidebarLang === 'ko',
                 searchLabel: () => this.ui('세션 검색 (제목 · 작업이름 · 폴더)'),
-                changed: () => this.renderResumeDrawer(),
+                changed: () => this.renderResumeDrawer(true),
                 resume: row => {
                     row.openTabId = this.liveSessionIds().get(row.sessionId) || null
                     this.zone.run(() => this.activateResume(row, false))
@@ -5534,20 +5555,16 @@ export class AgentDeckService {
             el.insertBefore(this.historySearchPanel.element, rowsEl)
         }
         this.historySearchPanel.update(expanded)
-        rowsEl.innerHTML = ''
         rowsEl.hidden = !expanded || this.historySearchPanel.active
         if (rowsEl.hidden) {
             return
         }
-        for (const row of rows) {
-            rowsEl.appendChild(this.renderResumeRow(row))
+        if (this.resumeViewport?.element !== rowsEl) {
+            this.resumeViewport?.dispose()
+            this.resumeViewport = new ResumeViewport(rowsEl, row => this.renderResumeRow(row))
         }
-        if (!rows.length) {
-            const empty = document.createElement('div')
-            empty.className = 'ad-resume-empty'
-            empty.textContent = this.ui('검색어와 맞는 지난 세션이 없다')
-            rowsEl.appendChild(empty)
-        }
+        this.resumeViewport.update(rows, this.sidebarLang + new Date().toDateString(),
+            this.ui('검색어와 맞는 지난 세션이 없다'))
     }
 
     /** 지금 탭이 들고 있는 세션 — `세션id -> 탭 식별용 문자열`. 되돌아올 탭은 `resumeTabs` 가 들고 있다 */

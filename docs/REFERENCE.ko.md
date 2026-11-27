@@ -11,6 +11,11 @@
 
 **[홈](https://jghwang2.github.io/tabby-agentdeck/ko.html) · [사용 설명서](https://jghwang2.github.io/tabby-agentdeck/guide/ko.html) · [English README](REFERENCE.md) · [문제 신고](https://github.com/jghwang2/tabby-agentdeck/issues/new/choose)**
 
+## 1.3.4
+
+- 지난 세션을 펼치면 화면에 보이는 행과 그 주변만 그립니다. 전체 기록을 검색하거나 스크롤로 끝까지 볼 수 있습니다.
+- 지난 세션의 정기 갱신 주기를 10초로 늘렸습니다. 세션 변경, 검색, 숨기기는 즉시 반영합니다.
+
 ## 1.3.3
 
 - Codex 훅이 오면 Codex 계정 사용량을 자동으로 갱신합니다. Claude 상태줄과 같은 조회·60초 재사용·재시도 대기를 공유하며, 옛 세션 기록의 한도가 최신 조회 결과를 덮어쓰지 않습니다.
