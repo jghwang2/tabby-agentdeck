@@ -3,7 +3,6 @@ const { spawn } = require('node:child_process')
 const repo = path.resolve(__dirname, '..')
 const python = process.env.AGENTDECK_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
 const { HookDispatcher } = require(path.join(repo, 'receiver/dispatcher.cjs'))
-if (process.platform !== 'win32') { console.log('SKIP Windows Python hook'); process.exit(0) }
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-python-'))
 // Python scripts are staged outside the installed plugin.
 let event, mode = 'ok'

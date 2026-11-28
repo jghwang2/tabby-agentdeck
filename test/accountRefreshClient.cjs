@@ -33,6 +33,7 @@ cp.spawn=function(command,args,...rest){
     return child
 }
 ;(async()=>{
+    if(process.platform!=='win32') await assert.rejects(accounts.protectAccountAuth('fixture'),/Windows/)
     await accounts.authenticateAccount(account)
     assert.equal(starts,0,'local identity check never starts Codex')
     await accounts.authenticateAccount(account,true)
@@ -44,8 +45,13 @@ cp.spawn=function(command,args,...rest){
     await assert.rejects(accounts.loginAccount(account,async()=>()=>{}))
     assert.equal(policy.accountRefreshState(home).blocked,true,'wrong-account login never unblocks')
     wrongIdentity=false
-    await accounts.loginAccount(account,async()=>()=>{})
-    assert.equal(policy.accountRefreshState(home).blocked,undefined,'successful identity-verified login unblocks')
+    if(process.platform==='win32'){
+        await accounts.loginAccount(account,async()=>()=>{})
+        assert.equal(policy.accountRefreshState(home).blocked,undefined,'successful identity-verified login unblocks')
+    }else{
+        await assert.rejects(accounts.loginAccount(account,async()=>()=>{}),/Windows/)
+        assert.equal(policy.accountRefreshState(home).blocked,true,'unsupported credential persistence cannot silently unblock')
+    }
     assert.equal(closed,starts,'all temporary clients are closed')
     console.log('PASS: local check without CLI, forced-refresh RPC, cleanup, failed login stays blocked, successful login resets')
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{cp.spawn=originalSpawn;fs.rmSync(root,{recursive:true,force:true})})

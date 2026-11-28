@@ -9,6 +9,10 @@ fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify({claude:[{i
 const accounts = require('../src/accounts.ts'), session = require('../src/accountSession.ts')
 const policy = require('../src/accountRefreshPolicy.ts')
 const account = accounts.readAccounts()[0], dest = accounts.accountHome(account), source = path.join(dir,'live')
+// Exercise portable session/refresh behavior on every OS. The real unsupported
+// DPAPI boundary is asserted below; this save stub does not hide production errors.
+const platformSaveAccountAuth = accounts.saveAccountAuth
+if (process.platform !== 'win32') accounts.saveAccountAuth = async () => {}
 const write = (p,v) => {fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,JSON.stringify(v))}
 const read = p => JSON.parse(fs.readFileSync(p,'utf8'))
 const cred = (token,expiresAt) => ({claudeAiOauth:{accessToken:token,refreshToken:token+'-refresh',expiresAt}})
@@ -47,14 +51,20 @@ https.get = (url,options,callback) => {
     accounts.prepareAccount(account,source)
     assert.equal(read(path.join(dest,'.claude.json')).hasCompletedOnboarding,true,'auth restoration preserves completed CLI setup')
     assert.equal(accounts.accountEmail('claude',dest),account.id)
-    const snapshot = await accounts.protectAccountAuth(read(process.env.AGENTDECK_ACCOUNTS_FILE).claude[0].auth.data,true)
-    assert.equal(JSON.parse(snapshot).credentials.claudeAiOauth.accessToken,'live','latest live token persisted encrypted')
+    if (process.platform === 'win32') {
+        const snapshot = await accounts.protectAccountAuth(read(process.env.AGENTDECK_ACCOUNTS_FILE).claude[0].auth.data,true)
+        assert.equal(JSON.parse(snapshot).credentials.claudeAiOauth.accessToken,'live','latest live token persisted encrypted')
+    } else {
+        await assert.rejects(accounts.protectAccountAuth('fixture',true), /Windows/)
+    }
     await Promise.all([session.ensureAccountSession(account,true),session.ensureAccountSession(account,true)])
     assert.equal(refreshes,1,'concurrent refresh is single-flight')
     assert.equal(read(path.join(source,'.credentials.json')).claudeAiOauth.accessToken,'rotated-1','canonical live source updated')
     assert.equal(read(path.join(dest,'.credentials.json')).claudeAiOauth.refreshToken,'rotated-refresh-1','private copy updated')
-    const second=await accounts.protectAccountAuth(read(process.env.AGENTDECK_ACCOUNTS_FILE).claude[0].auth.data,true)
-    assert.equal(JSON.parse(second).credentials.claudeAiOauth.accessToken,'rotated-1','rotated token persisted encrypted')
+    if (process.platform === 'win32') {
+        const second=await accounts.protectAccountAuth(read(process.env.AGENTDECK_ACCOUNTS_FILE).claude[0].auth.data,true)
+        assert.equal(JSON.parse(second).credentials.claudeAiOauth.accessToken,'rotated-1','rotated token persisted encrypted')
+    }
     // Usage throttle is not an authentication failure and does not refresh or discard credentials.
     const before=refreshes
     await assert.rejects(session.getAccountQuotas(account),e=>e.kind==='temporary'&&e.status===429&&e.retryAfterMs===3600000)

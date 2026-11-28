@@ -2,7 +2,7 @@ const assert = require('assert/strict')
 const fs = require('fs'), os = require('os'), path = require('path')
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-accounts-'))
 process.env.AGENTDECK_ACCOUNTS_FILE = path.join(dir, 'accounts.json')
-const { readAccounts, addAccount, removeAccount, parseQuotas, parseCodexUsage, accountHome, prepareAccount, accountEmail, saveAccountAuth, restoreAccountAuth, pendingMarketplaceSeed } = require('../.tmp/accounts')
+const { readAccounts, addAccount, removeAccount, parseQuotas, parseCodexUsage, accountHome, prepareAccount, accountEmail, protectAccountAuth, saveAccountAuth, restoreAccountAuth, pendingMarketplaceSeed } = require('../.tmp/accounts')
 const { loginOriginAllowed } = require('../.tmp/accountBrowser')
 const fixture = { claude: [{ name: '한글 계정', id: 'a@example.test', password: 'SECRET' }, { id: '', password: '' }], codex: [{ id: 'b@example.test', password: 'OTHER' }] }
 const addedFile = path.join(dir, 'new', 'accounts.json')
@@ -108,19 +108,34 @@ assert.ok(fs.readFileSync(path.join(source, '.claude.json'), 'utf8').includes('s
     const credentials = { tokens: { id_token: 'x.' + Buffer.from(JSON.stringify({ email: account.id })).toString('base64') + '.y',
         access_token: 'TEST_ACCESS_SECRET', refresh_token: 'TEST_REFRESH_SECRET' } }
     fs.writeFileSync(native, JSON.stringify(credentials))
-    await saveAccountAuth(account)
-    const saved = fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8')
-    assert.ok(!saved.includes('TEST_ACCESS_SECRET') && !saved.includes('TEST_REFRESH_SECRET'))
-    assert.equal(JSON.parse(saved).codex[0].auth.protection, 'windows-dpapi')
-    fs.unlinkSync(native)
-    await restoreAccountAuth(account)
-    assert.deepEqual(JSON.parse(fs.readFileSync(native, 'utf8')), credentials)
-    // A live CLI's refreshed token wins over the saved older snapshot.
+    if (process.platform === 'win32') {
+        // Real DPAPI integration: snapshots must never expose native tokens in accounts.json.
+        await saveAccountAuth(account)
+        const saved = fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8')
+        assert.ok(!saved.includes('TEST_ACCESS_SECRET') && !saved.includes('TEST_REFRESH_SECRET'))
+        assert.equal(JSON.parse(saved).codex[0].auth.protection, 'windows-dpapi')
+        fs.unlinkSync(native)
+        await restoreAccountAuth(account)
+        assert.deepEqual(JSON.parse(fs.readFileSync(native, 'utf8')), credentials)
+    } else {
+        // Encryption is a Windows capability, but unsupported saves must fail without changing either file.
+        const accountsBefore = fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8')
+        await assert.rejects(protectAccountAuth('fixture'), /Windows/)
+        await assert.rejects(saveAccountAuth(account), /Windows/)
+        assert.equal(fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8'), accountsBefore)
+        assert.deepEqual(JSON.parse(fs.readFileSync(native, 'utf8')), credentials)
+        console.log('accounts: SKIP Windows DPAPI save/decrypt roundtrip on ' + process.platform)
+    }
+    // This early-return path is portable: a live CLI's refreshed token wins over any older saved snapshot.
+    // An unreadable backup also proves that restore did not try to decrypt or overwrite the live credentials.
+    const withUnreadableBackup = JSON.parse(fs.readFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, 'utf8'))
+    withUnreadableBackup.codex[0].auth = { version: 1, protection: 'invalid-fixture', data: 'not-base64' }
+    fs.writeFileSync(process.env.AGENTDECK_ACCOUNTS_FILE, JSON.stringify(withUnreadableBackup))
     credentials.tokens.refresh_token = 'NEWER_TOKEN'
     fs.writeFileSync(native, JSON.stringify(credentials))
     await restoreAccountAuth(account)
     assert.equal(JSON.parse(fs.readFileSync(native, 'utf8')).tokens.refresh_token, 'NEWER_TOKEN')
-    console.log('accounts: PASS (redaction, UTF-8, stable identity, quotas, login origins, isolated settings, codex marketplace seed, encrypted save/restore, refreshed-token preservation)')
+    console.log('accounts: PASS (redaction, UTF-8, stable identity, quotas, login origins, isolated settings, codex marketplace seed, platform credential boundaries, refreshed-token preservation)')
 })().catch(error => { console.error(error); process.exitCode = 1 }).finally(() => {
     // Only the owned temporary directory is removed; no user account files enter this fixture.
     fs.rmSync(dir, { recursive: true, force: true })

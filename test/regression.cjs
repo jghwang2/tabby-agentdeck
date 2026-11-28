@@ -186,64 +186,69 @@ try {
     assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME,'.agentdeck-hook-registry.json'),'utf8')).groups.length,7)
     setCodexHooks(false)
     assert.deepEqual(JSON.parse(fs.readFileSync(config,'utf8')).hooks.Stop,[{hooks:[other]}])
-    const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_RUNTIME_ROOT: path.join(temp, 'tabby-agentdeck'), AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
-    // Windows CI has both setup-node and preinstalled Node on PATH. Get-Command
-    // can return multiple applications; the hook must select one executable.
-    const nodeCopy = path.join(temp, 'second-node')
-    fs.mkdirSync(nodeCopy)
-    fs.copyFileSync(process.execPath, path.join(nodeCopy, 'node.exe'))
-    // This fixture checks duplicate PATH entries, not cold startup of a copied executable.
-    // Warm it before the production hook's fixed 1.5s subprocess budget begins.
-    cp.execFileSync(path.join(nodeCopy, 'node.exe'), ['--version'], { windowsHide: true, timeout: 10000 })
-    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH'
-    env[pathKey] = [nodeCopy, path.dirname(process.execPath), env[pathKey] || ''].join(path.delimiter)
-    env.AGENTDECK_CONTEXT = 'full'
-    const report = event => {
-        const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
-            input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,
-        })
-        assert.equal(result.status, 0, result.error?.message || result.stderr)
-        if (event === 'UserPromptSubmit') {
-            const context = JSON.parse(result.stdout).hookSpecificOutput
-            assert.equal(context.hookEventName, event)
-            assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
-            assert.match(context.additionalContext, /test-session/)
-        } else { assert.equal(result.stdout.trim(), '') }
-        return JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/test-session.json'), 'utf8'))
+    if (process.platform === 'win32') {
+        const env = { ...process.env, LOCALAPPDATA: temp, AGENTDECK_RUNTIME_ROOT: path.join(temp, 'tabby-agentdeck'), AGENTDECK_MAILBOX_ROOT: path.join(temp, 'mailbox'), AGENTDECK_TAB: 'test-tab' }
+        // Windows CI has both setup-node and preinstalled Node on PATH. Get-Command
+        // can return multiple applications; the hook must select one executable.
+        const nodeCopy = path.join(temp, 'second-node')
+        fs.mkdirSync(nodeCopy)
+        fs.copyFileSync(process.execPath, path.join(nodeCopy, 'node.exe'))
+        // This fixture checks duplicate PATH entries, not cold startup of a copied executable.
+        // Warm it before the production hook's fixed 1.5s subprocess budget begins.
+        cp.execFileSync(path.join(nodeCopy, 'node.exe'), ['--version'], { windowsHide: true, timeout: 10000 })
+        const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH'
+        env[pathKey] = [nodeCopy, path.dirname(process.execPath), env[pathKey] || ''].join(path.delimiter)
+        env.AGENTDECK_CONTEXT = 'full'
+        const report = event => {
+            const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
+                input: JSON.stringify({ session_id: 'test-session', hook_event_name: event, tool_name: '셸' }), encoding: 'utf8', env, timeout: 10000,
+            })
+            assert.equal(result.status, 0, result.error?.message || result.stderr)
+            if (event === 'UserPromptSubmit') {
+                const context = JSON.parse(result.stdout).hookSpecificOutput
+                assert.equal(context.hookEventName, event)
+                assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
+                assert.match(context.additionalContext, /test-session/)
+            } else { assert.equal(result.stdout.trim(), '') }
+            return JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/test-session.json'), 'utf8'))
+        }
+        for (const [event, status] of [['UserPromptSubmit', 'running'], ['Stop', 'done'], ['PermissionRequest', 'waiting'], ['PostToolUse', 'running'], ['Interrupt', 'idle']]) {
+            const data = report(event)
+            assert.equal(data.status, status, event)
+            assert.equal(data.sessionId, 'test-session')
+            assert.equal(data.tabId, 'test-tab')
+            if (event === 'PermissionRequest') assert.equal(data.reason, 'Approval: 셸')
+        }
+        const claudeReport = (event, status, extra = {}) => {
+            const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
+                path.resolve('receiver/agentdeck-notify.ps1'), '-Status', status], {
+                input: JSON.stringify({ session_id: 'claude-test', hook_event_name: event, ...extra }),
+                encoding: 'utf8', env, timeout: 10000,
+            })
+            assert.equal(result.status, 0, result.stderr)
+            if (event === 'UserPromptSubmit') {
+                const context = JSON.parse(result.stdout).hookSpecificOutput
+                assert.equal(context.hookEventName, event)
+                assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
+                assert.match(context.additionalContext, /claude-test/)
+            } else { assert.equal(result.stdout.trim(), '') }
+            const data = JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/claude-test.json'), 'utf8'))
+            assert.equal(data.tabId, 'test-tab')
+            return data.status
+        }
+        assert.equal(claudeReport('UserPromptSubmit', 'running'), 'running')
+        assert.equal(claudeReport('Notification', 'waiting', { message: 'Claude needs your permission to use Bash' }), 'waiting')
+        assert.equal(claudeReport('PostToolUse', 'running'), 'running')
+        assert.equal(claudeReport('Stop', 'done'), 'done')
+        assert.equal(claudeReport('Notification', 'waiting', { message: 'waiting for your input' }), 'done')
+        assert.equal(claudeReport('StopFailure', 'error', { error: 'rate_limit' }), 'limited')
+        assert.equal(claudeReport('StopFailure', 'error', { error: 'server_error' }), 'error')
+        console.log('PASS: Claude lifecycle transport, approval, idle filtering, rate limit, error; prompt context without MCP')
+        console.log('PASS: PowerShell lifecycle transport')
+    } else {
+        console.log('SKIP Windows PowerShell lifecycle transport')
     }
-    for (const [event, status] of [['UserPromptSubmit', 'running'], ['Stop', 'done'], ['PermissionRequest', 'waiting'], ['PostToolUse', 'running'], ['Interrupt', 'idle']]) {
-        const data = report(event)
-        assert.equal(data.status, status, event)
-        assert.equal(data.sessionId, 'test-session')
-        assert.equal(data.tabId, 'test-tab')
-        if (event === 'PermissionRequest') assert.equal(data.reason, 'Approval: 셸')
-    }
-    const claudeReport = (event, status, extra = {}) => {
-        const result = cp.spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
-            path.resolve('receiver/agentdeck-notify.ps1'), '-Status', status], {
-            input: JSON.stringify({ session_id: 'claude-test', hook_event_name: event, ...extra }),
-            encoding: 'utf8', env, timeout: 10000,
-        })
-        assert.equal(result.status, 0, result.stderr)
-        if (event === 'UserPromptSubmit') {
-            const context = JSON.parse(result.stdout).hookSpecificOutput
-            assert.equal(context.hookEventName, event)
-            assert.match(context.additionalContext, /AgentDeck live UI snapshot/)
-            assert.match(context.additionalContext, /claude-test/)
-        } else { assert.equal(result.stdout.trim(), '') }
-        const data = JSON.parse(fs.readFileSync(path.join(temp, 'tabby-agentdeck/status/claude-test.json'), 'utf8'))
-        assert.equal(data.tabId, 'test-tab')
-        return data.status
-    }
-    assert.equal(claudeReport('UserPromptSubmit', 'running'), 'running')
-    assert.equal(claudeReport('Notification', 'waiting', { message: 'Claude needs your permission to use Bash' }), 'waiting')
-    assert.equal(claudeReport('PostToolUse', 'running'), 'running')
-    assert.equal(claudeReport('Stop', 'done'), 'done')
-    assert.equal(claudeReport('Notification', 'waiting', { message: 'waiting for your input' }), 'done')
-    assert.equal(claudeReport('StopFailure', 'error', { error: 'rate_limit' }), 'limited')
-    assert.equal(claudeReport('StopFailure', 'error', { error: 'server_error' }), 'error')
-    console.log('PASS: Claude lifecycle transport, approval, idle filtering, rate limit, error; prompt context without MCP')
-    console.log('PASS: routing/IME order, Codex repair guard, hook merge preservation/idempotence, malformed config, PowerShell lifecycle transport')
+    console.log('PASS: routing/IME order, Codex repair guard, hook merge preservation/idempotence, malformed config')
 } finally {
     if (oldHome === undefined) delete process.env.CODEX_HOME
     else process.env.CODEX_HOME = oldHome
@@ -276,10 +281,10 @@ try {
     // npm 전역 래퍼로 띄운 CLI 는 자식이 `node.exe` 하나뿐이라 **이름으로는 영영 안 갈린다**.
     // 그 경우 명령줄만이 지금의 사실인데, 여기서 훅 값을 버리지 않으면 훅을 제일 먼저 보는
     // 동기 경로(`resolveProfileForPane`)가 계속 옛 정체를 낸다 — 커서 보정·키보드가 쓰는 자리다.
-    for (const [cmdline, expected, forgets] of [
-        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/@openai/codex/bin/codex.js', 'codex', true],
-        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/@anthropic-ai/claude-code/cli.js', 'claude', false],
-        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/left-pad/index.js', 'unknown', false],
+    for (const [cmdline, expected, via, forgets] of [
+        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/@openai/codex/bin/codex.js', 'codex', 'cmdline', true],
+        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/@anthropic-ai/claude-code/cli.js', 'claude', 'cmdline', false],
+        ['"C:/…/node.exe" C:/Users/x/npm/node_modules/left-pad/index.js', 'claude', 'hook', false],
     ]) {
         const root = {}, forgot = [], unpinned = []
         const pane = {
@@ -293,13 +298,14 @@ try {
             notify: { agentOf: () => 'claude', forgetAgent: t => forgot.push(t) },
             status: { get: () => ({ pinned: true }), unpin: t => unpinned.push(t) },
             commandLinesOf: async () => cmdline,
+            agentFromProcessTree: async () => 'unknown',
             diag: () => {},
         }
         service.forgetHookStatus = AgentDeckService.prototype.forgetHookStatus.bind(service)
         const got = await AgentDeckService.prototype.detectAgentApp.call(service, pane)
-        assert.equal(got.id, expected === 'unknown' ? 'unknown' : expected,
+        assert.equal(got.id, expected,
             `command line decides when the process name is just node.exe (${expected})`)
-        assert.equal(got.via, expected === 'unknown' ? 'none' : 'cmdline')
+        assert.equal(got.via, via)
         assert.equal(forgot.length, forgets ? 1 : 0,
             `a stale hook identity is dropped only when the command line names a different agent (${expected})`)
         assert.equal(unpinned.length, forgets ? 1 : 0,

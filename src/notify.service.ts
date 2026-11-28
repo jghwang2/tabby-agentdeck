@@ -1318,7 +1318,7 @@ export class WorkNotifyService {
 
         // 누가 보냈나 — 온 보고마다 갱신한다. 같은 탭에서 CLI 를 바꿔 띄우면 그쪽 첫 보고가 덮는다
         const agent = String(data.agent ?? '').trim().toLowerCase()
-        if (agent === 'claude' || agent === 'codex' || agent === 'gemini') {
+        if (agent === 'claude' || agent === 'codex' || agent === 'gemini' || agent === 'agy') {
             this.hookAgent.set(tab, agent)
             this.rejectedMetaSession.delete(tab)
         }
@@ -1555,7 +1555,7 @@ export class WorkNotifyService {
         // Model metadata identifies its reporting CLI explicitly. Model names alone
         // do not identify a terminal application (custom providers can share them).
         const agent = this.metaOf(tab)?.agent?.trim().toLowerCase()
-        return agent === 'codex' || agent === 'claude' || agent === 'gemini' ? agent : null
+        return agent === 'codex' || agent === 'claude' || agent === 'gemini' || agent === 'agy' ? agent : null
     }
 
     /**

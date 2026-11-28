@@ -42,9 +42,13 @@ const {Terminal} = require('@xterm/headless')
     assert.equal(await slow.resolve(actual, null), null, 'slow check returns without blocking other links')
     finishSlow({isFile: () => true})
     assert.equal(await slow.resolve(actual, null), actual)
-    fs.rmSync(dir, {recursive:true})
-    const terminal = new Terminal({cols: 22, rows: 5, allowProposedApi: true})
-    await new Promise(resolve => terminal.write('한글 "D:/문서 test/wrapped-file.txt"', resolve))
+    const linked = process.platform === 'win32' ? 'D:/문서 test/wrapped-file.txt' : path.join(dir, '문서 test', 'wrapped-file.txt')
+    if (process.platform !== 'win32') {
+        fs.mkdirSync(path.dirname(linked), {recursive:true})
+        fs.writeFileSync(linked, 'exists')
+    }
+    const terminal = new Terminal({cols: 22, rows: 20, allowProposedApi: true})
+    await new Promise(resolve => terminal.write(`한글 "${linked}"`, resolve))
     let provider, registrations = 0, enabled = true, modifier = 'ctrlKey', external = 0
     const opened = []
     let nativeFile = 'file:///D:/exists.txt'
@@ -64,10 +68,11 @@ const {Terminal} = require('@xterm/headless')
     let links = await new Promise(resolve => provider.provideLinks(2, resolve))
     assert.equal(links.length, 1)
     assert.deepEqual(links[0].range.start, {x:7, y:1})
-    assert.equal(links[0].range.end.y, 2)
+    assert(links[0].range.end.y > 1)
+    if (process.platform === 'win32') { assert.equal(links[0].range.end.y, 2) }
     links[0].activate({button:0}); assert.equal(opened.length, 0)
     links[0].activate({button:0, ctrlKey:true}); await new Promise(setImmediate)
-    assert.equal(opened[0], path.resolve('D:/문서 test/wrapped-file.txt'))
+    assert.equal(opened[0], path.resolve(linked))
     modifier = null; links[0].activate({button:0}); await new Promise(setImmediate); assert.equal(opened.length, 2)
     links[0].activate({button:1}); assert.equal(opened.length, 2)
     enabled = false; links[0].activate({button:0}); assert.equal(opened.length, 2)
@@ -95,5 +100,6 @@ const {Terminal} = require('@xterm/headless')
     const stale = await pending
     assert.deepEqual(stale, [], 'changed terminal rows discard stale asynchronous answers')
     terminal.dispose()
+    fs.rmSync(dir, {recursive:true})
     console.log('PASS file links: async file checks, missing/directories, cache, deletion, expiry, slow checks, stale rows, native fallback, coordinates, wrapping, URI, modifiers, web delegation and reattach')
 })().catch(error => { console.error(error); process.exitCode = 1 })

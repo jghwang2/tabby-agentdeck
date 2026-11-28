@@ -1,7 +1,7 @@
 import { BaseTabComponent } from 'tabby-core'
 import { WorkStatusService } from './status.service'
 import { WorkStatus } from './api'
-import { AgentProfile, unionProfile, CODEX_APPROVAL_PATTERNS, CODEX_WAITING_TITLE, CODEX_BUSY_TITLE } from './agents'
+import { AgentProfile, AgentId, unionProfile, CODEX_APPROVAL_PATTERNS, CODEX_WAITING_TITLE, CODEX_BUSY_TITLE, AGY_IDLE_PATTERNS } from './agents'
 import { reasonFromScreen } from './reason'
 
 /** 훅이 상태를 직접 통보하는 커스텀 OSC — ESC ] 1337 ; AgentDeck=<status>;<label> BEL */
@@ -19,13 +19,13 @@ const tails = new WeakMap<object, string>()
 const approvalTails = new WeakMap<object, string>()
 // The decorator also observes the same stream without an agent profile. Keep
 // the approval identity across both subscribers so its footer cannot resume it.
-const codexApprovalTabs = new WeakSet<object>()
+const nativeApprovalTabs = new WeakMap<object, AgentId>()
 
-/** A native Codex approval can arrive without PermissionRequest (MCP trust UI).
+/** A native agent approval can arrive without a lifecycle permission event.
  * Let it interrupt a hook-pinned running state, while keeping other pinned states intact.
  */
-function codexWaiting (status: WorkStatusService, root: BaseTabComponent, reason = 'MCP 승인'): void {
-    codexApprovalTabs.add(root)
+function nativeWaiting (status: WorkStatusService, root: BaseTabComponent, reason = 'MCP 승인', agent: AgentId = 'codex'): void {
+    nativeApprovalTabs.set(root, agent)
     const s = status.get(root)
     if (s.pinned && s.status === 'running') {
         status.setManual(root, 'waiting', undefined, reason)
@@ -161,9 +161,23 @@ export function applyOutput (
     const approvalText = approvalRaw.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
     const codexApproval = (profile.id === 'codex' || profile.id === 'unknown')
         && CODEX_APPROVAL_PATTERNS.some(re => re.test(approvalText))
-    approvalTails.set(owner, codexApproval ? '' : approvalRaw.slice(approvalRaw.lastIndexOf('\n') + 1).slice(-1024))
+    const agyApproval = profile.id === 'agy' && profile.waitingPatterns.some(re => re.test(approvalText))
+    approvalTails.set(owner, codexApproval || agyApproval ? '' : approvalRaw.slice(approvalRaw.lastIndexOf('\n') + 1).slice(-1024))
     if (codexApproval) {
-        codexWaiting(status, root)
+        nativeWaiting(status, root)
+        return
+    }
+    if (agyApproval) {
+        nativeWaiting(status, root, reasonFrom(approvalText, profile.waitingPatterns) || 'Antigravity approval', 'agy')
+        return
+    }
+
+    // AGY has no permission-dismiss hook. Its input footer is explicit evidence
+    // that the approval card is gone; the union pass handles the second subscriber.
+    if ((profile.id === 'agy' || profile.id === 'unknown') && status.get(root).status === 'waiting'
+        && nativeApprovalTabs.get(root) === 'agy' && AGY_IDLE_PATTERNS.some(re => re.test(data))) {
+        status.unpin(root)
+        nativeApprovalTabs.delete(root)
         return
     }
 
@@ -196,12 +210,12 @@ export function applyOutput (
     // 제목 스피너(busyTitleMarks)는 근거로 삼지 않는다 — 승인 대화상자가 떠 있는 동안에도 제목에 남을 수 있다
     // The fallback union includes Gemini's "esc to cancel", but Codex prints
     // that in its approval footer. Exclude this borrowed signal for Codex.
-    const busyPatterns = profile.id === 'codex' || codexApprovalTabs.has(root)
+    const busyPatterns = profile.id === 'codex' || nativeApprovalTabs.has(root)
         ? profile.busyPatterns.filter(re => !re.test('esc to cancel')) : profile.busyPatterns
     if (status.get(root).status === 'waiting' && busyPatterns.some(re => re.test(data))) {
         status.markBusy(root)
         status.resume(root)
-        codexApprovalTabs.delete(root)
+        nativeApprovalTabs.delete(root)
         return
     }
 
@@ -280,13 +294,13 @@ export function applyTitle (
     }
     if (autoDetect && (profile.id === 'codex' || profile.id === 'unknown')) {
         if (CODEX_WAITING_TITLE.test(title)) {
-            codexWaiting(status, root, '입력 대기')
+            nativeWaiting(status, root, '입력 대기')
             return
         }
-        if ((profile.id === 'codex' || codexApprovalTabs.has(root)) && CODEX_BUSY_TITLE.test(title)) {
+        if ((profile.id === 'codex' || nativeApprovalTabs.has(root)) && CODEX_BUSY_TITLE.test(title)) {
             status.markBusy(root)
             status.resume(root)
-            codexApprovalTabs.delete(root)
+            nativeApprovalTabs.delete(root)
             status.setAuto(root, 'running')
             return
         }

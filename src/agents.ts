@@ -13,7 +13,7 @@
  * `근거 미확인` 을 적는다. 짐작을 실측처럼 적어두면 다음 사람이 그것을 근거로 또 짐작한다.
  */
 
-export type AgentId = 'claude' | 'codex' | 'gemini' | 'unknown'
+export type AgentId = 'claude' | 'codex' | 'gemini' | 'agy' | 'unknown'
 
 /**
  * 이미지 전용 클립보드일 때 흘려보낼 키.
@@ -136,6 +136,12 @@ const GENERIC_PROMPT_HEADS = ['>', '❯', '›', '❭', '➜']
 // codex 의 육각은 OpenAI 매듭 로고의 **실루엣 근사**다 — 원본 path 를 정확히 옮긴 것이
 // 아니므로(근거 미확인) 로고라고 부르지 않는다. 나머지 둘은 그 브랜드 마크의 모양 그대로다
 // (Anthropic 의 별표, Gemini 의 4각 별).
+
+/** Antigravity 전용 원형 A 표식 — 브랜드 로고가 아닌 AgentDeck 납입용 상수 아이콘 */
+const ICON_AGY = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">'
+    + '<circle cx="8" cy="8" r="6.4" stroke="#7c5cff" stroke-width="1.5"/>'
+    + '<path d="m5.2 11 2.8-6 2.8 6M6.2 9h3.6" stroke="#7c5cff" stroke-width="1.4"'
+    + ' stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
 /** Anthropic 주황(#D97757) 6방 별표 — Claude Code 가 제목에 쓰는 `✳` 와 같은 모양 */
 const ICON_CLAUDE = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">'
@@ -358,8 +364,37 @@ const GEMINI: AgentProfile = {
     patternsProven: true,
 }
 
+/**
+ * Google Antigravity CLI (`agy`) — 2026-11-28 로컬 1.5.19 화면과 공식 hooks 문서 근거.
+ * running/done/error 는 native hooks 로 받고, 아래 화면 패턴은 승인과 hook 없는 실행의 보조다.
+ */
+export const AGY_IDLE_PATTERNS = [/^\s*\? for shortcuts\s*$/im]
+
+const AGY: AgentProfile = {
+    id: 'agy',
+    label: 'Antigravity',
+    icon: ICON_AGY,
+    processHints: ['agy'],
+    titleHints: ['antigravity', 'agy'],
+    waitingPatterns: [
+        /Do you trust the contents of this project\?/i,
+        /Antigravity CLI requires permission to read, edit, and execute files here/i,
+        /^\s*Run this command\?\s*$/im,
+        /^\s*Yes, allow (?:access|tool call|creation)\s*$/im,
+        /^\s*No, deny permission\s*$/im,
+        /Waiting for approval/i,
+        /permission required for/i,
+    ],
+    busyPatterns: [/Press esc to interrupt generation/i, /Thinking\.\.\. \(Enter\/Esc to cancel\)/i],
+    limitedPatterns: [],
+    busyTitleMarks: [],
+    imagePasteKey: 'config',
+    promptHeads: GENERIC_PROMPT_HEADS,
+    patternsProven: true,
+}
+
 /** 지원하는 에이전트 목록 — 새 CLI 는 여기에 한 덩이 추가하면 된다 */
-export const AGENT_PROFILES: AgentProfile[] = [CLAUDE, CODEX, GEMINI]
+export const AGENT_PROFILES: AgentProfile[] = [CLAUDE, CODEX, GEMINI, AGY]
 
 /**
  * 식별 순서 — **claude 를 맨 뒤에 둔다.**
@@ -368,7 +403,7 @@ export const AGENT_PROFILES: AgentProfile[] = [CLAUDE, CODEX, GEMINI]
  * 먼저 보지 않으면 codex 세션이 claude 로 잡힐 수 있다. 옛 `detectAgentApp` 이 codex 를
  * claude 보다 먼저 본 이유가 이것이고, 그 성질을 그대로 유지한다.
  */
-const MATCH_ORDER: AgentId[] = ['codex', 'gemini', 'claude']
+const MATCH_ORDER: AgentId[] = ['codex', 'agy', 'gemini', 'claude']
 
 /** 같은 정규식이 두 번 들어가지 않게 — 합집합을 만들 때 쓴다 */
 function dedupeRe (list: RegExp[]): RegExp[] {
@@ -482,7 +517,9 @@ export function detectProfileFor (id: AgentId | undefined | null): AgentProfile 
 export function identifyAgent (processNames: string, title: string): AgentId {
     const procs = (processNames ?? '').toLowerCase()
     for (const id of MATCH_ORDER) {
-        if (profileFor(id).processHints.some(h => procs.includes(h))) {
+        if (profileFor(id).processHints.some(h => id === 'agy'
+            ? /(?:^|[\s\\/])agy(?:\.exe)?["']?(?:\s|$)/i.test(procs)
+            : procs.includes(h))) {
             return id
         }
     }
