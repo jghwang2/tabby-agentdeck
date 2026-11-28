@@ -46,20 +46,26 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 #agentdeck-sidebar {
     display: flex;
     flex-direction: column;
+    // Footer responsiveness follows the dock itself, not the window width.
+    container-type: inline-size;
+    container-name: ad-sidebar;
     // 실제 위치와 크기는 deck.service 의 relayout 이 인라인으로 준다 (도킹 방향에 따라 달라짐)
     z-index: 5;
     overflow: hidden;
     // --ad-panel-bg 는 agentdeck 이 sidebarOpacity 로 내려준다 (배경 이미지가 비치게)
-    background: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
+    background-color: var(--ad-panel-bg, var(--bs-body-bg, #1e2127));
+    background-image: linear-gradient(180deg, rgba(122, 162, 247, 0.055), transparent 150px);
+    -webkit-backdrop-filter: blur(20px) saturate(125%);
+    backdrop-filter: blur(20px) saturate(125%);
     font-size: 12px;
     user-select: none;
     -webkit-app-region: no-drag;
 
     // 붙어 있는 쪽 반대편에만 경계선을 그린다
-    &.ad-dock-right { border-left: 1px solid rgba(255, 255, 255, 0.08); }
-    &.ad-dock-left { border-right: 1px solid rgba(255, 255, 255, 0.08); }
-    &.ad-dock-top { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-    &.ad-dock-bottom { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+    &.ad-dock-right { border-left: 1px solid rgba(122, 162, 247, 0.14); }
+    &.ad-dock-left { border-right: 1px solid rgba(122, 162, 247, 0.14); }
+    &.ad-dock-top { border-bottom: 1px solid rgba(122, 162, 247, 0.14); }
+    &.ad-dock-bottom { border-top: 1px solid rgba(122, 162, 247, 0.14); }
 
     // 상/하 도킹은 세로가 짧으므로 목록을 가로로 흘린다
     &.ad-dock-top,
@@ -84,6 +90,13 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         .ad-tab {
             flex: 0 0 220px;
             min-width: 0;
+            // Keep horizontal-dock rows compact within the default 200px height.
+            // The roomier card treatment below is for left/right docks only.
+            margin-bottom: 3px;
+            padding: 7px 6px 7px 0;
+
+            .ad-meta { margin-top: 2px; }
+            .ad-badge { padding: 0; }
         }
 
         // 그룹 헤더는 한 줄을 다 차지해 가로 흘림을 끊는다 — 그래야 헤더 아래 줄부터 그 그룹의
@@ -109,11 +122,12 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 12px 8px;
+        gap: 8px;
+        padding: 14px 12px 10px;
         letter-spacing: 0.12em;
-        font-size: 10px;
+        font-size: 9.5px;
         font-weight: 700;
-        color: rgba(255, 255, 255, 0.4);
+        color: rgba(169, 177, 214, 0.52);
         // 헤더를 잡아 끌면 도킹 방향을 바꾼다 (OS 창 이동에 뺏기면 안 되므로 no-drag)
         -webkit-app-region: no-drag;
         cursor: grab;
@@ -160,13 +174,28 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     // 상태별 집계 칩 한 줄 — `⏸ 2  ● 3  ○ 1`. 헤더 높이는 총 개수만 있던 때와 같게 유지한다
     .ad-head-title {
+        display: flex;
+        align-items: center;
+        min-width: 0;
         white-space: nowrap;
+
+        &::before {
+            content: '';
+            flex: 0 0 auto;
+            width: 6px;
+            height: 6px;
+            margin-right: 7px;
+            border-radius: 2px;
+            background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+            box-shadow: 0 0 10px rgba(122, 162, 247, 0.35);
+        }
     }
 
     .ad-head-version {
-        margin-left: 4px;
+        margin-left: 5px;
         letter-spacing: 0;
         font-weight: 400;
+        opacity: 0.62;
     }
 
     .ad-head-count {
@@ -177,13 +206,13 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         flex: 0 0 auto;
         white-space: nowrap;
         letter-spacing: 0;
-        color: rgba(255, 255, 255, 0.55);
+        color: rgba(192, 202, 245, 0.68);
     }
 
     .ad-cnt {
-        padding: 1px 6px;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.08);
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.055);
         color: var(--ad-color, rgba(255, 255, 255, 0.55));
         font-size: 10px;
         line-height: 1.3;
@@ -195,7 +224,7 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         flex: 1 1 auto;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 2px 6px 8px;
+        padding: 4px 8px 12px;
         // **못박아 둔다** — 드래그 자동 스크롤(deck.service `dragScrollTick`)이 매 프레임
         // `scrollTop` 에 몇 px 를 더하는 식으로 목록을 흘린다. 여기가 `smooth` 면 그 대입마다
         // 새 애니메이션이 시작돼 서로를 덮어써서 목록이 기어가거나 아예 멈춘다.
@@ -208,8 +237,10 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         }
 
         &::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.14);
-            border-radius: 4px;
+            background: rgba(169, 177, 214, 0.16);
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background-clip: padding-box;
 
             &:hover {
                 background: rgba(255, 255, 255, 0.24);
@@ -291,15 +322,20 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         position: relative;
         display: flex;
         align-items: stretch;
-        gap: 8px;
-        margin-bottom: 3px;
-        padding: 7px 6px 7px 0;
-        border-radius: 5px;
+        gap: 9px;
+        margin-bottom: 6px;
+        padding: 8px 7px 8px 0;
+        border: 1px solid rgba(169, 177, 214, 0.055);
+        border-radius: 10px;
+        background: rgba(169, 177, 214, 0.025);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
         cursor: pointer;
-        transition: background 0.1s ease;
+        transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 
         &:hover {
-            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(122, 162, 247, 0.16);
+            background: rgba(122, 162, 247, 0.065);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
 
             .ad-close {
                 opacity: 0.65;
@@ -307,7 +343,9 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         }
 
         &.active {
-            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(122, 162, 247, 0.24);
+            background: linear-gradient(105deg, rgba(122, 162, 247, 0.15), rgba(187, 154, 247, 0.075));
+            box-shadow: 0 4px 14px rgba(5, 8, 18, 0.18);
 
             .ad-title {
                 color: #fff;
@@ -318,7 +356,8 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     // 상태색 표시 바
     .ad-bar {
         flex: 0 0 3px;
-        border-radius: 2px;
+        margin: 1px 0;
+        border-radius: 0 3px 3px 0;
         background: var(--ad-color, #6b727d);
     }
 
@@ -331,9 +370,10 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        color: rgba(255, 255, 255, 0.82);
-        font-size: 12.5px;
-        line-height: 1.35;
+        color: rgba(222, 226, 241, 0.88);
+        font-size: 12px;
+        font-weight: 550;
+        line-height: 1.45;
     }
 
     // 어느 에이전트인지 말하는 표식 (deck.service.ts `decorateAgent`).
@@ -360,9 +400,9 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 6px;
-        margin-top: 2px;
-        font-size: 10.5px;
+        gap: 5px;
+        margin-top: 4px;
+        font-size: 10px;
         line-height: 1.4;
         color: rgba(255, 255, 255, 0.45);
     }
@@ -375,6 +415,9 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.04);
         color: var(--ad-color, #6b727d);
         font-weight: 600;
 
@@ -443,7 +486,8 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        border-top: 1px solid rgba(122, 162, 247, 0.1);
+        background: rgba(8, 10, 18, 0.08);
     }
 
     .ad-resume-rows {
@@ -476,19 +520,19 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         align-items: center;
         gap: 5px;
         margin: 0;
-        padding: 6px 8px;
-        border-radius: 4px;
+        padding: 8px 10px;
+        border-radius: 7px;
         // 그룹 헤더(0.42)보다 더 죽인다 — 살아 있는 목록이 먼저 읽혀야 한다
-        color: rgba(255, 255, 255, 0.34);
-        font-size: 10px;
+        color: rgba(169, 177, 214, 0.45);
+        font-size: 9.5px;
         font-weight: 700;
         letter-spacing: 0.06em;
         cursor: pointer;
         transition: background 0.1s ease, color 0.1s ease;
 
         &:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.6);
+            background: rgba(122, 162, 247, 0.07);
+            color: rgba(192, 202, 245, 0.72);
         }
 
         .ad-group-count {
@@ -758,34 +802,89 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
 
     .ad-foot {
         display: flex;
+        align-items: center;
         gap: 6px;
-        padding: 8px;
-        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding: 7px 8px;
+        border-top: 1px solid rgba(122, 162, 247, 0.1);
+        background: rgba(8, 10, 18, 0.1);
     }
 
     .ad-btn {
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
         flex: 1 1 auto;
-        padding: 5px 8px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 4px;
-        background: transparent;
-        color: rgba(255, 255, 255, 0.6);
+        min-width: 0;
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid rgba(169, 177, 214, 0.11);
+        border-radius: 8px;
+        outline: none;
+        background: rgba(169, 177, 214, 0.035);
+        color: rgba(192, 202, 245, 0.68);
         font-size: 11px;
+        line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
         cursor: pointer;
+        transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 
         &:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
+            border-color: rgba(122, 162, 247, 0.28);
+            background: rgba(122, 162, 247, 0.11);
+            color: #e6ebff;
+        }
+
+        &:focus-visible {
+            border-color: rgba(122, 162, 247, 0.65);
+            box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.16);
         }
     }
 
-    // 글자가 한 자뿐인 버튼들은 나머지와 같은 비율로 늘어나면 허전하다
+    .ad-btn-icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+
+        svg {
+            display: block;
+            width: 15px;
+            height: 15px;
+        }
+    }
+
+    .ad-btn-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    // The text already contains +; use the separate plus icon only in compact mode.
+    .ad-new .ad-btn-icon { display: none; }
+    .ad-settings { flex: 0 0 auto; }
+
     .ad-repair,
     .ad-viewtoggle {
-        flex: 0 0 auto;
-        min-width: 28px;
-        font-size: 13px;
-        line-height: 1;
+        flex: 0 0 32px;
+        min-width: 32px;
+        padding: 0;
+    }
+
+    // CJK labels must never turn into vertical columns as the dock is narrowed.
+    // Four equal icon buttons still fit the supported 140px minimum dock width.
+    @container ad-sidebar (max-width: 299px) {
+        .ad-foot { gap: 4px; padding: 6px; }
+        .ad-btn {
+            flex: 1 1 0;
+            min-width: 28px;
+            padding: 0;
+        }
+        .ad-btn-label { display: none; }
+        .ad-new .ad-btn-icon { display: inline-flex; }
     }
     // ---------- 세션 검색 / 상태 필터 (deck.service buildSidebar · wireSearch) ----------
     // 유닛 T 가 넘긴 CSS — 그 유닛은 이 파일을 소유하지 않아 배리어에서 메인이 넣는다.
@@ -797,30 +896,35 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
         flex: 0 0 auto;
         gap: 4px;
         align-items: center;
-        padding: 0 8px 6px;
+        padding: 0 10px 10px;
         -webkit-app-region: no-drag;
     }
 
     .ad-search-input {
         // 사이드바는 200~560px — 입력창이 남는 폭을 다 쓰되 줄어들 때 버튼을 밀지 않게
         flex: 1 1 auto;
+        box-sizing: border-box;
         min-width: 0;
-        padding: 3px 6px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 4px;
+        height: 30px;
+        padding: 0 9px;
+        border: 1px solid rgba(169, 177, 214, 0.12);
+        border-radius: 8px;
         outline: none;
-        background: rgba(0, 0, 0, 0.28);
-        color: rgba(255, 255, 255, 0.85);
+        background: rgba(8, 10, 18, 0.2);
+        color: rgba(230, 235, 255, 0.88);
         font-size: 11px;
         line-height: 1.4;
+        transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 
         &::placeholder {
-            color: rgba(255, 255, 255, 0.3);
+            color: rgba(169, 177, 214, 0.36);
         }
 
         &:focus {
-            border-color: rgba(97, 175, 239, 0.7);
-            color: #fff;
+            border-color: rgba(122, 162, 247, 0.58);
+            background: rgba(8, 10, 18, 0.32);
+            box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.1);
+            color: #eef1ff;
         }
     }
 
@@ -829,11 +933,11 @@ body.agentdeck-active.ad-bg-clip .content-tab-active::before {
     .ad-search-clear {
         display: none;
         flex: 0 0 auto;
-        width: 18px;
-        height: 18px;
+        width: 24px;
+        height: 24px;
         padding: 0;
         border: 0;
-        border-radius: 3px;
+        border-radius: 6px;
         background: transparent;
         color: rgba(255, 255, 255, 0.45);
         font-size: 14px;

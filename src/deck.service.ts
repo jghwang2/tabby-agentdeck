@@ -859,7 +859,15 @@ export class AgentDeckService {
             ['.ad-viewtoggle', '미리보기 패널 (md · 이미지 · 표)', ''],
         ]) {
             const el = root.querySelector<HTMLElement>(selector)
-            if (el) { el.title = this.ui(title); if (text) { el.textContent = this.ui(text) } }
+            if (el) {
+                el.title = this.ui(title)
+                el.setAttribute('aria-label', this.ui(title))
+                const label = el.querySelector<HTMLElement>('.ad-btn-label')
+                if (text) {
+                    if (label) { label.textContent = this.ui(text) }
+                    else { el.textContent = this.ui(text) }
+                }
+            }
         }
     }
 
@@ -4406,12 +4414,12 @@ export class AgentDeckService {
             '  <div class="ad-now-refresh-status" role="status" aria-live="polite"></div>',
             '</div>',
             '<div class="ad-foot">',
-            this.uiMarkup('  <button class="ad-btn ad-new" title="새 탭">+ 새 탭</button>'),
-            this.uiMarkup('  <button class="ad-btn ad-settings" title="설정">설정</button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-new" title="새 탭" aria-label="새 탭"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ad-btn-label">+ 새 탭</span></button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-settings" title="설정" aria-label="설정"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 7h-9M14 17H5"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/></svg></span><span class="ad-btn-label">설정</span></button>'),
             // 화면이 깨졌을 때 누르는 자리 — 창을 복원→최대화로 흔들던 것을 대신한다.
             // 자주 쓰는 두 버튼(새 탭·설정) 뒤에 둔다 (2026-09-01 유저 요청)
-            this.uiMarkup('  <button class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)">↻</button>'),
-            this.uiMarkup('  <button class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)">▤</button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)" aria-label="화면 복구 (모든 탭 다시 그리기)"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></span></button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)" aria-label="미리보기 패널 (md · 이미지 · 표)"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M8 9h12"/></svg></span></button>'),
             '</div>',
         ].join('\n')
 
