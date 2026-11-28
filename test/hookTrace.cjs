@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+if (process.platform !== 'win32') { console.log('SKIP Windows PowerShell stage tracing; Python relay is covered by pythonTransport/hookReceiver'); process.exit(0) }
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path')
 const { spawnSync, spawn } = require('node:child_process')
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-hook-trace-test-'))

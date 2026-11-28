@@ -37,7 +37,7 @@ param(
     # 어느 CLI 가 보냈나. **이 값이 에이전트 판정의 1순위 근거다** — 플러그인이 프로세스 이름·
     # 명령줄·탭 제목·화면 문구로 추측하던 것(deck.service `detectAgentApp`)을 이 한 줄이 대신한다.
     # 자기가 누구인지는 훅을 부르는 쪽이 아는 사실이지 추측할 일이 아니다 (cwd·tabId 와 같은 이치).
-    [ValidateSet('claude', 'codex', 'gemini')]
+    [ValidateSet('claude', 'codex', 'gemini', 'agy')]
     [string]$Agent = 'claude',
 
     [ValidateSet('running', 'waiting', 'limited', 'done', 'error', 'idle')]

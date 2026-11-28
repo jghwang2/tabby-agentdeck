@@ -61,6 +61,8 @@ Inside Tabby: Settings → Plugins → search `agentdeck` → Install → restar
 Sessions use automatic permanent job aliases beside their original titles. Drag to reorder; numeric shortcuts follow visible order.
 The optional [session communication MCP](docs/SESSION-COMMUNICATION.md) sends and receives by actual session ID only. Human numbers never address the MCP server.
 
+For Antigravity CLI (`agy`) status support, install its optional lifecycle hooks with `python3 scripts/agentdeck-agy-setup.py install` (Windows: `python scripts\agentdeck-agy-setup.py install`). See [AGY setup and permission behavior](docs/AGY.md).
+
 Everything else — status, preview panel, diff and commit, resuming sessions, settings — is in the
 [user guide](https://jghwang2.github.io/tabby-agentdeck/guide/) and the [full reference](docs/REFERENCE.md).
 

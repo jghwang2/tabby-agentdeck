@@ -18,7 +18,7 @@ export function isLiveCodexScreen (lines: string[]): boolean {
 function identifyShellLaunch (command: string): AgentId {
     const args = (command.match(/"[^"]*"|\S+/g) ?? []).map(arg => arg.replace(/^"|"$/g, ''))
     const exe = (args[0] ?? '').split(/[\\/]/).pop()?.replace(/\.(exe|cmd|bat)$/i, '').toLowerCase()
-    if (exe === 'codex' || exe === 'claude' || exe === 'gemini') { return exe }
+    if (exe === 'codex' || exe === 'claude' || exe === 'gemini' || exe === 'agy') { return exe }
     if (exe === 'node') {
         const script = (args[1] ?? '').replace(/\\/g, '/')
         if (/\/@openai\/codex\/bin\/codex\.js$/i.test(script)) { return 'codex' }
@@ -37,6 +37,7 @@ export function identifyScreenAgent (lines: string[]): AgentId {
     for (const line of lines) {
         if (/^\s*│\s*>_\s+OpenAI Codex\s+\(v\d+\./.test(line)) { id = 'codex' }
         else if (/^[\s*\u2500-\u259f]*Claude Code v\d+\./.test(line)) { id = 'claude' }
+        else if (/^\s*Welcome to the Antigravity CLI\./.test(line)) { id = 'agy' }
         else if (/^(?:PS )?[A-Za-z]:[\\/][^>]*>/.test(line)) { id = 'unknown' }
     }
     return id

@@ -60,7 +60,7 @@ function check (name, got, want) {
 // 6) 프로필의 필수 필드는 비어 있을 수 없다 — 새 에이전트를 추가할 때 반쯤 채우고 끝내는 것을 막는다.
 //    화면 문구(waiting/busy)와 제목 스피너는 실측이 없으면 비워 두는 것이 규칙이라 여기서 요구하지 않는다
 {
-    check('프로필 3종', AGENT_PROFILES.length, 3)
+    check('프로필 4종', AGENT_PROFILES.length, 4)
     for (const p of AGENT_PROFILES) {
         check(`${p.id} label`, !!p.label, true)
         check(`${p.id} processHints`, p.processHints.length > 0, true)

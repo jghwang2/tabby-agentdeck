@@ -8,6 +8,7 @@ import { sidebarText, sidebarMarkup, sidebarReset, sidebarReason, RESET_COPY } f
 import { newlineSequence, canRepairComposer } from './terminalInput'
 import { installCursorVisibilityFix } from './cursorVisibility'
 import { identifyScreenAgent, isLiveCodexScreen, TerminalAgentTracker } from './screenAgent'
+import { findAgentInProcessTree } from './processTree'
 import { installCodexWheel } from './codexWheel'
 import { installCodexKeys } from './codexKeys'
 import { installFileLinks } from './fileLinks'
@@ -858,7 +859,15 @@ export class AgentDeckService {
             ['.ad-viewtoggle', '미리보기 패널 (md · 이미지 · 표)', ''],
         ]) {
             const el = root.querySelector<HTMLElement>(selector)
-            if (el) { el.title = this.ui(title); if (text) { el.textContent = this.ui(text) } }
+            if (el) {
+                el.title = this.ui(title)
+                el.setAttribute('aria-label', this.ui(title))
+                const label = el.querySelector<HTMLElement>('.ad-btn-label')
+                if (text) {
+                    if (label) { label.textContent = this.ui(text) }
+                    else { el.textContent = this.ui(text) }
+                }
+            }
         }
     }
 
@@ -2137,11 +2146,9 @@ export class AgentDeckService {
                 // (2026-09-08 실측: 자식 프로세스가 codex.exe 인데 진단은 `id=unknown` 그대로).
                 // TTL(AGENT_PROBE_TTL_MS)이 조회 빈도를 막고, 한 번 알아낸 탭은 이 갈래를 타지 않는다
                 this.outputHits++
-                const observed = this.paneAgents.get(pane)
-                if ((this.tabAgents.get(root) ?? 'unknown') === 'unknown'
-                    || (observed?.session === anyPane.session && observed?.tracker.id === 'unknown')) {
-                    void this.probeAgent(root, 'output')
-                }
+                // A known CLI can exit and another can start in the same PTY without a
+                // title change. Always schedule a probe; AGENT_PROBE_TTL_MS caps the OS cost.
+                void this.probeAgent(root, 'output')
                 applyOutput(this.status, root, pane, data, this.config.store.agentDeck.autoDetect,
                     this.profileForTab(root))
                 // 화면에 찍힌 파일 경로를 주워 미리보기 패널의 최근 목록에 쌓는다.
@@ -3240,8 +3247,7 @@ export class AgentDeckService {
     private async detectAgentApp (pane: any): Promise<{ id: AgentId, via: 'hook' | 'proc' | 'cmdline' | 'title' | 'none' }> {
         const root = (this.app.getParentTab?.(pane) ?? pane) as BaseTabComponent
         const verified = this.notify?.parentAgentOf?.(root)
-        if (verified) return {id:verified,via:'hook'}
-        const hooked = this.notify?.agentOf?.(root) ?? null
+        const hooked = verified ?? this.notify?.agentOf?.(root) ?? null
         let pids: number[] = []
         try {
             const procs: any[] = await pane.session?.getChildProcesses?.() ?? []
@@ -3252,31 +3258,21 @@ export class AgentDeckService {
                 // 훅이 없는 codex 를 띄우면 훅은 아무 말도 안 하므로 옛 `claude` 가 남는다.
                 // 프로세스 이름이 **다른 에이전트를 확실히** 가리키면 그게 지금의 사실이니 훅 값을 버린다
                 if (hooked && hooked !== byProc) {
-                    this.notify?.forgetAgent?.(root)
+                    if (verified) this.notify?.setParentAgent?.(root, null)
+                    else this.notify?.forgetAgent?.(root)
                     this.forgetHookStatus(root)
                     this.diag(`agent hook stale hook=${hooked} proc=${byProc}`)
                 }
                 return { id: byProc, via: 'proc' }
             }
             pids = procs.map(x => Number(x?.pid)).filter(n => Number.isInteger(n) && n > 0)
-            if (hooked && !pids.length) {
-                // **"자식이 없다 = 에이전트가 끝났다" 로 보지 않는다** — 빈 목록은 믿을 만한 종료 신호가
-                // 아니다. 격리 인스턴스에서 **처음 연 터미널 탭 외의 탭은** `ping` 이 응답을 찍고 있는데도
-                // `getChildProcesses()` 가 `[]` 였다(winpty·ConPTY 둘 다, 2026-09-14 실측). SSH 처럼
-                // 프로세스 트리를 못 읽는 세션도 같은 값을 낸다. 그 규칙을 두면 훅 정체가 판정마다 지워진다.
-                // 물어볼 pid 조차 없으므로 여기서 끝낸다
-                return { id: hooked, via: 'hook' }
-            }
             // **자식은 있는데 이름으로 못 가린 것은 "모르겠다" 가 아니다.**
             // npm 전역 래퍼로 띄운 CLI 는 자식이 `node.exe` 하나뿐이라 이름으로는 영영 안 잡힌다.
             // 그 상태에서 훅 값을 그대로 믿으면 같은 탭에서 claude 를 끄고 codex 를 띄워도 영영
             // claude 로 남는다 — 아래 명령줄 폴백이 바로 그 경우를 위해 있는데 훅 때문에 도달하지
             // 못했다(2026-09-15 지적). 그래서 **pid 가 있으면 훅이 있어도 명령줄까지 물어본다.**
         } catch {
-            // 프로세스 트리를 못 읽는 세션(SSH 등) — 훅이 말한 것이 있으면 그걸, 없으면 아래 제목으로
-            if (hooked) {
-                return { id: hooked, via: 'hook' }
-            }
+            // Tabby cannot inspect some sessions. The PTY/OS fallback below may still work.
         }
 
         // **npm 전역 래퍼로 띄운 CLI 는 이름만으로는 영영 unknown 이다.**
@@ -3295,13 +3291,27 @@ export class AgentDeckService {
                 // 제일 먼저 보는 동기 경로(`resolveProfileForPane`)가 계속 옛 답을 낸다.
                 // 그게 곧 커서 보정·키보드가 쓰는 자리라 화면에 그대로 나타난다.
                 if (hooked && hooked !== byCmd) {
-                    this.notify?.forgetAgent?.(root)
+                    if (verified) this.notify?.setParentAgent?.(root, null)
+                    else this.notify?.forgetAgent?.(root)
                     this.forgetHookStatus(root)
                     this.diag(`agent hook stale hook=${hooked} cmdline=${byCmd}`)
                 }
                 return { id: byCmd, via: 'cmdline' }
             }
         }
+
+        const byTree = await this.agentFromProcessTree(pane)
+        if (byTree !== 'unknown') {
+            if (hooked && hooked !== byTree) {
+                if (verified) this.notify?.setParentAgent?.(root, null)
+                else this.notify?.forgetAgent?.(root)
+                this.forgetHookStatus(root)
+                this.diag(`agent hook stale hook=${hooked} tree=${byTree}`)
+            }
+            return { id: byTree, via: 'proc' }
+        }
+
+        if (hooked) return { id: hooked, via: 'hook' }
 
         const title = `${pane.title ?? ''} ${pane.customTitle ?? ''}`
         const byTitle = identifyAgent('', title)
@@ -3335,6 +3345,15 @@ export class AgentDeckService {
      * pid 는 **숫자만** 통과시킨다. 값을 명령에 이어 붙이는 자리라, 여기서 걸러내지 않으면
      * 그대로 셸에 넘어간다.
      */
+    private async agentFromProcessTree (pane: any): Promise<AgentId> {
+        try {
+            const pid = await pane.session?.pty?.getPID?.()
+            return Number.isInteger(pid) && pid > 0 ? findAgentInProcessTree(pid) : 'unknown'
+        } catch {
+            return 'unknown'
+        }
+    }
+
     private async commandLinesOf (pids: number[]): Promise<string | null> {
         const clean = pids.filter(n => Number.isInteger(n) && n > 0).slice(0, 8)
         if (!clean.length) {
@@ -3402,6 +3421,7 @@ export class AgentDeckService {
         }
         this.tabAgents.set(root, found.id)
         if (found.id !== prev) {
+            this.scheduleRender?.()
             this.diag(`agent tab=${JSON.stringify(root.title ?? '')}`
                 + ` id=${found.id} via=${found.via} (${why})`)
         }
@@ -4394,12 +4414,12 @@ export class AgentDeckService {
             '  <div class="ad-now-refresh-status" role="status" aria-live="polite"></div>',
             '</div>',
             '<div class="ad-foot">',
-            this.uiMarkup('  <button class="ad-btn ad-new" title="새 탭">+ 새 탭</button>'),
-            this.uiMarkup('  <button class="ad-btn ad-settings" title="설정">설정</button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-new" title="새 탭" aria-label="새 탭"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ad-btn-label">+ 새 탭</span></button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-settings" title="설정" aria-label="설정"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 7h-9M14 17H5"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/></svg></span><span class="ad-btn-label">설정</span></button>'),
             // 화면이 깨졌을 때 누르는 자리 — 창을 복원→최대화로 흔들던 것을 대신한다.
             // 자주 쓰는 두 버튼(새 탭·설정) 뒤에 둔다 (2026-09-01 유저 요청)
-            this.uiMarkup('  <button class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)">↻</button>'),
-            this.uiMarkup('  <button class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)">▤</button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-repair" title="화면 복구 (모든 탭 다시 그리기)" aria-label="화면 복구 (모든 탭 다시 그리기)"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></span></button>'),
+            this.uiMarkup('  <button type="button" class="ad-btn ad-viewtoggle" title="미리보기 패널 (md · 이미지 · 표)" aria-label="미리보기 패널 (md · 이미지 · 표)"><span class="ad-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M8 9h12"/></svg></span></button>'),
             '</div>',
         ].join('\n')
 
@@ -4884,6 +4904,9 @@ export class AgentDeckService {
         // `|| 300000` 을 쓰지 않는다: 그러면 사람이 0 으로 꺼 놓은 것이 기본값으로 되살아난다
         const stale = this.config.store.agentDeck.staleAfterMs ?? 300000
         for (const tab of this.app.tabs) {
+            // Reconcile even when a CLI starts or exits without more terminal output.
+            // AGENT_PROBE_TTL_MS limits this to one process inspection per tab per interval.
+            void this.probeAgent(tab, 'tick')
             if (this.status.tickIdle(tab, idleAfter, stale)) {
                 dirty = true
             }

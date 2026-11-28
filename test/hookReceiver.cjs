@@ -2,6 +2,8 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), net = require('node:net')
 const { spawn } = require('node:child_process')
 const { HookDispatcher } = require('../receiver/dispatcher.cjs')
+const python = process.env.AGENTDECK_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
+const nativeHook = name => `${name}.${process.platform === 'win32' ? 'ps1' : 'py'}`
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentdeck-receiver-'))
 let dispatcher = new HookDispatcher(root)
 const session = 'receiver-test', secret = 'PRIVATE-PROMPT-MUST-NOT-BE-STORED'
@@ -26,8 +28,9 @@ const server = net.createServer(socket => {
 })
 async function run (script, input, args = []) {
     const isNode = script.endsWith('.mjs')
-    const child = spawn(isNode ? 'node' : 'powershell.exe',
-        isNode ? [path.resolve(__dirname, '../hooks', script), ...args]
+    const isPython = script.endsWith('.py')
+    const child = spawn(isNode ? process.execPath : isPython ? python : 'powershell.exe',
+        isNode || isPython ? [path.resolve(__dirname, '../hooks', script), ...args]
             : ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.resolve(__dirname, '../hooks', script), ...args],
         { env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     let out = '', err = ''; child.stdout.setEncoding('utf8'); child.stdout.on('data', b => out += b); child.stderr.on('data', b => err += b)
@@ -42,7 +45,7 @@ async function drain () {
 }
 ;(async () => {
     // No receiver: relay writes only a redacted event, never a final status.
-    assert.equal(await run('agentdeck-codex-notify.ps1', hook('Stop')), '')
+    assert.equal(await run(nativeHook('agentdeck-codex-notify'), hook('Stop')), '')
     assert.ok(!fs.existsSync(path.join(root, 'status')))
     const queuedFile = path.join(root, 'hook-inbox', fs.readdirSync(path.join(root, 'hook-inbox'))[0])
     const queued = JSON.parse(fs.readFileSync(queuedFile)); assert.ok(!JSON.stringify(queued).includes(secret))
@@ -50,14 +53,14 @@ async function drain () {
     fs.writeFileSync(path.join(root, 'port'), String(server.address().port))
     await drain(); assert.equal(state().status, 'done')
     assert.equal(state().identityRequired, true, 'queued lifecycle events require observed identity')
-    await run('agentdeck-notify.ps1', 'bad json', ['-SessionId', 'manual-fallback', '-Status', 'done'])
+    await run(nativeHook('agentdeck-notify'), 'bad json', ['-SessionId', 'manual-fallback', '-Status', 'done'])
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'status', 'manual-fallback.json'))).status, 'done')
-    await run('agentdeck-codex-notify.ps1', hook('PermissionRequest', { tool_name: 'exec_command' }))
+    await run(nativeHook('agentdeck-codex-notify'), hook('PermissionRequest', { tool_name: 'exec_command' }))
     assert.equal(state().status, 'waiting'); assert.equal(state().reason, 'Approval: exec_command')
-    await run('agentdeck-notify.ps1', hook('PostToolUse', { cwd: 'D:/한글/😀', tool_input: { file_path: 'D:/한글/😀/파일.ts', token: secret } }), ['-Status', 'running'])
+    await run(nativeHook('agentdeck-notify'), hook('PostToolUse', { cwd: 'D:/한글/😀', tool_input: { file_path: 'D:/한글/😀/파일.ts', token: secret } }), ['-Status', 'running'])
     assert.equal(state().cwd, 'D:/한글/😀'); assert.equal(state().file, 'D:/한글/😀/파일.ts')
     const before = fs.readFileSync(path.join(root, 'status', session + '.json'), 'utf8')
-    await run('agentdeck-notify.ps1', hook('SubagentStart', { agent_id: 'child', agent_type: 'general-purpose' }), ['-Subagent', 'start'])
+    await run(nativeHook('agentdeck-notify'), hook('SubagentStart', { agent_id: 'child', agent_type: 'general-purpose' }), ['-Subagent', 'start'])
     assert.equal(fs.readFileSync(path.join(root, 'status', session + '.json'), 'utf8'), before)
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'agents', session, 'child.json'))).agentActivity.action, 'active')
     // Duplicate delivery after receiver restart is acknowledged without replaying the old Stop.
@@ -66,7 +69,7 @@ async function drain () {
     assert.equal(state().status, 'running'); assert.ok(!fs.existsSync(queuedFile))
     const stale = { ...queued, id: 'delayed-stop', ts: queued.ts - 1 }
     await dispatcher.accept(stale); assert.equal(state().status, 'running')
-    await run('agentdeck-notify.ps1', hook('StopFailure', { error: 'rate_limit', last_assistant_message: '한도 도달' }), ['-Status', 'error'])
+    await run(nativeHook('agentdeck-notify'), hook('StopFailure', { error: 'rate_limit', last_assistant_message: '한도 도달' }), ['-Status', 'error'])
     assert.equal(state().status, 'limited')
     // Snapshot parsing is receiver-owned; user's original statusline still renders at the caller.
     fs.writeFileSync(path.join(root, 'scoped-limit.json'), JSON.stringify({ ts: Date.now(), ok: true }))
@@ -76,10 +79,14 @@ async function drain () {
     const meta = JSON.parse(fs.readFileSync(path.join(root, 'meta', session + '.json')))
     assert.equal(meta.contextPct, 77); assert.equal(meta.limits.sevenDayPct, 4); assert.equal(meta.model, '모델')
     assert.equal((await dispatcher.accept({ ...queued, id: '../escape' })).accepted, false)
-    env.AGENTDECK_TAB = ''
-    await run('agentdeck-codex-notify.ps1', hook('PreToolUse', { session_id: 'external-origin' }))
-    const external = JSON.parse(fs.readFileSync(path.join(root, 'status', 'external-origin.json')))
-    assert.ok(external.pids.includes(process.pid), 'ancestry must follow the caller, not the receiver worker')
+    if (process.platform === 'win32') {
+        env.AGENTDECK_TAB = ''
+        await run(nativeHook('agentdeck-codex-notify'), hook('PreToolUse', { session_id: 'external-origin' }))
+        const external = JSON.parse(fs.readFileSync(path.join(root, 'status', 'external-origin.json')))
+        assert.ok(external.pids.includes(process.pid), 'ancestry must follow the caller, not the receiver worker')
+    } else {
+        console.log('SKIP Windows PowerShell external-ancestry worker')
+    }
     assert.ok(messages.every(m => !JSON.stringify(m).includes(secret)))
     // A busy state worker cannot delay the caller's context response. The ACK
     // must still mean the event is already durable, and replay must run it once.

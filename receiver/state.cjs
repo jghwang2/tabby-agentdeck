@@ -10,7 +10,7 @@ function write (file, value, id) {
 function stateEvent (root, e) {
     const h = e.hook, o = e.options || {}, agent = o.Agent || 'claude'
     const sid = h.session_id || o.SessionId, tab = (e.env?.AGENTDECK_TAB || '').trim()
-    if (!sid || !['claude', 'codex'].includes(agent)) return { handled: false }
+    if (!sid || !['claude', 'codex', 'agy'].includes(agent)) return { handled: false }
     // Claude children have their own record; they must never rewrite a parent.
     if (agent === 'claude' && h.agent_id) {
         const action = ['SubagentStop', 'Stop', 'SessionEnd'].includes(h.hook_event_name) ? 'stop' : 'active'
@@ -49,7 +49,7 @@ function stateEvent (root, e) {
     if (label.length > max) label = label.slice(0, max).trimEnd() + '...'
     if (prev?.ts >= e.ts) return { handled: true }
     const payload = { sessionId: sid, ts: e.ts, agent }
-    const reportedHome = agent === 'codex' ? e.env?.CODEX_HOME : e.env?.CLAUDE_CONFIG_DIR
+    const reportedHome = agent === 'codex' ? e.env?.CODEX_HOME : agent === 'claude' ? e.env?.CLAUDE_CONFIG_DIR : undefined
     if (reportedHome) payload.configDir = reportedHome
     if (h.hook_event_name) payload.identityRequired = true
     if (!o.Subagent) payload.status = status || prev?.status || 'running'
